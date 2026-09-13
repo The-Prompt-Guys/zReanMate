@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# build output
+client/dist/
+client/.vite/
+
+# environment
+.env
+.env.local
+*.env
+!.env.example
+
+# uploads (multer local disk in dev)
+server/uploads/
+
+# logs
+*.log
+npm-debug.log*
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# never allow non-npm lockfiles (CLAUDE.md hard rule)
+pnpm-lock.yaml
+yarn.lock
+bun.lockb
