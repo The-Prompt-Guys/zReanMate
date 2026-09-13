@@ -36,7 +36,14 @@ export const env = {
 
   // Absent on purpose for now — server/src/ai/index.js falls back to the mock
   // provider and logs a single warning at boot. See CLAUDE.md, AI layer.
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? null,
+  openaiApiKey: process.env.OPENAI_API_KEY ?? null,
+  openaiModel: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
+  openaiEmbeddingModel: process.env.OPENAI_EMBEDDING_MODEL ?? 'text-embedding-3-small',
+
+  // Likewise absent — server/src/notify/index.js falls back to the mock
+  // notifier, which prints OTP codes and keeps a readable outbox.
+  smsProvider: process.env.SMS_PROVIDER ?? null,
+  emailProvider: process.env.EMAIL_PROVIDER ?? null,
 
   otpTtlMinutes: toInt(process.env.OTP_TTL_MINUTES, 10),
 };

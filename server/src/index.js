@@ -1,14 +1,16 @@
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { closePool } from './db/pool.js';
+import { getAI } from './ai/index.js';
+import { getNotifier } from './notify/index.js';
 
 const app = createApp();
 
-// One warning at boot when the AI layer will run on the mock provider
-// (CLAUDE.md, AI layer). server/src/ai/index.js enforces the fallback itself.
-if (!env.anthropicApiKey) {
-  console.warn('[ai] ANTHROPIC_API_KEY is not set — using the mock provider');
-}
+// Build both providers at boot so their "falling back to the mock" warnings
+// land once, here, rather than on the first request (CLAUDE.md: one warning at
+// boot). Each layer owns its own fallback decision.
+getAI();
+getNotifier();
 
 const server = app.listen(env.port, () => {
   console.log(`[server] ReanMate API listening on http://localhost:${env.port} (${env.nodeEnv})`);
