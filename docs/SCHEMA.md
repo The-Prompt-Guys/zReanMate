@@ -1,9 +1,10 @@
 # ReanMate — Database Schema
 
 PostgreSQL 16, raw parameterized SQL, no ORM.
-Source of truth: [`server/migrations/001_init.sql`](../server/migrations/001_init.sql).
+Source of truth: [`server/migrations/001_init.sql`](../server/migrations/001_init.sql)
+and [`002_optional_phone.sql`](../server/migrations/002_optional_phone.sql).
 
-**34 tables · 155 indexes · 69 foreign keys (all indexed) · 15 `updated_at` triggers.**
+**34 tables · 156 indexes · 69 foreign keys (all indexed) · 15 `updated_at` triggers.**
 
 ---
 
@@ -117,7 +118,7 @@ erDiagram
 
 | Table | Holds |
 |---|---|
-| `users` | One account. Phone is the identity (email optional), `role` is null until the student/teacher screen, and current plan state is denormalised here because every gating check reads it. |
+| `users` | One account, reachable by email, phone, or both — `users_needs_identifier` (migration 002) requires at least one, and the signup screen treats email as the required field. `role` is null until the student/teacher screen, and current plan state is denormalised here because every gating check reads it. |
 | `verification_codes` | Phone and email OTPs. Codes are bcrypt-hashed, never stored raw; `expires_at` + `attempt_count` cap abuse. No Redis — expiry is swept by `cleanup_expired_verification_codes()`. |
 | `auth_sessions` | Hashed refresh tokens so an httpOnly-cookie session can actually be revoked. |
 | `onboarding_responses` | One row per user. The 3-step survey answers as JSONB (GIN-indexed) plus `survey_version`, because the question set will churn. |
@@ -197,25 +198,36 @@ erDiagram
 
 ## Verification status
 
-`001_init.sql` was applied to a throwaway PostgreSQL 18 cluster and checked:
+Applied by the migration runner to an empty database on `pgvector/pgvector:pg16`,
+with **nothing stubbed** — both migration files byte-identical to what is committed:
 
-- all 34 tables, 155 indexes and 15 triggers created, no errors;
-- a query for foreign keys lacking a leading-column index returned **0 rows**;
-- a query for any `tsvector`/`tsquery` index returned **0 rows**;
-- `cleanup_expired_verification_codes()` executes;
-- Khmer trigram search returns rows where tsquery returns none (shown above).
-
-Two caveats worth knowing:
-
-1. **The pgvector lines are not yet verified.** The local Postgres has no `vector`
-   extension, so `CREATE EXTENSION vector`, `embedding vector(1536)` and the HNSW index
-   were stubbed out for that run. Everything else is exactly what ships.
-2. **The check ran on PostgreSQL 18, not 16.** That is what is installed on this machine;
-   CLAUDE.md targets 16. Nothing in this schema uses post-16 syntax, but the migration has
-   not been run against 16 itself.
-
-To verify both, run against the pgvector image:
-
-```bash
-docker run --rm -d -p 5433:5432 -e POSTGRES_PASSWORD=postgres --name reanmate-pg pgvector/pgvector:pg16
 ```
+[migrate] apply 001_init.sql
+[migrate] apply 002_optional_phone.sql
+[migrate] applied 2 migration(s)
+```
+
+Confirmed against the live database:
+
+- `vector 0.8.6`, `pg_trgm 1.6` and `uuid-ossp 1.1` all installed;
+- `document_chunks.embedding` is `vector(1536)` — the real type, not a stand-in;
+- `document_chunks_embedding_hnsw` exists with access method `hnsw`;
+- 34 tables, 156 indexes, 69 foreign keys, 15 triggers;
+- foreign keys lacking a leading-column index: **0**;
+- indexes using `tsvector`/`tsquery`: **0**;
+- a cosine nearest-neighbour query (`<=>`) returns the self-match at distance 0,
+  and the column rejects a wrong-width vector ("expected 1536 dimensions, not 3");
+- `users_needs_identifier` rejects an account with neither phone nor email.
+
+### A note on an earlier run
+
+An earlier verification of this schema was done on a local PostgreSQL 18 with no
+pgvector, by removing `CREATE EXTENSION vector`, swapping `vector(1536)` for
+`real[]`, and dropping the HNSW index. That run reported **155** indexes — one
+short, because the stubbed-out HNSW index was exactly the thing missing. The
+migration ledger recorded `001_init.sql` as applied while the database did not
+contain what the file declares.
+
+That is why CLAUDE.md now forbids stubbing migration statements outright. A
+partial apply recorded as complete does not merely fail to verify the schema; it
+produces documentation and a ledger that both confidently state something untrue.
