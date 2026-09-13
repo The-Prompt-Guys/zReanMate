@@ -56,14 +56,25 @@ PostgreSQL 16 via `pg`. Raw parameterized SQL, no ORM.
 
 ## AI layer
 
-The Anthropic API key is NOT set up yet.
+The OpenAI API key is NOT set up yet.
 
 - All AI calls go through `server/src/ai/index.js`. Never call the API from a
   controller or route directly.
-- If `ANTHROPIC_API_KEY` is missing, fall back to the mock provider automatically and
+- If `OPENAI_API_KEY` is missing, fall back to the mock provider automatically and
   log one warning at boot.
 - Build and test every AI feature against the mock. Do not block UI work on the real API.
 - Mock responses must return realistic shapes in both `km` and `en`.
+
+### Provider details
+- SDK: `openai` npm package.
+- Chat/generation: `gpt-4o-mini` by default, model name read from env so it can change.
+- Embeddings: `text-embedding-3-small`, 1536 dimensions — matches the
+  `document_chunks.embedding` column exactly. Do not change the model without a migration.
+- Structured output: use `response_format: { type: "json_schema", strict: true }`
+  for summaries, quizzes, and flashcards. Do not prompt for JSON and parse loosely.
+- Streaming: `stream: true`, relayed to the client over SSE from Express.
+- The provider interface in `server/src/ai/types.js` stays provider-agnostic. Adding
+  an Anthropic provider later must require no changes outside `server/src/ai/`.
 
 ## OTP and email delivery
 
