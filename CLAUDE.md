@@ -54,6 +54,45 @@ PostgreSQL 16 via `pg`. Raw parameterized SQL, no ORM.
 - Every foreign key gets an index.
 - No Redis. OTP codes live in Postgres with an `expires_at` column and a cleanup job.
 
+### Running Postgres
+
+pgvector is not bundled with a stock Postgres install, so use the pgvector image:
+
+```bash
+docker run -d --name reanmate-pg -p 5432:5432 \
+  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=reanmate \
+  pgvector/pgvector:pg16
+```
+
+Then `DATABASE_URL=postgres://postgres:postgres@localhost:5432/reanmate`.
+
+A native Postgres service listening on 5432 will stop the container binding that
+port, and connecting to it instead fails at `CREATE EXTENSION vector`. Either stop
+the native service or map the container elsewhere (`-p 5433:5432`) and update
+`DATABASE_URL` to match. Confirm which server answered before trusting a run:
+
+```bash
+psql "$DATABASE_URL" -c "SELECT extname FROM pg_extension WHERE extname = 'vector';"
+```
+
+### Migrations are never stubbed
+
+**Never edit, comment out, or skip a statement to make a migration apply.** If an
+extension or prerequisite is missing, STOP and report it. Do not:
+
+- strip `CREATE EXTENSION` and run the rest,
+- swap a real type for a stand-in (`vector(1536)` → `real[]`),
+- drop an index the environment cannot build,
+- or record a version in `schema_migrations` that does not match what actually ran.
+
+A partial apply recorded as complete is worse than a failed migration: the ledger
+says the schema is current while the column types, extensions, and indexes are not,
+and every later migration builds on a database nobody has actually verified. The
+runner checksums each file for this reason — a checksum that matches a file whose
+statements were bypassed makes the ledger lie.
+
+If a migration cannot run in the current environment, fix the environment.
+
 ## AI layer
 
 The OpenAI API key is NOT set up yet.
