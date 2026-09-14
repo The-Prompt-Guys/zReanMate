@@ -367,6 +367,18 @@ export default {
     partial: 'បានបញ្ចប់ {done} ក្នុងចំណោម {total}',
     join: 'ចូលរួមថ្នាក់រៀន',
     joinCode: 'លេខកូដថ្នាក់',
+    subtitle: 'រក្សាដំណើរការសិក្សារបស់អ្នក',
+    yourClasses: 'ថ្នាក់រៀនរបស់អ្នក',
+    yourProgress: 'វឌ្ឍនភាពរបស់អ្នក',
+    completedShort: 'បានបញ្ចប់ {done}',
+    materialsByWeek: 'ឯកសារតាមសប្តាហ៍',
+    quizzesByWeek: 'សំណួរតាមសប្តាហ៍',
+    fileCount: 'ឯកសារ {count}',
+    quizAvailable: 'សំណួរ {count} · មាន {count} ក្នុងចំណោម {count}',
+    quizMeta: 'សំណួរ {count} · មិនទាន់ចាប់ផ្តើម',
+    startQuiz: 'ចាប់ផ្តើមសំណួរ',
+    upcoming: 'ខាងមុខ',
+    askAiClass: 'សួរ AI អំពីថ្នាក់រៀននេះ',
   },
 
   assignments: {
@@ -383,6 +395,14 @@ export default {
     submitted: 'បានដាក់ស្នើ',
     late: 'យឺត',
     graded: 'បានដាក់ពិន្ទុ · {score}',
+    yourSubmission: 'ការដាក់ស្នើរបស់អ្នក',
+    uploadWork: 'បញ្ចូលកិច្ចការដែលបានបញ្ចប់',
+    uploadFormats: 'PDF, DOCX, JPG ឬ PNG · អតិបរមា ២០ MB',
+    chooseFile: 'ជ្រើសរើសឯកសារ',
+    orCompleteInApp: 'អ្នកក៏អាចបំពេញសំណួរក្នុង ReanMate បានដែរ',
+    scrollHint: 'រំកិលដើម្បីឆ្លើយសំណួរទាំងអស់',
+    submitQuiz: 'ដាក់ស្នើសំណួរ',
+    answerAllFirst: 'ឆ្លើយសំណួរទាំងអស់មុនពេលដាក់ស្នើ',
   },
 
   profile: {

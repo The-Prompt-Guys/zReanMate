@@ -96,12 +96,12 @@ export const FLOWS = [
     id: '09-classes-assignments',
     label: 'Classes & assignments',
     screens: [
-      { shot: '01-classes-tab-no-upcoming', name: 'Classes tab', route: '/classes', built: false },
-      { shot: '02-class-course-info-lessons-by-week', name: 'Course info', route: '/classes/class-eng', built: false },
-      { shot: '03-class-quizzes-folder', name: 'Class quizzes', route: '/classes/class-eng?tab=quizzes', built: false },
-      { shot: '04-assignment-detail', name: 'Assignment detail', route: '/assignments/a1', built: false },
-      { shot: '05-assignment-detail-upload-file', name: 'Assignment upload', route: '/assignments/a1?upload=1', built: false },
-      { shot: '06-assignment-quiz-workspace', name: 'Assignment workspace', route: '/assignments/a1/work', built: false },
+      { shot: '01-classes-tab-no-upcoming', name: 'Classes tab', route: '/classes', built: true },
+      { shot: '02-class-course-info-lessons-by-week', name: 'Course info', route: '/classes/class-eng', built: true },
+      { shot: '03-class-quizzes-folder', name: 'Class quizzes', route: '/classes/class-eng?tab=quizzes', built: true },
+      { shot: '04-assignment-detail', name: 'Assignment detail', route: '/assignments/a1', built: true },
+      { shot: '05-assignment-detail-upload-file', name: 'Assignment upload', route: '/assignments/a1?upload=1', built: true },
+      { shot: '06-assignment-quiz-workspace', name: 'Assignment workspace', route: '/assignments/a1/work', built: true },
     ],
   },
   {

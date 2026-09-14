@@ -367,8 +367,21 @@ export const classes = [
     weeks: 12,
     lessonCount: 36,
     lessonsDone: 6,
+    icon: 'book',
     description: 'Build the reading, writing, vocabulary, and study skills needed for academic success.',
     descriptionKm: 'បង្កើតជំនាញអាន សរសេរ វាក្យសព្ទ និងជំនាញសិក្សាដែលត្រូវការសម្រាប់ជោគជ័យក្នុងការសិក្សា។',
+  },
+  {
+    id: 'class-net',
+    title: 'Computer Networks',
+    titleKm: 'បណ្តាញកុំព្យូទ័រ',
+    teacher: 'Prof. Dara',
+    icon: 'laptop',
+    weeks: 8,
+    lessonCount: 24,
+    lessonsDone: 3,
+    description: 'Understand how devices connect, route, and exchange data across networks.',
+    descriptionKm: 'ស្វែងយល់ពីរបៀបដែលឧបករណ៍ភ្ជាប់ បញ្ជូន និងផ្លាស់ប្តូរទិន្នន័យឆ្លងកាត់បណ្តាញ។',
   },
 ];
 
@@ -425,6 +438,48 @@ export const assignment = {
   completed: 0,
   status: 'not_started',
 };
+
+/** docs/screens/09-classes-assignments/03 — Materials by week. */
+export const materialsByWeek = [
+  { week: 1, files: 1 },
+  { week: 2, files: 1 },
+  { week: 3, files: 1 },
+];
+
+/** docs/screens/09-classes-assignments/03 — Quizzes by week. */
+export const classQuizzes = [
+  { week: 1, tone: 'bg-violet-100 text-violet-700', quizTitle: 'Database foundations quiz', quizTitleKm: 'សំណួរមូលដ្ឋានគ្រឹះទិន្នន័យ' },
+  { week: 2, tone: 'bg-violet-100 text-violet-700' },
+  { week: 3, tone: 'bg-amber-100 text-amber-700' },
+];
+
+/** docs/screens/09-classes-assignments/06-assignment-quiz-workspace. */
+export const assignmentQuestions = [
+  {
+    id: 'aq1',
+    prompt: 'Which item is an entity in a database?',
+    promptKm: 'តើធាតុណាជាអង្គភាពក្នុងមូលដ្ឋានទិន្នន័យ?',
+    options: ['Student', 'Blue', 'Quickly', 'Tomorrow'],
+    optionsKm: ['សិស្ស', 'ពណ៌ខៀវ', 'យ៉ាងលឿន', 'ថ្ងៃស្អែក'],
+    correct: 0,
+  },
+  {
+    id: 'aq2',
+    prompt: 'What is the purpose of a primary key?',
+    promptKm: 'តើគោលបំណងនៃគន្លឹះចម្បងជាអ្វី?',
+    options: ['Uniquely identify each record', 'Add colors to a table', 'Delete every record', 'Format a document'],
+    optionsKm: ['កំណត់អត្តសញ្ញាណកំណត់ត្រានីមួយៗ', 'បន្ថែមពណ៌ទៅតារាង', 'លុបកំណត់ត្រាទាំងអស់', 'រៀបចំទម្រង់ឯកសារ'],
+    correct: 0,
+  },
+  {
+    id: 'aq3',
+    prompt: 'What does a relationship describe?',
+    promptKm: 'តើទំនាក់ទំនងពិពណ៌នាអំពីអ្វី?',
+    options: ['How entities are connected', 'A file size', 'A page number', 'A password'],
+    optionsKm: ['របៀបដែលអង្គភាពភ្ជាប់គ្នា', 'ទំហំឯកសារ', 'លេខទំព័រ', 'ពាក្យសម្ងាត់'],
+    correct: 0,
+  },
+];
 
 export const profileStats = [
   { key: 'kits', value: 4 },

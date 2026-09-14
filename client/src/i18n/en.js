@@ -368,6 +368,18 @@ export default {
     partial: '{done} of {total} completed',
     join: 'Join a class',
     joinCode: 'Class code',
+    subtitle: 'Stay on track with your learning',
+    yourClasses: 'Your classes',
+    yourProgress: 'Your progress',
+    completedShort: '{done} done',
+    materialsByWeek: 'Materials by week',
+    quizzesByWeek: 'Quizzes by week',
+    fileCount: '{count} file',
+    quizAvailable: '{count} quiz · {count} of {count} available',
+    quizMeta: '{count} questions · Not started',
+    startQuiz: 'Start quiz',
+    upcoming: 'Upcoming',
+    askAiClass: 'Ask AI about this class',
   },
 
   assignments: {
@@ -384,6 +396,14 @@ export default {
     submitted: 'Submitted',
     late: 'Late',
     graded: 'Graded · {score}',
+    yourSubmission: 'Your submission',
+    uploadWork: 'Upload your completed work',
+    uploadFormats: 'PDF, DOCX, JPG or PNG · Max 20 MB',
+    chooseFile: 'Choose file',
+    orCompleteInApp: 'You can also complete the quiz in ReanMate',
+    scrollHint: 'Scroll to answer all questions',
+    submitQuiz: 'Submit quiz',
+    answerAllFirst: 'Answer all questions before submitting',
   },
 
   profile: {
