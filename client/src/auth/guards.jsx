@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
 import { useAuth } from './AuthContext.jsx';
+import { PROTOTYPE } from '../mock/mode.js';
 import { FullPageSpinner } from '../components/FullPageSpinner.jsx';
 
 /**
@@ -13,11 +14,19 @@ export const onboardingDestination = ({ onboarding }) => {
   return '/';
 };
 
+/**
+ * Hooks run before any branch so the call order is identical on every render —
+ * PROTOTYPE is a build-time constant, but an early return above a hook is still
+ * a rules-of-hooks violation and would break the moment it became dynamic.
+ */
+
 /** Blocks a route until the session is known, then requires one. */
 export const RequireAuth = () => {
   const { isLoading, isAuthenticated } = useAuth();
   const location = useLocation();
 
+  // Prototype mode: every screen stays reachable by URL for review.
+  if (PROTOTYPE) return <Outlet />;
   if (isLoading) return <FullPageSpinner />;
 
   if (!isAuthenticated) {
@@ -32,6 +41,7 @@ export const RequireAuth = () => {
 export const RequireGuest = () => {
   const { isLoading, isAuthenticated, onboarding } = useAuth();
 
+  if (PROTOTYPE) return <Outlet />;
   if (isLoading) return <FullPageSpinner />;
   if (isAuthenticated) return <Navigate to={onboardingDestination({ onboarding })} replace />;
 
@@ -47,6 +57,7 @@ export const RequireOnboarded = () => {
   const { onboarding } = useAuth();
   const destination = onboardingDestination({ onboarding });
 
+  if (PROTOTYPE) return <Outlet />;
   if (destination !== '/') return <Navigate to={destination} replace />;
 
   return <Outlet />;
