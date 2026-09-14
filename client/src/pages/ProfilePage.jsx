@@ -1,14 +1,21 @@
 import { NavyHeader } from '../layouts/AppLayout.jsx';
 import { Owl } from '../layouts/AuthLayout.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
-import { LanguageSwitcher, useLanguage, useT } from '../i18n/index.js';
-import { learningWeek, profileSummary } from '../mock/fixtures.js';
+import { LanguageSwitcher, useT } from '../i18n/index.js';
+import { useProfile } from '../profile/useProfile.js';
 
 /** docs/screens/10-profile/01-profile-tab. */
 export const ProfilePage = () => {
   const t = useT();
-  const { language } = useLanguage();
   const { user, logout } = useAuth();
+  const { profile, limits, error, update } = useProfile();
+  const shown = profile ?? { fullName: user?.full_name, summary: { kits: 0, cards: 0, mastery: 0 }, activityDays: [] };
+  const activity = new Set(shown.activityDays.map((day) => new Date(day).getUTCDay()));
+  const learningWeek = [1, 2, 3, 4, 5, 6, 0].map((day) => activity.has(day));
+  const edit = async () => {
+    const fullName = window.prompt(t('profile.edit'), shown.fullName ?? '')?.trim();
+    if (fullName) await update({ fullName });
+  };
 
   const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
@@ -16,14 +23,15 @@ export const ProfilePage = () => {
     <main>
       <NavyHeader className="flex items-center gap-4">
         <span className="grid size-16 shrink-0 place-items-center rounded-full bg-white/20 text-2xl font-bold">
-          {(user?.full_name ?? 'S').charAt(0)}
+          {(shown.fullName ?? 'S').charAt(0)}
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-3xl font-bold">{user?.full_name}</h1>
+          <h1 className="truncate text-3xl font-bold">{shown.fullName}</h1>
           <p className="mt-0.5 text-base text-white/75">{t('profile.tagline')}</p>
         </div>
         <button
           type="button"
+          onClick={edit}
           className="shrink-0 rounded-full border border-white/50 px-5 py-2 text-base font-semibold"
         >
           {t('profile.edit')}
@@ -31,6 +39,7 @@ export const ProfilePage = () => {
       </NavyHeader>
 
       <div className="space-y-6 px-5 pt-5">
+        {error && <p className="text-center text-danger-600">{error.message}</p>}
         <section className="rounded-card bg-tint-100 p-5">
           <div className="flex items-start justify-between">
             <h2 className="text-xl font-bold text-navy-900">{t('classes.yourProgress')}</h2>
@@ -38,15 +47,17 @@ export const ProfilePage = () => {
           </div>
 
           <dl className="mt-3 grid grid-cols-3 divide-x divide-white/80 text-center">
-            <Stat icon={<KitsIcon />} value={profileSummary.kits} label={t('profile.statKits')} />
-            <Stat icon={<CardsIcon />} value={profileSummary.cards} label={t('profile.statCards')} />
+            <Stat icon={<KitsIcon />} value={shown.summary.kits} label={t('profile.statKits')} />
+            <Stat icon={<CardsIcon />} value={shown.summary.cards} label={t('profile.statCards')} />
             <Stat
               icon={<TargetIcon />}
-              value={`${profileSummary.mastery}%`}
+              value={`${shown.summary.mastery}%`}
               label={t('profile.statMastery')}
             />
           </dl>
         </section>
+
+        {limits && <section className="rounded-card bg-white p-4 shadow-sm ring-1 ring-tint-200/70"><h2 className="text-xl font-bold text-navy-900">{t('profile.plan')}</h2><p className="mt-1 capitalize text-navy-600">{limits.planTier}</p><ul className="mt-3 space-y-2 text-sm text-navy-700">{Object.entries(limits.limits).map(([key, value]) => <li key={key} className="flex justify-between gap-3"><span>{key.replaceAll('_', ' ')}</span><strong>{value.remaining === null ? '∞' : `${value.remaining} / ${value.limit}`}</strong></li>)}</ul></section>}
 
         <section>
           <h2 className="text-xl font-bold text-navy-900">{t('profile.activity')}</h2>

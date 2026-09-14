@@ -187,6 +187,10 @@ erDiagram
 | `assignment_submissions` | One row per student per assignment: `answers` JSONB, `completed_questions` (drives "0 of 10 questions completed"), score and feedback. |
 | `submission_files` | Files uploaded through the assignment upload sheet. |
 
+The rollup can be rebuilt from its `lesson_item_progress` source of truth with
+`npm run recompute:lesson-progress` in `server/`. The runnable, idempotent
+upsert is kept in `server/scripts/recompute-lesson-progress.mjs`.
+
 ### Operations
 
 | Table | Holds |

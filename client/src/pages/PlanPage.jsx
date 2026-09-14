@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, CheckIcon, SegmentedProgress, TextButton } from '../components/ui.jsx';
 import { Owl, Wordmark } from '../layouts/AuthLayout.jsx';
 import { useT } from '../i18n/index.js';
+import { useProfile } from '../profile/useProfile.js';
 
 /**
  * docs/screens/01-auth-onboarding/08-free-vs-plus-comparison.
@@ -25,6 +26,7 @@ export const PlanPage = () => {
   const t = useT();
   const navigate = useNavigate();
   const [notice, setNotice] = useState(null);
+  const { limits } = useProfile();
 
   const finish = () => navigate('/', { replace: true });
 
@@ -57,6 +59,7 @@ export const PlanPage = () => {
             <FeatureRow key={key} label={t(key)} />
           ))}
         </ul>
+        {limits?.plans?.free && <PlanNumbers plan={limits.plans.free} />}
       </section>
 
       {/* Plus */}
@@ -75,6 +78,7 @@ export const PlanPage = () => {
           {PLUS_FEATURES.map((key) => (
             <FeatureRow key={key} label={t(key)} />
           ))}
+          {limits?.plans?.plus && <PlanNumbers plan={limits.plans.plus} />}
         </ul>
       </section>
 
@@ -95,6 +99,8 @@ export const PlanPage = () => {
     </main>
   );
 };
+
+const PlanNumbers = ({ plan }) => <li className="rounded-xl bg-tint-100 px-3 py-2 text-sm text-navy-700">{Object.entries(plan.limits).map(([key, value]) => <span key={key} className="mr-3 inline-block">{key.replaceAll('_', ' ')}: <strong>{value ?? '∞'}</strong></span>)}</li>;
 
 const FeatureRow = ({ label }) => (
   <li className="flex items-center gap-3">

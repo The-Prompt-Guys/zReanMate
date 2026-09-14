@@ -93,8 +93,6 @@
  *
  * @typedef  {Object}   AttemptSummary
  * @property {string[]} takeaways       Up to 5, addressed to the student.
- * @property {number}   masteryPercent  0-100.
- * @property {string[]} weakTopics      Topics worth reviewing; may be empty.
  */
 
 // ---------------------------------------------------------------------------
@@ -102,8 +100,8 @@
 // ---------------------------------------------------------------------------
 
 /**
- * One card. Maps to a `flashcards` row; the SM-2 scheduling columns are set by
- * the service, never by the model.
+ * One shared card. Per-user SM-2 scheduling is stored in `flashcard_reviews`,
+ * never on this generated content row and never by the model.
  *
  * @typedef  {Object}      Flashcard
  * @property {string}      term
@@ -162,6 +160,7 @@
  *                                       caller chunks.
  * @property {string}   [title]
  * @property {Language} [language='km']
+ * @property {'batch'|'default'} [serviceTier='default'] Cost tier for non-interactive work.
  */
 
 /**
@@ -191,6 +190,7 @@
  *                                                      bodies for. `[]` means
  *                                                      outline only; omitted
  *                                                      means all of them.
+ * @property {'batch'|'default'}     [serviceTier='default'] Cost tier for visible background work.
  */
 
 /**
@@ -200,6 +200,7 @@
  * @property {Language} [language='km']
  * @property {number}   [count=10]
  * @property {'easy'|'medium'|'hard'|'mixed'} [difficulty='mixed']
+ * @property {'low'|'medium'|'high'} [reasoningEffort]
  */
 
 /**
@@ -207,13 +208,14 @@
  * @property {string}   text
  * @property {Language} [language='km']
  * @property {number}   [count=12]
+ * @property {'none'}   [reasoningEffort='none']
  */
 
 /**
  * @typedef  {Object}   AttemptInput
  * @property {number}   correctCount
  * @property {number}   totalQuestions
- * @property {string[]} [missedTopics]   Topics the student got wrong.
+ * @property {string[]} [missedTopics]   Context for takeaway prose only.
  * @property {string}   [quizTitle]
  * @property {Language} [language='km']
  */
@@ -223,6 +225,7 @@
  * @property {TutorMessage[]} messages       Full turn history, oldest first.
  * @property {TutorSource[]}  [sources]      Retrieved grounding chunks.
  * @property {Language}       [language='km']
+ * @property {number}         [maxOutputTokens=400]
  */
 
 /**

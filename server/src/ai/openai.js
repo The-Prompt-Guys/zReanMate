@@ -157,8 +157,6 @@ const FLASHCARDS_SCHEMA = obj({
 
 const ATTEMPT_SCHEMA = obj({
   takeaways: stringArray('Up to five short takeaways addressed to the student.'),
-  masteryPercent: { type: 'integer', description: '0-100.' },
-  weakTopics: stringArray('Topics worth reviewing; may be empty.'),
 });
 
 const TUTOR_CITATION_HINT =
@@ -175,10 +173,14 @@ export const createOpenAIProvider = ({
   const client = new OpenAI({ apiKey, maxRetries: 0 });
 
   /** One strict structured-output call, returning the parsed object. */
-  const structured = async ({ label, schemaName, schema, language, prompt, material }) => {
+  const structured = async ({ label, schemaName, schema, language, prompt, material, serviceTier = 'default', reasoningEffort }) => {
     const completion = await withRetry(label, () =>
       client.chat.completions.create({
         model,
+        // OpenAI calls the batch-priced asynchronous tier "flex" on live
+        // generation requests. The provider-neutral contract calls it batch.
+        ...(serviceTier === 'batch' && { service_tier: 'flex' }),
+        ...(reasoningEffort && { reasoning_effort: reasoningEffort }),
         messages: [
           { role: 'system', content: systemPrompt(language) },
           {
@@ -214,13 +216,14 @@ export const createOpenAIProvider = ({
   return {
     name: 'openai',
 
-    async summarize({ text, title, language = 'km' } = {}) {
+    async summarize({ text, title, language = 'km', serviceTier = 'default' } = {}) {
       return structured({
         label: 'summarize',
         schemaName: 'summary',
         schema: SUMMARY_SCHEMA,
         language,
         material: text,
+        serviceTier,
         prompt: [
           `Summarise this study material${title ? ` titled "${title}"` : ''} for a student`,
           'seeing it for the first time. Use at most two headings and give 3-5 key points.',
@@ -241,6 +244,7 @@ export const createOpenAIProvider = ({
       chapterCount = 12,
       outline = null,
       only = undefined,
+      serviceTier = 'default',
     } = {}) {
       const material = requireFittingText(text);
 
@@ -253,6 +257,7 @@ export const createOpenAIProvider = ({
             schema: CHAPTER_OUTLINE_SCHEMA,
             language,
             material,
+            serviceTier,
             prompt: [
               `Split this study material${title ? ` titled "${title}"` : ''} into about`,
               `${chapterCount} sequential chapters.`,
@@ -271,7 +276,7 @@ export const createOpenAIProvider = ({
 
       const overview =
         wanted.length === fullOutline.length || only === undefined
-          ? await this.summarize({ text: material, title, language })
+          ? await this.summarize({ text: material, title, language, serviceTier })
           : null;
 
       const chapters = await Promise.all(
@@ -284,6 +289,7 @@ export const createOpenAIProvider = ({
               schema: CHAPTER_BODY_SCHEMA,
               language,
               material,
+              serviceTier,
               prompt: [
                 `Write the summary for chapter ${c.chapterIndex}, "${c.title}",`,
                 `covering ${c.startSeconds}s to ${c.endSeconds}s of the material.`,
@@ -302,13 +308,14 @@ export const createOpenAIProvider = ({
       };
     },
 
-    async generateQuiz({ text, title, language = 'km', count = 10, difficulty = 'mixed' } = {}) {
+    async generateQuiz({ text, title, language = 'km', count = 10, difficulty = 'mixed', reasoningEffort } = {}) {
       const result = await structured({
         label: 'generateQuiz',
         schemaName: 'quiz',
         schema: QUIZ_SCHEMA,
         language,
         material: text,
+        reasoningEffort,
         prompt: [
           `Write ${count} ${difficulty} quiz questions about this material.`,
           'multiple_choice needs exactly 4 options, true_false exactly 2, and for both set',
@@ -348,13 +355,14 @@ export const createOpenAIProvider = ({
       };
     },
 
-    async generateFlashcards({ text, language = 'km', count = 12 } = {}) {
+    async generateFlashcards({ text, language = 'km', count = 12, reasoningEffort = 'none' } = {}) {
       const result = await structured({
         label: 'generateFlashcards',
         schemaName: 'flashcards',
         schema: FLASHCARDS_SCHEMA,
         language,
         material: text,
+        reasoningEffort,
         prompt: [
           `Create ${count} flashcards from this material. term is a single concept;`,
           'definition is one or two sentences a student could recall from memory.',
@@ -380,16 +388,13 @@ export const createOpenAIProvider = ({
         material: JSON.stringify({ quizTitle, correctCount, totalQuestions, missedTopics }),
         prompt: [
           'A student just finished a quiz. From this result, write up to 3 short takeaways',
-          'addressed to them, set masteryPercent to round(correctCount / totalQuestions * 100),',
-          'and list the topics worth reviewing.',
+          'addressed to them, using the missed topics as context.',
+          'Do not calculate or state a mastery percentage; the application computes it.',
         ].join(' '),
       });
 
-      // The model is unreliable at arithmetic; the score is not its job.
       return {
         takeaways: result.takeaways,
-        masteryPercent: Math.round((correctCount / Math.max(1, totalQuestions)) * 100),
-        weakTopics: result.weakTopics,
       };
     },
 
@@ -398,7 +403,7 @@ export const createOpenAIProvider = ({
      * delta has been yielded, a retry would duplicate text the client already
      * rendered, so a mid-stream failure surfaces as a terminal `error` chunk.
      */
-    async *tutorReply({ messages = [], language = 'km', sources = [] } = {}) {
+    async *tutorReply({ messages = [], language = 'km', sources = [], maxOutputTokens = 400 } = {}) {
       const grounding = requireFittingText(
         sources.map((s) => `[${s.title}]\n${s.content}`).join('\n\n'),
       );
@@ -409,6 +414,7 @@ export const createOpenAIProvider = ({
           client.chat.completions.create({
             model,
             stream: true,
+            max_completion_tokens: maxOutputTokens,
             messages: [
               { role: 'system', content: `${systemPrompt(language)} ${TUTOR_CITATION_HINT}` },
               { role: 'system', content: `--- STUDY MATERIAL ---\n${grounding}` },

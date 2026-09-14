@@ -1,10 +1,10 @@
-import { Link, useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { NavyHeader } from '../../layouts/AppLayout.jsx';
 import { Owl } from '../../layouts/AuthLayout.jsx';
-import { Button } from '../../components/ui.jsx';
-import { assignment } from '../../mock/fixtures.js';
 import { useLanguage, useT } from '../../i18n/index.js';
+import { useAssignment } from './useAssignment.js';
 
 /**
  * docs/screens/09-classes-assignments/04-assignment-detail, and 05 when
@@ -13,24 +13,41 @@ import { useLanguage, useT } from '../../i18n/index.js';
 export const AssignmentDetailPage = () => {
   const t = useT();
   const { language } = useLanguage();
+  const { assignmentId } = useParams();
   const [params] = useSearchParams();
   const showUpload = params.get('upload') === '1';
+  const { data, status, error, upload } = useAssignment(assignmentId);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+  const assignment = data?.assignment;
+  const submission = data?.submission;
+  const terminal = ['submitted', 'late', 'graded'].includes(submission?.status);
+  const instructions = assignment?.instructions ?? [];
+  const dueLabel = assignment?.dueAt ? new Intl.DateTimeFormat(language === 'km' ? 'km-KH' : 'en', { dateStyle: 'medium' }).format(new Date(assignment.dueAt)) : '';
 
-  const instructions = language === 'km' ? assignment.instructionsKm : assignment.instructions;
+  const selectFile = async (event) => {
+    const file = event.target.files?.[0]; if (!file) return;
+    setUploading(true); setUploadError(null);
+    try { await upload(file); } catch (err) { setUploadError(err?.response?.data?.error?.message ?? 'Upload failed.'); }
+    finally { setUploading(false); event.target.value = ''; }
+  };
+
+  if (status === 'loading') return <main className="grid min-h-dvh place-items-center text-navy-700">{t('common.loading')}</main>;
+  if (error || !assignment) return <main className="grid min-h-dvh place-items-center px-6 text-center text-danger-600">{error?.message ?? 'Assignment not found.'}</main>;
 
   return (
     <main>
       <NavyHeader>
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <Link to="/classes/class-eng?tab=quizzes" aria-label={t('common.back')} className="mt-1 shrink-0">
+            <Link to={`/classes/${assignment.classId}?tab=quizzes`} aria-label={t('common.back')} className="mt-1 shrink-0">
               <svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true">
                 <path d="M19 12H5m6-6-6 6 6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </Link>
             <div className="min-w-0">
               <h1 className="text-2xl font-bold leading-tight">
-                {language === 'km' ? assignment.titleKm : assignment.title}
+                {assignment.title}
               </h1>
               <p className="mt-0.5 truncate text-base text-white/75">{assignment.className}</p>
             </div>
@@ -43,12 +60,12 @@ export const AssignmentDetailPage = () => {
         <span className="inline-flex items-center gap-2 rounded-full bg-gold-400/35 px-4 py-2 text-base font-bold text-navy-900">
           <CalendarIcon />
           <span className="size-2 rounded-full bg-gold-500" aria-hidden="true" />
-          {t('assignments.due', { date: assignment.dueLabel })}
+          {t('assignments.due', { date: dueLabel })}
         </span>
 
         <Card icon={<DocIcon />} title={t('assignments.overview')}>
           <p className="text-base leading-relaxed text-navy-600">
-            {language === 'km' ? assignment.overviewKm : assignment.overview}
+            {assignment.overview}
           </p>
         </Card>
 
@@ -79,20 +96,18 @@ export const AssignmentDetailPage = () => {
           </ul>
         </Card>
 
-        {showUpload && (
+        {showUpload && assignment.allowFileUpload && (
           <Card icon={<UploadIcon />} title={t('assignments.yourSubmission')}>
             <div className="rounded-card border-2 border-dashed border-navy-600/30 px-5 py-7 text-center">
               <CloudIcon />
               <p className="mt-3 text-lg font-bold text-navy-900">{t('assignments.uploadWork')}</p>
               <p className="mt-1 text-sm text-navy-600">{t('assignments.uploadFormats')}</p>
-              <button
-                type="button"
-                className="mt-4 rounded-full bg-navy-800 px-6 py-3 text-base font-bold text-white"
-              >
-                {t('assignments.chooseFile')}
-              </button>
+              <label className={`mt-4 inline-flex cursor-pointer rounded-full bg-navy-800 px-6 py-3 text-base font-bold text-white ${uploading || terminal ? 'pointer-events-none opacity-50' : ''}`}>
+                {t('assignments.chooseFile')}<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="sr-only" disabled={uploading || terminal} onChange={selectFile} />
+              </label>
             </div>
-            <p className="mt-3 text-center text-sm text-navy-600">{t('assignments.orCompleteInApp')}</p>
+            {uploadError && <p className="mt-3 text-center text-sm text-danger-600">{uploadError}</p>}
+            {submission.files?.map((file) => <p key={file.id} className="mt-3 truncate text-center text-sm text-navy-600">{file.name}</p>)}
           </Card>
         )}
 
@@ -103,10 +118,10 @@ export const AssignmentDetailPage = () => {
             </svg>
           </span>
           <span className="min-w-0">
-            <span className="block text-lg font-bold text-navy-900">{t('classes.notStarted')}</span>
+            <span className="block text-lg font-bold text-navy-900">{submission.status === 'not_started' ? t('classes.notStarted') : submission.status === 'in_progress' ? t('assignments.resume') : submission.status === 'graded' ? t('assignments.graded', { score: submission.score }) : t(`assignments.${submission.status}`)}</span>
             <span className="block text-sm text-navy-600">
               {t('assignments.progress', {
-                done: assignment.completed,
+                done: submission.completed,
                 total: assignment.questionCount,
               })}
             </span>
@@ -114,12 +129,12 @@ export const AssignmentDetailPage = () => {
         </div>
 
         <div className="space-y-3 pb-4">
-          <Link
-            to="/assignments/a1/work"
+          {!terminal && <Link
+            to={assignment.type === 'quiz' ? `/assignments/${assignment.id}/work` : `/assignments/${assignment.id}?upload=1`}
             className="flex w-full items-center justify-center rounded-full bg-navy-800 py-4 text-lg font-bold text-white"
           >
-            {t('assignments.start')}
-          </Link>
+            {submission.status === 'in_progress' ? t('assignments.resume') : t('assignments.start')}
+          </Link>}
           <div className="text-center">
             <Link to="/tutor" className="font-semibold text-navy-700">
               {t('assignments.askAi')}

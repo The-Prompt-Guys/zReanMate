@@ -44,6 +44,11 @@ api.interceptors.response.use(
   async (error) => {
     const { response, config } = error;
 
+    const planCode = response?.data?.error?.code ?? response?.data?.error;
+    if (planCode === 'quota_exceeded' || planCode === 'feature_unavailable') {
+      window.dispatchEvent(new CustomEvent('reanmate:plan-wall', { detail: { code: planCode } }));
+    }
+
     if (!response || response.status !== 401 || !config) {
       return Promise.reject(error);
     }

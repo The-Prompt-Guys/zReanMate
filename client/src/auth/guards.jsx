@@ -1,7 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
 import { useAuth } from './AuthContext.jsx';
-import { isPrototype } from '../mock/mode.js';
+import { isDemo } from '../mock/mode.js';
 import { FullPageSpinner } from '../components/FullPageSpinner.jsx';
 
 /**
@@ -22,7 +22,7 @@ export const onboardingDestination = ({ onboarding }) => {
  * the flows still on fixtures need a real signed-in session to reach. Set
  * VITE_PROTOTYPE_AUTH=true to get URL-reachable screens back for design review.
  */
-const AUTH_PROTOTYPE = isPrototype('auth');
+const DEMO = isDemo();
 
 /**
  * Hooks run before any branch so the call order is identical on every render —
@@ -36,7 +36,7 @@ export const RequireAuth = () => {
   const location = useLocation();
 
   // Prototype mode: every screen stays reachable by URL for review.
-  if (AUTH_PROTOTYPE) return <Outlet />;
+  if (DEMO) return <Outlet />;
   if (isLoading) return <FullPageSpinner />;
 
   if (!isAuthenticated) {
@@ -51,7 +51,7 @@ export const RequireAuth = () => {
 export const RequireGuest = () => {
   const { isLoading, isAuthenticated, onboarding } = useAuth();
 
-  if (AUTH_PROTOTYPE) return <Outlet />;
+  if (DEMO) return <Outlet />;
   if (isLoading) return <FullPageSpinner />;
   if (isAuthenticated) return <Navigate to={onboardingDestination({ onboarding })} replace />;
 
@@ -67,7 +67,7 @@ export const RequireOnboarded = () => {
   const { onboarding } = useAuth();
   const destination = onboardingDestination({ onboarding });
 
-  if (AUTH_PROTOTYPE) return <Outlet />;
+  if (DEMO) return <Outlet />;
   if (destination !== '/') return <Navigate to={destination} replace />;
 
   return <Outlet />;

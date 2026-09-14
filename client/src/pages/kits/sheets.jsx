@@ -236,7 +236,7 @@ export const UploadingSheet = () => {
 export const YouTubeUrlSheet = () => {
   const t = useT();
   const navigate = useNavigate();
-  const { addKit, isPrototype } = useKits();
+  const { addKit, isDemo } = useKits();
   const { kitId, root } = useAddMaterialPaths();
   const [url, setUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -246,7 +246,7 @@ export const YouTubeUrlSheet = () => {
     event.preventDefault();
     if (!url.trim() || submitting) return;
 
-    if (isPrototype) {
+    if (isDemo) {
       navigate(`${root}/processing`);
       return;
     }
@@ -327,7 +327,7 @@ export const ProcessingSheet = () => {
   const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
-  const { addKit, addFile, isPrototype, refresh, loadFiles } = useKits();
+  const { addKit, addFile, isDemo, refresh, loadFiles } = useKits();
   const { kitId, closeTo, root } = useAddMaterialPaths();
 
   const stateKitId = location.state?.kitId || kitId;
@@ -340,7 +340,7 @@ export const ProcessingSheet = () => {
 
   // Prototype fallback (timer-driven)
   useEffect(() => {
-    if (!isPrototype && stateSourceId && stateKitId) return;
+    if (!isDemo && stateSourceId && stateKitId) return;
 
     const timer = setInterval(() => {
       setProgress((p) => {
@@ -372,11 +372,11 @@ export const ProcessingSheet = () => {
       });
     }, 60);
     return () => clearInterval(timer);
-  }, [addFile, addKit, closeTo, isPrototype, kitId, navigate, stateKitId, stateSourceId]);
+  }, [addFile, addKit, closeTo, isDemo, kitId, navigate, stateKitId, stateSourceId]);
 
   // Live polling mode
   useEffect(() => {
-    if (isPrototype || !stateSourceId || !stateKitId) return;
+    if (isDemo || !stateSourceId || !stateKitId) return;
 
     let isMounted = true;
     let pollTimer;
@@ -422,7 +422,7 @@ export const ProcessingSheet = () => {
       isMounted = false;
       clearTimeout(pollTimer);
     };
-  }, [isPrototype, loadFiles, navigate, refresh, stateKitId, stateSourceId, t]);
+  }, [isDemo, loadFiles, navigate, refresh, stateKitId, stateSourceId, t]);
 
   return (
     <BottomSheet closeTo={closeTo} labelledBy="processing-title">

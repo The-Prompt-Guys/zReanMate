@@ -8,7 +8,10 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "migrate": "node src/db/migrate.js"
+    "migrate": "node src/db/migrate.js",
+    "recompute:lesson-progress": "node scripts/recompute-lesson-progress.mjs",
+    "test": "node test/sm2.test.js && node test/assignment-state-machine.test.js && node test/quota.test.js",
+    "verify:sse": "node scripts/verify-sse.mjs"
   },
   "engines": {
     "node": ">=20"

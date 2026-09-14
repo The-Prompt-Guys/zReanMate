@@ -83,11 +83,16 @@ export const kitsDb = {
     return queryOne(`${KIT_SELECT} WHERE k.id = $1 AND k.user_id = $2`, [kitId, userId]);
   },
 
-  /** Current kit count for the plan cap. Counts rows, so a delete frees a slot. */
+  /**
+   * Current personal-kit count for the plan cap. A class_id marks a kit shared
+   * into a class, so it is deliberately exempt from a student's three-kit cap.
+   */
   async countForUser(userId, client) {
     const runner = client ?? { query };
     const { rows } = await runner.query(
-      'SELECT count(*)::int AS count FROM study_kits WHERE user_id = $1',
+      `SELECT count(*)::int AS count
+         FROM study_kits
+        WHERE user_id = $1 AND class_id IS NULL`,
       [userId],
     );
     return rows[0].count;

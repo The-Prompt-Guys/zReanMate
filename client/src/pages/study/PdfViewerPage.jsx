@@ -1,10 +1,13 @@
+import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { NavyHeader } from '../../layouts/AppLayout.jsx';
 import { BottomSheet } from '../../components/BottomSheet.jsx';
 import { CardsIcon, DocIcon, QuizIcon, TargetIcon } from './StudyModePage.jsx';
-import { pdfDocument, pdfChat } from '../../mock/fixtures.js';
-import { useLanguage, useT } from '../../i18n/index.js';
+import { api } from '../../lib/api.js';
+import { formatBytes } from '../../lib/format.js';
+import { useT } from '../../i18n/index.js';
+import { useStudySource } from './useSourceSummaries.js';
 
 /**
  * docs/screens/04-study-mode-summaries/04-pdf-viewer-with-chat, and 05 when
@@ -12,10 +15,24 @@ import { useLanguage, useT } from '../../i18n/index.js';
  */
 export const PdfViewerPage = () => {
   const t = useT();
-  const { language } = useLanguage();
   const { kitId = 'kit-database' } = useParams();
   const [params] = useSearchParams();
   const showActions = params.get('actions') === '1';
+  const { source } = useStudySource(kitId);
+  const [sourceDetail, setSourceDetail] = useState(null);
+
+  useEffect(() => {
+    if (!source?.id) return;
+    let cancelled = false;
+    api.get(`/kits/${kitId}/sources/${source.id}`).then(({ data }) => {
+      if (!cancelled) setSourceDetail(data.source);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [kitId, source?.id]);
+
+  const content = sourceDetail?.extractedText ?? '';
+  const sections = content.split(/\n\s*\n/).filter(Boolean).slice(0, 30);
+  const documentName = source?.name ?? t('summary.heading');
 
   return (
     <main>
@@ -27,8 +44,8 @@ export const PdfViewerPage = () => {
             </svg>
           </Link>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-2xl font-bold leading-tight">{pdfDocument.name}</h1>
-            <p className="mt-0.5 text-base text-white/75">PDF · {pdfDocument.size}</p>
+            <h1 className="truncate text-2xl font-bold leading-tight">{documentName}</h1>
+            <p className="mt-0.5 text-base text-white/75">{source?.kind?.toUpperCase()} · {formatBytes(source?.byteSize ?? 0)}</p>
           </div>
           <Link
             to={`/study/${kitId}/pdf?actions=1`}
@@ -43,7 +60,7 @@ export const PdfViewerPage = () => {
       {/* Page controls */}
       <div className="flex items-center justify-between px-5 pt-4">
         <span className="rounded-full bg-tint-100 px-4 py-2 text-base font-semibold text-navy-800">
-          {t('study.pageOf', { current: 1, total: pdfDocument.pages })}
+          {t('study.pageOf', { current: 1, total: source?.pageCount ?? 1 })}
         </span>
         <div className="flex items-center gap-2">
           <IconButton label={t('common.search')}>
@@ -69,27 +86,9 @@ export const PdfViewerPage = () => {
       {/* Rendered page */}
       <article className="mx-5 mt-3 rounded-card bg-white p-5 shadow-sm ring-1 ring-tint-200/70">
         <h2 className="border-b border-tint-200 pb-3 text-2xl font-bold text-navy-900">
-          {pdfDocument.title}
+          {documentName}
         </h2>
-        {pdfDocument.sections.map((section) => (
-          <section key={section.heading} className="mt-4">
-            <h3 className="font-bold text-navy-900">
-              {language === 'km' ? section.headingKm : section.heading}
-            </h3>
-            {section.body && (
-              <p className="mt-1 leading-relaxed text-navy-700">
-                {language === 'km' ? section.bodyKm : section.body}
-              </p>
-            )}
-            {section.bullets && (
-              <ul className="mt-1 list-disc space-y-0.5 ps-5 text-navy-700">
-                {(language === 'km' ? section.bulletsKm : section.bullets).map((bullet) => (
-                  <li key={bullet}>{bullet}</li>
-                ))}
-              </ul>
-            )}
-          </section>
-        ))}
+        {sections.map((section, index) => <p key={`${index}-${section.slice(0, 20)}`} className="mt-4 whitespace-pre-wrap leading-relaxed text-navy-700">{section}</p>)}
       </article>
 
       {/* Chat drawer */}
@@ -101,30 +100,6 @@ export const PdfViewerPage = () => {
         </div>
 
         <ul className="mt-4 space-y-3">
-          {pdfChat.map((message) => (
-            <li
-              key={message.id}
-              className={message.role === 'user' ? 'flex justify-end gap-2' : 'flex gap-2'}
-            >
-              {message.role !== 'user' && <OwlAvatar />}
-              <div
-                className={`max-w-[78%] rounded-2xl px-4 py-3 ${
-                  message.role === 'user'
-                    ? 'bg-navy-800 font-semibold text-white'
-                    : 'bg-white text-navy-900'
-                }`}
-              >
-                <p className="leading-relaxed">
-                  {language === 'km' ? message.contentKm : message.content}
-                </p>
-                {message.source && (
-                  <p className="mt-1.5 text-sm text-navy-600">
-                    {t('tutor.source', { title: message.source })}
-                  </p>
-                )}
-              </div>
-            </li>
-          ))}
         </ul>
 
         <form
@@ -149,13 +124,13 @@ export const PdfViewerPage = () => {
         </form>
       </section>
 
-      {showActions && <StudyActionsSheet kitId={kitId} />}
+      {showActions && <StudyActionsSheet kitId={kitId} sourceName={documentName} />}
     </main>
   );
 };
 
 /** docs/screens/04-study-mode-summaries/05-pdf-study-actions. */
-const StudyActionsSheet = ({ kitId }) => {
+const StudyActionsSheet = ({ kitId, sourceName }) => {
   const t = useT();
 
   const rows = [
@@ -172,7 +147,7 @@ const StudyActionsSheet = ({ kitId }) => {
         {t('study.studyThisFile')}
       </h2>
       <p className="mt-1 text-base text-navy-600">
-        {t('study.studyThisFileHint', { name: pdfDocument.name })}
+        {t('study.studyThisFileHint', { name: sourceName })}
       </p>
 
       <div className="mt-5 space-y-3">
@@ -197,7 +172,7 @@ const StudyActionsSheet = ({ kitId }) => {
           <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
           <path d="M12 11v5m0-8.2v.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
         </svg>
-        {t('study.contextNote', { name: pdfDocument.name })}
+        {t('study.contextNote', { name: sourceName })}
       </p>
     </BottomSheet>
   );

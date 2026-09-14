@@ -4,8 +4,8 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { NavyHeader } from '../../layouts/AppLayout.jsx';
 import { Owl } from '../../layouts/AuthLayout.jsx';
 import { CheckIcon } from '../../components/ui.jsx';
-import { classes, classQuizzes, lessonsByWeek, materialsByWeek } from '../../mock/fixtures.js';
 import { useLanguage, useT } from '../../i18n/index.js';
+import { useClassDetail } from './useClasses.js';
 
 /**
  * docs/screens/09-classes-assignments/02 and 03.
@@ -18,14 +18,25 @@ import { useLanguage, useT } from '../../i18n/index.js';
 export const ClassDetailPage = () => {
   const t = useT();
   const { language } = useLanguage();
-  const { classId = 'class-eng' } = useParams();
+  const { classId } = useParams();
   const [params] = useSearchParams();
-
-  const klass = classes.find((c) => c.id === classId) ?? classes[0];
   const [tab, setTab] = useState(params.get('tab') === 'quizzes' ? 'quizzes' : 'lessons');
   const [openWeek, setOpenWeek] = useState(1);
+  const { data, status, error, completeItem } = useClassDetail(classId);
+  const klass = data?.class;
+  const lessonsByWeek = data?.weeks ?? [];
+  const materialsByWeek = Object.values((data?.materials ?? []).reduce((groups, item) => {
+    groups[item.week] ??= { week: item.week, files: 0 };
+    groups[item.week].files += 1; return groups;
+  }, {}));
+  const classQuizzes = Object.values((data?.quizzes ?? []).reduce((groups, quiz) => {
+    groups[quiz.week] ??= { week: quiz.week, quizzes: [], tone: 'bg-tint-100 text-navy-800' };
+    groups[quiz.week].quizzes.push(quiz); return groups;
+  }, {}));
+  const title = klass?.title;
 
-  const title = language === 'km' ? klass.titleKm : klass.title;
+  if (status === 'loading') return <main className="grid min-h-dvh place-items-center text-navy-700">{t('common.loading')}</main>;
+  if (error || !klass) return <main className="grid min-h-dvh place-items-center px-6 text-center text-danger-600">{error?.message ?? 'Class not found.'}</main>;
 
   return (
     <main>
@@ -41,7 +52,7 @@ export const ClassDetailPage = () => {
               <h1 className="text-2xl font-bold leading-tight">{title}</h1>
               <p className="mt-2 flex items-center gap-2 text-base text-white/80">
                 <span className="grid size-8 place-items-center rounded-full bg-white/20 text-sm font-bold">
-                  {klass.teacher.replace('Prof. ', '').charAt(0)}
+                  {klass.teacher?.replace('Prof. ', '').charAt(0) || 'T'}
                 </span>
                 {klass.teacher}
               </p>
@@ -61,14 +72,14 @@ export const ClassDetailPage = () => {
             <div className="min-w-0">
               <h2 className="text-lg font-bold text-navy-900">{t('classes.yourProgress')}</h2>
               <p className="text-sm text-navy-600">
-                {t('classes.lessonsCompleted', { done: klass.lessonsDone, total: klass.weeks })}
+                {t('classes.lessonsCompleted', { done: klass.lessonsDone, total: klass.lessonCount })}
               </p>
             </div>
           </div>
           <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white">
             <span
               className="block h-full rounded-full bg-navy-800"
-              style={{ width: `${(klass.lessonsDone / klass.weeks) * 100}%` }}
+              style={{ width: `${(klass.lessonsDone / Math.max(1, klass.lessonCount)) * 100}%` }}
             />
           </div>
           <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
@@ -148,10 +159,10 @@ export const ClassDetailPage = () => {
                               </span>
                             </span>
                           </span>
-                          {lesson.status === 'in_progress' && (
-                            <span className="shrink-0 rounded-full bg-navy-800 px-4 py-2 text-sm font-bold text-white">
+                          {lesson.status !== 'completed' && lesson.items.some((item) => !item.completedAt) && (
+                            <button type="button" onClick={() => completeItem(lesson.items.find((item) => !item.completedAt).id)} className="shrink-0 rounded-full bg-navy-800 px-4 py-2 text-sm font-bold text-white">
                               {t('classes.continueLesson')}
-                            </span>
+                            </button>
                           )}
                           <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-navy-600" fill="none" aria-hidden="true">
                             <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -210,7 +221,7 @@ export const ClassDetailPage = () => {
                         {t('classes.week', { number: week.week })}
                       </span>
                       <span className="block text-sm text-navy-600">
-                        {t('classes.quizAvailable', { count: 1 })}
+                        {t('classes.quizAvailable', { count: week.quizzes.length })}
                       </span>
                     </span>
                     <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-navy-600" fill="none" aria-hidden="true">
@@ -218,21 +229,21 @@ export const ClassDetailPage = () => {
                     </svg>
                   </div>
 
-                  {week.week === 1 && (
+                  {week.quizzes[0] && (
                     <div className="flex items-center gap-3 bg-tint-100/70 p-3.5">
                       <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-navy-800">
                         <DocIcon />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block font-bold text-navy-900">
-                          {language === 'km' ? week.quizTitleKm : week.quizTitle}
+                          {week.quizzes[0].title}
                         </span>
                         <span className="block text-sm text-navy-600">
-                          {t('classes.quizMeta', { count: 10 })}
+                          {t('classes.quizMeta', { count: week.quizzes[0].questionCount })}
                         </span>
                       </span>
                       <Link
-                        to="/quiz/kit-database"
+                        to={week.quizzes[0].kitId ? `/quiz/${week.quizzes[0].kitId}` : '#'}
                         className="shrink-0 rounded-full bg-navy-800 px-4 py-2.5 text-sm font-bold text-white"
                       >
                         {t('classes.startQuiz')}
@@ -244,21 +255,22 @@ export const ClassDetailPage = () => {
             </ul>
 
             <h3 className="mt-6 text-xl font-bold text-navy-900">{t('classes.upcoming')}</h3>
-            <Link
-              to="/assignments/a1"
+            {data.assignments.map((assignment) => <Link
+              key={assignment.id}
+              to={`/assignments/${assignment.id}`}
               className="mt-3 flex items-center gap-3 rounded-card bg-white p-3.5 shadow-sm ring-1 ring-tint-200/70"
             >
               <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-tint-100 text-navy-800">
                 <CalendarIcon />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block font-bold text-navy-900">ER Diagram Exercises</span>
-                <span className="block text-sm text-navy-600">Sep 14</span>
+                <span className="block font-bold text-navy-900">{assignment.title}</span>
+                <span className="block text-sm text-navy-600">{assignment.dueAt ? new Intl.DateTimeFormat(language === 'km' ? 'km-KH' : 'en', { dateStyle: 'medium' }).format(new Date(assignment.dueAt)) : ''}</span>
               </span>
               <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-navy-600" fill="none" aria-hidden="true">
                 <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-            </Link>
+            </Link>)}
 
             <Link
               to="/tutor"

@@ -6,7 +6,8 @@ import { NavyHeader } from '../layouts/AppLayout.jsx';
 import { BrandLogo, Owl } from '../layouts/AuthLayout.jsx';
 import { KitCard } from '../components/KitCard.jsx';
 import { ArrowRightIcon } from '../components/ui.jsx';
-import { assignmentDates, classes, septemberCalendar } from '../mock/fixtures.js';
+import { api } from '../lib/api.js';
+import { isDemo, loadDemoFixtures } from '../mock/mode.js';
 import { useKits } from '../kits/KitsContext.jsx';
 import { useLanguage, useT } from '../i18n/index.js';
 
@@ -25,9 +26,39 @@ export const DashboardPage = () => {
   const { kits } = useKits();
   const [params] = useSearchParams();
   const [headerProgress, setHeaderProgress] = useState(0);
+  const [calendarData, setCalendarData] = useState(() => currentMonthCalendar());
+  const [dashboardClasses, setDashboardClasses] = useState([]);
+  const [assignmentDates, setAssignmentDates] = useState([]);
 
   const isEmpty = params.get('empty') === '1';
   const withCalendar = params.get('header') === 'calendar';
+
+  useEffect(() => {
+    if (!withCalendar) return;
+    let active = true;
+    const load = async () => {
+      if (isDemo()) {
+        const fixtures = await loadDemoFixtures();
+        if (active) {
+          setCalendarData(fixtures.septemberCalendar);
+          setDashboardClasses(fixtures.classes);
+          setAssignmentDates(fixtures.assignmentDates);
+        }
+        return;
+      }
+      const { data } = await api.get('/classes');
+      const details = await Promise.all(data.classes.slice(0, 4).map((item) => api.get(`/classes/${item.id}`)));
+      if (!active) return;
+      setDashboardClasses(data.classes);
+      setAssignmentDates(details.flatMap(({ data: detail }) => detail.assignments.map((item) => {
+        const due = new Date(item.dueAt);
+        return { title: item.title, course: detail.class.title,
+          month: new Intl.DateTimeFormat(language, { month: 'short' }).format(due), day: due.getDate() };
+      })).slice(0, 4));
+    };
+    load().catch(() => { if (active) { setDashboardClasses([]); setAssignmentDates([]); } });
+    return () => { active = false; };
+  }, [language, withCalendar]);
 
   useEffect(() => {
     let frame;
@@ -126,22 +157,22 @@ export const DashboardPage = () => {
             <section>
               <h2 className="text-xl font-bold text-navy-900">{t('classes.yourClasses')}</h2>
               <div className="mt-3 grid grid-cols-2 gap-3">
-                {classes.map((klass) => (
+                {dashboardClasses.map((klass, index) => (
                   <Link
                     key={klass.id}
                     to={`/classes/${klass.id}`}
                     className="rounded-card bg-white p-3.5 shadow-sm ring-1 ring-tint-200/70"
                   >
                     <span className="grid size-11 place-items-center rounded-xl bg-tint-100 text-navy-800">
-                      {klass.icon === 'laptop' ? <LaptopIcon /> : <BookIcon />}
+                      {index % 2 === 0 ? <LaptopIcon /> : <BookIcon />}
                     </span>
                     <span className="mt-2.5 block font-bold leading-snug text-navy-900">
-                      {language === 'km' ? klass.titleKm : klass.title}
+                      {language === 'km' ? klass.titleKm ?? klass.title : klass.title}
                     </span>
                     <span className="mt-1.5 block text-sm text-navy-600">{klass.teacher}</span>
                     <span className="mt-2 flex items-center gap-1.5 text-sm text-navy-700">
                       <span className="size-2 rounded-full bg-gold-400" aria-hidden="true" />
-                      {t('assignments.due', { date: klass.id === 'class-eng' ? 'Sep 14' : 'Sep 17' })}
+                      {t('classes.lessonsDone', { done: klass.lessonsDone ?? 0, total: klass.lessonCount ?? 0 })}
                     </span>
                   </Link>
                 ))}
@@ -220,7 +251,7 @@ export const DashboardPage = () => {
 /** The month grid from docs/screens/02-dashboard/03. */
 const MonthCalendar = () => {
   const t = useT();
-  const { label, days, today, marked } = septemberCalendar;
+  const { label, days, today, marked } = calendarData;
   const DAY_INITIALS = ['s', 'm', 't', 'w', 'th', 'f', 'sa'];
 
   return (

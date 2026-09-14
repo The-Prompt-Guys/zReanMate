@@ -1,8 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { api, setSessionExpiredHandler } from '../lib/api.js';
-import { isPrototype } from '../mock/mode.js';
-import { mockOnboarding, mockUser } from '../mock/fixtures.js';
+import { isDemo, loadDemoFixtures } from '../mock/mode.js';
 
 /**
  * Holds the signed-in user and their onboarding state — the two things the
@@ -18,7 +17,7 @@ const AuthContext = createContext(null);
  * Resolved once at module load. When true the whole auth flow is served from
  * fixtures — no /api call, no cookie, mockUser signed in. See src/mock/mode.js.
  */
-const AUTH_PROTOTYPE = isPrototype('auth');
+const DEMO = isDemo();
 
 const EMPTY_ONBOARDING = {
   roleChosen: false,
@@ -47,7 +46,8 @@ export const AuthProvider = ({ children }) => {
   /** Re-reads the session from the server; the source of truth is the cookie. */
   const reload = useCallback(async () => {
     // Prototype mode never calls the API — see src/mock/mode.js.
-    if (AUTH_PROTOTYPE) {
+    if (DEMO) {
+      const { mockOnboarding, mockUser } = await loadDemoFixtures();
       const data = { user: mockUser, onboarding: mockOnboarding };
       applySession(data);
       return data;
@@ -75,7 +75,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = useCallback(
     async (payload) => {
-      if (AUTH_PROTOTYPE) return (await reload()).user;
+      if (DEMO) return (await reload()).user;
       const { data } = await api.post('/auth/register', payload);
       // Registration returns the user but not onboarding state; read it back so
       // the router can route on a complete picture.
@@ -89,7 +89,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = useCallback(
     async (payload) => {
-      if (AUTH_PROTOTYPE) return (await reload()).user;
+      if (DEMO) return (await reload()).user;
       const { data } = await api.post('/auth/login', payload);
       setUser(data.user);
       setStatus('authenticated');
@@ -101,7 +101,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = useCallback(async () => {
     try {
-      if (!AUTH_PROTOTYPE) await api.post('/auth/logout');
+      if (!DEMO) await api.post('/auth/logout');
     } finally {
       // Clear locally even if the call failed — the user asked to be signed out.
       clearSession();
@@ -109,7 +109,8 @@ export const AuthProvider = ({ children }) => {
   }, [clearSession]);
 
   const chooseRole = useCallback(async (role) => {
-    if (AUTH_PROTOTYPE) {
+    if (DEMO) {
+      const { mockUser } = await loadDemoFixtures();
       setUser((prev) => ({ ...prev, role }));
       setOnboarding((prev) => ({ ...prev, roleChosen: true }));
       return { ...mockUser, role };
@@ -121,7 +122,8 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const submitSurvey = useCallback(async ({ answers, skipped = false, complete = false }) => {
-    if (AUTH_PROTOTYPE) {
+    if (DEMO) {
+      const { mockOnboarding } = await loadDemoFixtures();
       const next = { ...mockOnboarding, surveyAnswers: { ...answers } };
       setOnboarding(next);
       return { answers: next.surveyAnswers, skipped, completedAt: next.completedAt };

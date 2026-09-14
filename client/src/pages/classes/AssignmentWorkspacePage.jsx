@@ -1,35 +1,55 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { NavyHeader } from '../../layouts/AppLayout.jsx';
 import { Owl } from '../../layouts/AuthLayout.jsx';
 import { Button } from '../../components/ui.jsx';
-import { assignment, assignmentQuestions } from '../../mock/fixtures.js';
 import { useLanguage, useT } from '../../i18n/index.js';
+import { useAssignment } from './useAssignment.js';
 
 /** docs/screens/09-classes-assignments/06-assignment-quiz-workspace. */
 export const AssignmentWorkspacePage = () => {
   const t = useT();
   const { language } = useLanguage();
+  const { assignmentId } = useParams();
+  const navigate = useNavigate();
+  const { data, questions: assignmentQuestions, status, error, saveAnswers } = useAssignment(assignmentId, { questions: true });
   const [answers, setAnswers] = useState({});
-
-  const total = assignment.questionCount;
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { if (data?.submission?.answers) setAnswers(data.submission.answers); }, [data?.submission?.answers]);
+  const assignment = data?.assignment;
+  const total = assignment?.questionCount ?? assignmentQuestions.length;
   const answered = Object.keys(answers).length;
   const complete = answered === assignmentQuestions.length;
+
+  const choose = async (questionId, value) => {
+    const next = { ...answers, [questionId]: value };
+    setAnswers(next); setSaving(true);
+    try { await saveAnswers(next, false); } finally { setSaving(false); }
+  };
+  const submit = async () => {
+    setSaving(true);
+    try { await saveAnswers(answers, true); navigate(`/assignments/${assignmentId}`); }
+    finally { setSaving(false); }
+  };
+  const dueLabel = assignment?.dueAt ? new Intl.DateTimeFormat(language === 'km' ? 'km-KH' : 'en', { dateStyle: 'medium' }).format(new Date(assignment.dueAt)) : '';
+
+  if (status === 'loading') return <main className="grid min-h-dvh place-items-center text-navy-700">{t('common.loading')}</main>;
+  if (error || !assignment) return <main className="grid min-h-dvh place-items-center px-6 text-center text-danger-600">{error?.message ?? 'Assignment not found.'}</main>;
 
   return (
     <main>
       <NavyHeader>
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <Link to="/assignments/a1" aria-label={t('common.back')} className="mt-1 shrink-0">
+            <Link to={`/assignments/${assignmentId}`} aria-label={t('common.back')} className="mt-1 shrink-0">
               <svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true">
                 <path d="M19 12H5m6-6-6 6 6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </Link>
             <div className="min-w-0">
               <h1 className="text-xl font-bold leading-tight">
-                {language === 'km' ? assignment.titleKm : assignment.title}
+                {assignment.title}
               </h1>
               <p className="mt-0.5 truncate text-base text-white/75">{assignment.className}</p>
             </div>
@@ -41,7 +61,7 @@ export const AssignmentWorkspacePage = () => {
                 <rect x="3" y="5" width="18" height="16" rx="2.5" stroke="currentColor" strokeWidth="1.9" />
                 <path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
               </svg>
-              {t('assignments.due', { date: assignment.dueLabel })}
+              {t('assignments.due', { date: dueLabel })}
             </span>
           </div>
         </div>
@@ -71,12 +91,12 @@ export const AssignmentWorkspacePage = () => {
                   {index + 1}
                 </span>
                 <h2 className="mt-1 text-lg font-bold leading-snug text-navy-900">
-                  {language === 'km' ? question.promptKm : question.prompt}
+                  {question.prompt}
                 </h2>
               </div>
 
               <ul className="mt-3 space-y-1">
-                {(language === 'km' ? question.optionsKm : question.options).map((option, i) => {
+                {question.options.map((option, i) => {
                   const selected = answers[question.id] === i;
                   return (
                     <li key={option}>
@@ -86,7 +106,8 @@ export const AssignmentWorkspacePage = () => {
                           name={question.id}
                           className="sr-only"
                           checked={selected}
-                          onChange={() => setAnswers((a) => ({ ...a, [question.id]: i }))}
+                          disabled={saving}
+                          onChange={() => choose(question.id, i)}
                         />
                         <span
                           className={`grid size-6 shrink-0 place-items-center rounded-full border-2 ${
@@ -113,7 +134,7 @@ export const AssignmentWorkspacePage = () => {
         </p>
 
         <div className="mt-3 space-y-3 pb-4">
-          <Button disabled={!complete} onClick={() => {}}>
+          <Button disabled={!complete || saving} onClick={submit}>
             {t('assignments.submitQuiz')}
           </Button>
           {!complete && (

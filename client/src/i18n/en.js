@@ -26,6 +26,7 @@ export default {
     seeAll: 'See all',
     owlAlt: 'ReanMate owl mascot',
     backHome: 'Back to home',
+    close: 'Close',
   },
 
   nav: {
@@ -259,6 +260,10 @@ export default {
     chapterStatusReady: 'Ready',
     chapterStatusGenerating: 'Generating',
     chapterStatusPending: 'Queued',
+    chapterStatusFailed: 'Try again',
+    generatingSummary: 'Generating your summary…',
+    loadFailed: 'We could not load this summary. Try again.',
+    plusRequired: 'Upgrade to Plus for chapter summaries',
     showAllChapters: 'Show all chapters',
     studyMode: 'Study mode',
     heading: 'Summary',
@@ -279,6 +284,10 @@ export default {
     expand: 'Expand the tutor',
     whatToUnderstand: 'What would you like to understand better?',
     askAbout: 'Ask about {subject}...',
+    messagesRemaining: '{count} tutor messages remaining this month',
+    retry: 'Retry',
+    upgrade: 'Upgrade for more tutor messages',
+    page: 'page {page}',
   },
 
   quiz: {
@@ -289,6 +298,8 @@ export default {
     correct: 'Correct',
     incorrect: 'Not quite',
     explanation: 'Explanation',
+    generating: 'Generating your quiz…',
+    loadFailed: 'We could not load this quiz. Try again.',
     completeTitle: 'Quiz complete',
     completeSubtitle: 'You finished the quiz.',
     niceWork: 'Nice work, {name}!',
@@ -352,6 +363,14 @@ export default {
     submit: 'Submit practice',
     answerAllToSubmit: 'Answer all questions to submit',
     flashcards: 'Flashcards',
+    emptyTitle: 'No practice activity yet',
+    emptyBody: 'Complete your first practice session to see progress here.',
+    progress: 'Your progress',
+    streak: '{count}-day activity streak',
+    newTopic: 'New topic',
+    weeklyLimit: 'You have used your 3 free practice sessions this week.',
+    mockPlus: 'Mock exams require Plus.',
+    loadFailed: 'We could not load practice right now.',
   },
 
   flashcards: {

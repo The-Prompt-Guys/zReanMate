@@ -74,6 +74,21 @@ export const chunksDb = {
     return rows[0]?.count ?? 0;
   },
 
+  async cosineSearchForKit({ kitId, embedding, limit = 3 }) {
+    const { rows } = await query(
+      `SELECT c.id, c.source_id, c.content, c.page_number,
+              c.start_seconds, c.end_seconds, s.title,
+              c.embedding <=> $2::vector AS distance
+         FROM document_chunks c
+         JOIN kit_sources s ON s.id = c.source_id
+        WHERE c.study_kit_id = $1 AND c.embedding IS NOT NULL
+        ORDER BY c.embedding <=> $2::vector
+        LIMIT $3`,
+      [kitId, JSON.stringify(embedding), limit],
+    );
+    return rows;
+  },
+
   async deleteForSource(client, { sourceId }) {
     const runner = client ?? { query };
     await runner.query('DELETE FROM document_chunks WHERE source_id = $1', [sourceId]);

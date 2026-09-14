@@ -25,6 +25,7 @@ export default {
     seeAll: 'មើលទាំងអស់',
     owlAlt: 'តួរូបសម្គាល់ ReanMate',
     backHome: 'ត្រឡប់ទៅទំព័រដើម',
+    close: 'បិទ',
   },
 
   nav: {
@@ -258,6 +259,10 @@ export default {
     chapterStatusReady: 'រួចរាល់',
     chapterStatusGenerating: 'កំពុងបង្កើត',
     chapterStatusPending: 'កំពុងរង់ចាំ',
+    chapterStatusFailed: 'ព្យាយាមម្តងទៀត',
+    generatingSummary: 'កំពុងបង្កើតសេចក្តីសង្ខេប…',
+    loadFailed: 'យើងមិនអាចបើកសេចក្តីសង្ខេបនេះបានទេ។ សូមព្យាយាមម្តងទៀត។',
+    plusRequired: 'ដំឡើងទៅ Plus សម្រាប់សេចក្តីសង្ខេបតាមជំពូក',
     showAllChapters: 'បង្ហាញជំពូកទាំងអស់',
     studyMode: 'របៀបសិក្សា',
     heading: 'សេចក្តីសង្ខេប',
@@ -278,6 +283,10 @@ export default {
     expand: 'ពង្រីកគ្រូ AI',
     whatToUnderstand: 'តើអ្នកចង់យល់អ្វីឱ្យកាន់តែច្បាស់?',
     askAbout: 'សួរអំពី {subject}...',
+    messagesRemaining: 'នៅសល់សារ​គ្រូ AI {count} សារក្នុងខែនេះ',
+    retry: 'ព្យាយាមម្តងទៀត',
+    upgrade: 'ដំឡើងគម្រោងសម្រាប់សារ​គ្រូ AI បន្ថែម',
+    page: 'ទំព័រ {page}',
   },
 
   quiz: {
@@ -288,6 +297,8 @@ export default {
     correct: 'ត្រឹមត្រូវ',
     incorrect: 'មិនទាន់ត្រូវ',
     explanation: 'ការពន្យល់',
+    generating: 'កំពុងបង្កើតសំណួរ…',
+    loadFailed: 'យើងមិនអាចបើកសំណួរនេះបានទេ។ សូមព្យាយាមម្តងទៀត។',
     completeTitle: 'បញ្ចប់សំណួរ',
     completeSubtitle: 'អ្នកបានបញ្ចប់សំណួរហើយ។',
     niceWork: 'ល្អណាស់ {name}!',
@@ -351,6 +362,14 @@ export default {
     submit: 'ដាក់ស្នើការអនុវត្ត',
     answerAllToSubmit: 'ឆ្លើយសំណួរទាំងអស់ដើម្បីដាក់ស្នើ',
     flashcards: 'កាតរំលឹក',
+    emptyTitle: 'មិនទាន់មានសកម្មភាពអនុវត្ត',
+    emptyBody: 'បញ្ចប់វគ្គអនុវត្តដំបូងរបស់អ្នក ដើម្បីមើលវឌ្ឍនភាពនៅទីនេះ។',
+    progress: 'វឌ្ឍនភាពរបស់អ្នក',
+    streak: 'បានអនុវត្តជាប់គ្នា {count} ថ្ងៃ',
+    newTopic: 'ប្រធានបទថ្មី',
+    weeklyLimit: 'អ្នកបានប្រើវគ្គអនុវត្តឥតគិតថ្លៃ 3 ដងក្នុងសប្តាហ៍នេះហើយ។',
+    mockPlus: 'ការប្រឡងសាកល្បងត្រូវការ Plus។',
+    loadFailed: 'យើងមិនអាចបើកការអនុវត្តឥឡូវនេះបានទេ។',
   },
 
   flashcards: {

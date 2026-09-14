@@ -55,6 +55,20 @@ export const sourcesDb = {
     return queryOne(`${SOURCE_SELECT} WHERE s.id = $1`, [sourceId]);
   },
 
+  async findAccessibleById({ userId, sourceId }) {
+    return queryOne(
+      `${SOURCE_SELECT}
+        JOIN study_kits k ON k.id = s.study_kit_id
+        WHERE s.id = $1 AND (
+          k.user_id = $2 OR EXISTS (
+            SELECT 1 FROM class_enrollments ce
+             WHERE ce.class_id = k.class_id AND ce.user_id = $2 AND ce.status = 'active'
+          )
+        )`,
+      [sourceId, userId],
+    );
+  },
+
   async create({
     kitId,
     userId,

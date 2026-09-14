@@ -12,7 +12,7 @@ import {
 } from '../middleware/upload.js';
 import { ingestService } from './ingest.service.js';
 
-const toApiSource = (row) => {
+const toApiSource = (row, { includeContent = false } = {}) => {
   const metadata = row.metadata || {};
   return {
     id: row.id,
@@ -42,6 +42,7 @@ const toApiSource = (row) => {
           ? 50
           : 0),
     errorMessage: row.error_message,
+    ...(includeContent && { extractedText: row.extracted_text }),
     createdAt: row.created_at,
   };
 };
@@ -58,7 +59,7 @@ export const sourcesService = {
   async get(userId, kitId, sourceId) {
     const row = await sourcesDb.findById({ userId, kitId, sourceId });
     if (!row) throw ApiError.notFound('That file does not exist');
-    return toApiSource(row);
+    return toApiSource(row, { includeContent: true });
   },
 
   /**

@@ -1,9 +1,9 @@
-import { env } from '../config/env.js';
 import { kitsDb } from '../db/kits.db.js';
 import { withTransaction } from '../db/pool.js';
 import { usersDb } from '../db/users.db.js';
 import { ApiError } from '../middleware/errors.js';
 import { absoluteUploadPath, removeUploadedFile } from '../middleware/upload.js';
+import { plansService } from './plans.service.js';
 
 /**
  * Study kits. Business logic lives here; routes only wire and controllers only
@@ -15,8 +15,6 @@ const ICONS = ['document', 'database', 'code', 'share'];
 const ACCENTS = ['blue', 'violet', 'amber', 'teal'];
 
 /** null means no cap. Free accounts are capped; Plus is not. */
-const kitLimitFor = (planTier) => (planTier === 'plus' ? null : env.freeKitLimit);
-
 /**
  * One shape for every kit the API returns, so the list, the detail read and the
  * create response cannot drift apart.
@@ -59,7 +57,7 @@ export const kitsService = {
     const user = await usersDb.findById(userId);
     if (!user) throw ApiError.unauthorized('That account no longer exists');
 
-    const limit = kitLimitFor(user.plan_tier);
+    const limit = await plansService.getLimit(userId, 'max_kits');
     const used = await kitsDb.countForUser(userId);
     return { used, limit, planTier: user.plan_tier };
   },
@@ -74,7 +72,7 @@ export const kitsService = {
     const user = await usersDb.findById(userId);
     if (!user) throw ApiError.unauthorized('That account no longer exists');
 
-    const limit = kitLimitFor(user.plan_tier);
+    const limit = await plansService.getLimit(userId, 'max_kits');
 
     const kitId = await withTransaction(async (client) => {
       // hashtextextended keeps the lock key inside bigint for any uuid.
@@ -82,14 +80,7 @@ export const kitsService = {
 
       const used = await kitsDb.countForUser(userId, client);
 
-      if (limit !== null && used >= limit) {
-        throw new ApiError(
-          403,
-          'quota_exceeded',
-          `Free accounts can keep ${limit} study kits. Delete one to make room, or upgrade.`,
-          { used, limit },
-        );
-      }
+      plansService.assertCapacity('max_kits', used, limit);
 
       return kitsDb.create(client, {
         userId,

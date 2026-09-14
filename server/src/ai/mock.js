@@ -288,7 +288,13 @@ export const createMockProvider = () => ({
     const d = dict(language);
     return Array.from({ length: Math.max(1, count) }, (_, i) => {
       const [term, definition] = d.terms[i % d.terms.length];
-      return { term, definition, hint: null, topic: d.topics[i % d.topics.length] };
+      const cycle = Math.floor(i / d.terms.length);
+      return {
+        term: cycle ? `${term} ${cycle + 1}` : term,
+        definition,
+        hint: null,
+        topic: d.topics[i % d.topics.length],
+      };
     });
   },
 
@@ -325,11 +331,8 @@ export const createMockProvider = () => ({
 
   async summarizeAttempt({ language = 'km', correctCount = 0, totalQuestions = 1, missedTopics = [] } = {}) {
     const d = dict(language);
-    const masteryPercent = Math.round((correctCount / Math.max(1, totalQuestions)) * 100);
     return {
       takeaways: d.takeaways,
-      masteryPercent,
-      weakTopics: missedTopics.length ? missedTopics : masteryPercent < 80 ? d.topics.slice(0, 2) : [],
     };
   },
 

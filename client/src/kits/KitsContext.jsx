@@ -1,8 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { api, toFormError } from '../lib/api.js';
-import { isPrototype } from '../mock/mode.js';
-import { kitDetailFiles, otherKitFiles, kits as seedKits } from '../mock/fixtures.js';
+import { isDemo, loadDemoFixtures } from '../mock/mode.js';
 
 /**
  * Study kits, server-backed (docs/API-CONTRACT.md §3).
@@ -17,29 +16,36 @@ import { kitDetailFiles, otherKitFiles, kits as seedKits } from '../mock/fixture
  */
 const KitsContext = createContext(null);
 
-const PROTOTYPE = isPrototype('kits');
+const DEMO = isDemo();
 
 /**
  * Prototype seed, unchanged from when this context was in-memory. Kept so
  * VITE_PROTOTYPE_KITS=true still reviews the screens with no server, which is
  * the whole point of the per-flow switch.
  */
-const SEED_FILES = { 'kit-database': kitDetailFiles, ...otherKitFiles };
+let demoSeedFiles = {};
 
 /** Fixture kits carry a `progress` the API calls the same thing; no mapping needed. */
 const PROTOTYPE_ACCENTS = ['blue', 'violet', 'amber', 'teal'];
 const PROTOTYPE_ICONS = ['document', 'database', 'code', 'share'];
 
 export const KitsProvider = ({ children }) => {
-  const [kits, setKits] = useState(PROTOTYPE ? seedKits : []);
+  const [kits, setKits] = useState([]);
   // loading | ready | error — the Kits tab needs to tell "still fetching" from
   // "fetched, genuinely empty", which are the same render without this.
-  const [status, setStatus] = useState(PROTOTYPE ? 'ready' : 'loading');
+  const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
-  const [filesByKit, setFilesByKit] = useState(PROTOTYPE ? SEED_FILES : {});
+  const [filesByKit, setFilesByKit] = useState({});
 
   const refresh = useCallback(async () => {
-    if (PROTOTYPE) return;
+    if (DEMO) {
+      const { kitDetailFiles, otherKitFiles, kits: seedKits } = await loadDemoFixtures();
+      demoSeedFiles = { 'kit-database': kitDetailFiles, ...otherKitFiles };
+      setKits(seedKits);
+      setFilesByKit(demoSeedFiles);
+      setStatus('ready');
+      return;
+    }
     setStatus((prev) => (prev === 'ready' ? 'ready' : 'loading'));
     setError(null);
     try {
@@ -65,7 +71,7 @@ export const KitsProvider = ({ children }) => {
     async (partial = {}) => {
       const title = partial.title?.trim() || 'New study kit';
 
-      if (PROTOTYPE) {
+      if (DEMO) {
         const created = {
           id: `kit-${Date.now()}`,
           title,
@@ -99,7 +105,7 @@ export const KitsProvider = ({ children }) => {
   );
 
   const removeKit = useCallback(async (kitId) => {
-    if (PROTOTYPE) {
+    if (DEMO) {
       setKits((prev) => prev.filter((kit) => kit.id !== kitId));
       return;
     }
@@ -127,7 +133,7 @@ export const KitsProvider = ({ children }) => {
 
   /** A kit with no files of its own has none — never another kit's. */
   const loadFiles = useCallback(async (kitId) => {
-    if (PROTOTYPE) return SEED_FILES[kitId] ?? [];
+    if (DEMO) return demoSeedFiles[kitId] ?? [];
     const { data } = await api.get(`/kits/${kitId}/sources`);
     setFilesByKit((prev) => ({ ...prev, [kitId]: data.sources }));
     return data.sources;
@@ -139,7 +145,7 @@ export const KitsProvider = ({ children }) => {
    * keeps a bar from jumping to NaN%.
    */
   const uploadFile = useCallback(async (kitId, file, { onProgress } = {}) => {
-    if (PROTOTYPE) {
+    if (DEMO) {
       const created = {
         id: `f-${Date.now()}`,
         name: file?.name ?? 'New material',
@@ -183,7 +189,7 @@ export const KitsProvider = ({ children }) => {
   }, []);
 
   const removeFile = useCallback(async (kitId, fileId) => {
-    if (PROTOTYPE) {
+    if (DEMO) {
       setFilesByKit((prev) => ({
         ...prev,
         [kitId]: (prev[kitId] ?? []).filter((f) => f.id !== fileId),
@@ -223,7 +229,7 @@ export const KitsProvider = ({ children }) => {
       kits,
       status,
       error,
-      isPrototype: PROTOTYPE,
+      isDemo: DEMO,
       refresh,
       addKit,
       removeKit,
