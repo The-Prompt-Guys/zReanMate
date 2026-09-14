@@ -93,6 +93,16 @@ export const kitFiles = [
   { id: 'f4', name: 'Week 2 notes.jpg', kind: 'image', size: '820 KB', status: 'processing' },
 ];
 
+/** docs/screens/03-study-kits/03-study-kit-file-list. */
+export const kitDetailFiles = [
+  { id: 'd1', name: 'Database Week 1.pdf', kind: 'pdf', size: '2.4 MB' },
+  { id: 'd2', name: 'Database Week 2.pdf', kind: 'pdf', size: '3.1 MB' },
+  { id: 'd3', name: 'Normalization notes.jpg', kind: 'image', size: '1.8 MB' },
+  { id: 'd4', name: 'Introduction to SQL', kind: 'youtube', size: '5h 02m' },
+  { id: 'd5', name: 'ER diagrams and keys.pdf', kind: 'pdf', size: '890 KB' },
+  { id: 'd6', name: 'Practice questions.docx', kind: 'document', size: '420 KB' },
+];
+
 /** docs/screens/04-study-mode-summaries/02 — 12 chapters, 5 ready. */
 export const chapters = [
   { index: 1, title: 'Database foundations', titleKm: 'មូលដ្ឋានគ្រឹះនៃមូលដ្ឋានទិន្នន័យ', start: 0, end: 1458, status: 'ready' },

@@ -8,10 +8,26 @@ import { RoleSelectionPage } from '../pages/RoleSelectionPage.jsx';
 import { SurveyPage } from '../pages/SurveyPage.jsx';
 import { PlanPage } from '../pages/PlanPage.jsx';
 import { DashboardPage } from '../pages/DashboardPage.jsx';
+import { KitsPage } from '../pages/kits/KitsPage.jsx';
+import { KitDetailPage } from '../pages/kits/KitDetailPage.jsx';
+import {
+  AddMaterialSheet,
+  CreateKitSheet,
+  ProcessingSheet,
+  YouTubeUrlSheet,
+} from '../pages/kits/sheets.jsx';
 import { ScreenIndexPage } from '../pages/ScreenIndexPage.jsx';
 import { PendingScreenPage } from '../pages/PendingScreenPage.jsx';
 import { FLOWS } from '../screens.js';
 import { NotFoundPage } from '../pages/NotFoundPage.jsx';
+
+/** Renders a sheet over the dashboard, matching how the design layers them. */
+const SheetOver = ({ sheet }) => (
+  <>
+    <DashboardPage />
+    {sheet}
+  </>
+);
 
 /**
  * Routes for registry entries that have a path but no page yet. Built screens
@@ -65,6 +81,16 @@ export const router = createBrowserRouter([
             element: <AppLayout />,
             children: [
               { path: '/', element: <DashboardPage /> },
+
+              // Study kits. The "add material" screens are sheets over the
+              // dashboard in the design, so the dashboard renders behind them.
+              { path: '/kits', element: <KitsPage /> },
+              { path: '/kits/new', element: <SheetOver sheet={<AddMaterialSheet />} /> },
+              { path: '/kits/new/youtube', element: <SheetOver sheet={<YouTubeUrlSheet />} /> },
+              { path: '/kits/new/processing', element: <SheetOver sheet={<ProcessingSheet />} /> },
+              { path: '/kits/folders/new', element: <SheetOver sheet={<CreateKitSheet />} /> },
+              { path: '/kits/:kitId', element: <KitDetailPage /> },
+
               // Every registered screen that is not built yet still resolves,
               // so the tab bar and the index never dead-end on a 404.
               ...pendingRoutes,

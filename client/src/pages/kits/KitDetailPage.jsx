@@ -1,0 +1,174 @@
+import { useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+
+import { NavyHeader } from '../../layouts/AppLayout.jsx';
+import { SearchField, PillSelect } from '../../components/listControls.jsx';
+import { kits, kitDetailFiles } from '../../mock/fixtures.js';
+import { useLanguage, useT } from '../../i18n/index.js';
+
+/** docs/screens/03-study-kits/03-study-kit-file-list. */
+export const KitDetailPage = () => {
+  const t = useT();
+  const { language } = useLanguage();
+  const { kitId } = useParams();
+  const [query, setQuery] = useState('');
+
+  const kit = kits.find((k) => k.id === kitId) ?? kits[1];
+  const title = language === 'km' ? kit.titleKm : kit.title;
+
+  const files = kitDetailFiles.filter((file) =>
+    query.trim() ? file.name.toLowerCase().includes(query.trim().toLowerCase()) : true,
+  );
+
+  return (
+    <main>
+      <NavyHeader>
+        <div className="flex items-start gap-3">
+          <Link to="/kits" aria-label={t('common.back')} className="mt-1 shrink-0">
+            <svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true">
+              <path d="M19 12H5m6-6-6 6 6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </Link>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-bold leading-tight">{title}</h1>
+            <p className="mt-1 text-base text-white/75">
+              {t('kits.fileSummary', { files: kitDetailFiles.length, cards: kit.cardCount * 2 })}
+            </p>
+          </div>
+          <button type="button" aria-label={t('common.seeAll')} className="mt-1 shrink-0">
+            <svg viewBox="0 0 24 24" className="size-6" fill="currentColor" aria-hidden="true">
+              <circle cx="12" cy="5" r="1.9" />
+              <circle cx="12" cy="12" r="1.9" />
+              <circle cx="12" cy="19" r="1.9" />
+            </svg>
+          </button>
+        </div>
+      </NavyHeader>
+
+      <div className="space-y-4 px-5 pt-4">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <SearchField
+              value={query}
+              onChange={setQuery}
+              placeholder={t('kits.searchFiles')}
+              label={t('kits.searchFiles')}
+            />
+          </div>
+          <Link
+            to="/kits/new"
+            aria-label={t('kits.addMore')}
+            className="grid size-12 shrink-0 place-items-center rounded-full bg-navy-800 text-white"
+          >
+            <svg viewBox="0 0 24 24" className="size-6" fill="none" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+            </svg>
+          </Link>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <PillSelect label={t('kits.allFiles')} active />
+          <PillSelect label={t('kits.recentlyAdded')} />
+          <button
+            type="button"
+            aria-label={t('kits.sort')}
+            className="ms-auto grid size-11 shrink-0 place-items-center rounded-full bg-tint-100 text-navy-700"
+          >
+            <svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true">
+              <path d="M4 7h12M4 12h8M4 17h5M18 8v10m0 0 3-3m-3 3-3-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+
+        <ul className="space-y-3">
+          {files.map((file) => (
+            <li key={file.id}>
+              <Link
+                to={file.kind === 'youtube' ? `/study/${kit.id}/summary` : `/study/${kit.id}/pdf`}
+                className="flex items-center gap-3.5 rounded-card bg-white p-3.5 shadow-sm ring-1 ring-tint-200/70"
+              >
+                <FileTile kind={file.kind} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-bold text-navy-900">{file.name}</span>
+                  <span className="block text-sm text-navy-600">
+                    {t(`kits.kind_${file.kind}`)} · {file.size}
+                  </span>
+                </span>
+                <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-navy-600" fill="none" aria-hidden="true">
+                  <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </Link>
+            </li>
+          ))}
+        </ul>
+
+        <div className="text-center">
+          <Link to="/kits/new" className="text-base font-semibold text-navy-700">
+            {t('kits.addMore')}
+          </Link>
+        </div>
+
+        <Link
+          to={`/flashcards/${kit.id}`}
+          className="flex items-center gap-4 rounded-card bg-tint-100 p-4"
+        >
+          <span className="grid size-12 shrink-0 place-items-center rounded-full bg-navy-800 text-white">
+            <svg viewBox="0 0 24 24" className="size-6" fill="none" aria-hidden="true">
+              <path d="m12 3 9 4.5-9 4.5-9-4.5z" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
+              <path d="m3 12 9 4.5 9-4.5M3 16.5 12 21l9-4.5" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <span className="text-lg font-bold text-navy-900">
+            {t('kits.cardsReady', { count: kit.cardCount })}
+          </span>
+        </Link>
+      </div>
+    </main>
+  );
+};
+
+const TILES = {
+  pdf: 'bg-tint-200',
+  image: 'bg-violet-100',
+  youtube: 'bg-amber-100',
+  document: 'bg-tint-200',
+};
+
+const FileTile = ({ kind }) => (
+  <span className={`grid size-12 shrink-0 place-items-center rounded-xl ${TILES[kind] ?? TILES.pdf}`}>
+    {kind === 'pdf' && <PdfMark />}
+    {kind === 'image' && <ImageMark />}
+    {kind === 'youtube' && <PlayMark />}
+    {kind === 'document' && <DocMark />}
+  </span>
+);
+
+const PdfMark = () => (
+  <svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true">
+    <path d="M14 3H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7z" fill="#fff" stroke="#E2574C" strokeWidth="1.6" />
+    <path d="M14 3v4h4" stroke="#E2574C" strokeWidth="1.6" />
+    <path d="M9.2 16.5c2.2-3.4 3-6.2 2.2-6.7-.9-.5-1.3 2.6 1.1 4.6 1 .8 2.2 1.2 3 1" stroke="#E2574C" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const ImageMark = () => (
+  <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="#6D4AC4" strokeWidth="1.8" aria-hidden="true">
+    <rect x="3" y="5" width="18" height="14" rx="2.5" />
+    <circle cx="9" cy="10" r="1.6" />
+    <path d="m4 17 5-5 3.5 3.5L16 12l4 4" strokeLinejoin="round" />
+  </svg>
+);
+
+const PlayMark = () => (
+  <svg viewBox="0 0 24 24" className="size-7" aria-hidden="true">
+    <rect x="2.5" y="5.5" width="19" height="13" rx="3.5" fill="#E2574C" />
+    <path d="m10 9.5 5 2.5-5 2.5z" fill="#fff" />
+  </svg>
+);
+
+const DocMark = () => (
+  <svg viewBox="0 0 24 24" className="size-7" aria-hidden="true">
+    <rect x="4" y="3" width="16" height="18" rx="2.5" fill="#2B579A" />
+    <path d="m8 9 1.6 6L11 11l1.4 4L14 9" stroke="#fff" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);

@@ -37,12 +37,12 @@ export const FLOWS = [
     id: '03-study-kits',
     label: 'Study kits',
     screens: [
-      { shot: '01-kits-tab', name: 'Kits tab', route: '/kits', built: false },
-      { shot: '02-create-study-folder', name: 'Create folder', route: '/kits/folders/new', built: false },
-      { shot: '03-study-kit-file-list', name: 'Kit file list', route: '/kits/kit-database', built: false },
-      { shot: '04-add-youtube-url-popup', name: 'Add material', route: '/kits/new', built: false },
-      { shot: '05-youtube-url-entry', name: 'YouTube URL entry', route: '/kits/new/youtube', built: false },
-      { shot: '06-youtube-processing', name: 'Processing', route: '/kits/new/processing', built: false },
+      { shot: '01-kits-tab', name: 'Kits tab', route: '/kits', built: true },
+      { shot: '02-create-study-folder', name: 'Create folder', route: '/kits/folders/new', built: true },
+      { shot: '03-study-kit-file-list', name: 'Kit file list', route: '/kits/kit-database', built: true },
+      { shot: '04-add-youtube-url-popup', name: 'Add material', route: '/kits/new', built: true },
+      { shot: '05-youtube-url-entry', name: 'YouTube URL entry', route: '/kits/new/youtube', built: true },
+      { shot: '06-youtube-processing', name: 'Processing', route: '/kits/new/processing', built: true },
     ],
   },
   {
