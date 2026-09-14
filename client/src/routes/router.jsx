@@ -14,6 +14,7 @@ import { StudyModePage } from '../pages/study/StudyModePage.jsx';
 import { SummaryPage } from '../pages/study/SummaryPage.jsx';
 import { ChapterSummaryPage } from '../pages/study/ChapterSummaryPage.jsx';
 import { PdfViewerPage } from '../pages/study/PdfViewerPage.jsx';
+import { TutorPage } from '../pages/tutor/TutorPage.jsx';
 import {
   AddMaterialSheet,
   CreateKitSheet,
@@ -109,6 +110,9 @@ export const router = createBrowserRouter([
               { path: '/study/:kitId/summary', element: <SummaryPage /> },
               { path: '/study/:kitId/summary/:chapter', element: <ChapterSummaryPage /> },
               { path: '/study/:kitId/pdf', element: <PdfViewerPage /> },
+
+              // AI tutor
+              { path: '/tutor', element: <TutorPage /> },
 
               // Every registered screen that is not built yet still resolves,
               // so the tab bar and the index never dead-end on a 404.

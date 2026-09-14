@@ -1,7 +1,8 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { NavyHeader } from '../../layouts/AppLayout.jsx';
 import { Owl } from '../../layouts/AuthLayout.jsx';
+import { TutorDrawer } from '../../components/TutorDrawer.jsx';
 import { chapters, kits, summarySections } from '../../mock/fixtures.js';
 import { useLanguage, useT } from '../../i18n/index.js';
 
@@ -10,6 +11,10 @@ export const ChapterSummaryPage = () => {
   const t = useT();
   const { language } = useLanguage();
   const { kitId = 'kit-database', chapter } = useParams();
+  const [params] = useSearchParams();
+  // The drawer is part of this screen in the design; ?tutor=1 opens it
+  // expanded so docs/screens/05-ai-tutor-chat/02 is directly reviewable.
+  const tutorOpen = params.get('tutor') === '1';
 
   const kit = kits.find((k) => k.id === kitId) ?? kits[1];
   const title = language === 'km' ? kit.titleKm : kit.title;
@@ -61,6 +66,8 @@ export const ChapterSummaryPage = () => {
           ))}
         </div>
       </div>
+
+      <TutorDrawer defaultOpen={tutorOpen} subject={title} />
     </main>
   );
 };

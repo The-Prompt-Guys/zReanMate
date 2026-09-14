@@ -242,6 +242,10 @@ export default {
     thinking: 'Thinking…',
     failed: 'The tutor could not answer. Try again.',
     send: 'Send',
+    collapse: 'Collapse the tutor',
+    expand: 'Expand the tutor',
+    whatToUnderstand: 'What would you like to understand better?',
+    askAbout: 'Ask about {subject}...',
   },
 
   quiz: {

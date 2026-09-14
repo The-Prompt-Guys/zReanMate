@@ -60,8 +60,8 @@ export const FLOWS = [
     id: '05-ai-tutor-chat',
     label: 'AI tutor',
     screens: [
-      { shot: '01-ai-chat-interface', name: 'Tutor chat', route: '/tutor', built: false },
-      { shot: '02-collapsible-ai-tutor-drawer-no-duplicate', name: 'Tutor drawer', route: '/tutor?drawer=1', built: false },
+      { shot: '01-ai-chat-interface', name: 'Tutor chat', route: '/tutor', built: true },
+      { shot: '02-collapsible-ai-tutor-drawer-no-duplicate', name: 'Tutor drawer', route: '/study/kit-database/summary/1?tutor=1', built: true },
     ],
   },
   {

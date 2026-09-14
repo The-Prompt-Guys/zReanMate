@@ -241,6 +241,10 @@ export default {
     thinking: 'កំពុងគិត…',
     failed: 'គ្រូ AI មិនអាចឆ្លើយបានទេ។ សូមព្យាយាមម្តងទៀត។',
     send: 'ផ្ញើ',
+    collapse: 'បង្រួមគ្រូ AI',
+    expand: 'ពង្រីកគ្រូ AI',
+    whatToUnderstand: 'តើអ្នកចង់យល់អ្វីឱ្យកាន់តែច្បាស់?',
+    askAbout: 'សួរអំពី {subject}...',
   },
 
   quiz: {
