@@ -30,7 +30,7 @@ export const FLOWS = [
     screens: [
       { shot: '01-dashboard-populated-navy-no-quote', name: 'Home — populated', route: '/', built: true },
       { shot: 'main dashboard', name: 'Home — empty state', route: '/?empty=1', built: true },
-      { shot: '03-navy-owl-calendar-top', name: 'Home — owl/calendar header', route: '/?header=calendar', built: false },
+      { shot: '03-navy-owl-calendar-top', name: 'Home — owl/calendar header', route: '/?header=calendar', built: true },
     ],
   },
   {
@@ -107,7 +107,7 @@ export const FLOWS = [
   {
     id: '10-profile',
     label: 'Profile',
-    screens: [{ shot: '01-profile-tab', name: 'Profile', route: '/profile', built: false }],
+    screens: [{ shot: '01-profile-tab', name: 'Profile', route: '/profile', built: true }],
   },
 ];
 

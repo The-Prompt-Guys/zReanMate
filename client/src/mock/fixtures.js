@@ -481,8 +481,28 @@ export const assignmentQuestions = [
   },
 ];
 
-export const profileStats = [
-  { key: 'kits', value: 4 },
-  { key: 'cards', value: 36 },
-  { key: 'streak', value: 5 },
+/** docs/screens/10-profile/01-profile-tab. */
+/** docs/screens/02-dashboard/03-navy-owl-calendar-top. */
+export const assignmentDates = [
+  { month: 'Sep', day: 14, title: 'ER Diagram Exercises', course: 'Academic Paragraphs' },
+  { month: 'Sep', day: 17, title: 'SQL Practice Set 1', course: 'Computer Networks' },
 ];
+
+/** September 2026 starts on a Tuesday, so two leading blanks. */
+export const septemberCalendar = {
+  label: 'September 2026',
+  today: 12,
+  marked: [14, 17],
+  days: [
+    null, null, 1, 2, 3, 4, 5,
+    6, 7, 8, 9, 10, 11, 12,
+    13, 14, 15, 16, 17, 18, 19,
+    20, 21, 22, 23, 24, 25, 26,
+    27, 28, 29, 30,
+  ],
+};
+
+export const profileSummary = { kits: 4, cards: 86, mastery: 72 };
+
+/** Mon-Sun; true = studied that day (navy dot), false = missed (gold dot). */
+export const learningWeek = [true, true, false, true, true, false, true];

@@ -28,6 +28,7 @@ import { ClassesPage } from '../pages/classes/ClassesPage.jsx';
 import { ClassDetailPage } from '../pages/classes/ClassDetailPage.jsx';
 import { AssignmentDetailPage } from '../pages/classes/AssignmentDetailPage.jsx';
 import { AssignmentWorkspacePage } from '../pages/classes/AssignmentWorkspacePage.jsx';
+import { ProfilePage } from '../pages/ProfilePage.jsx';
 import {
   AddMaterialSheet,
   CreateKitSheet,
@@ -148,6 +149,9 @@ export const router = createBrowserRouter([
               { path: '/classes/:classId', element: <ClassDetailPage /> },
               { path: '/assignments/:assignmentId', element: <AssignmentDetailPage /> },
               { path: '/assignments/:assignmentId/work', element: <AssignmentWorkspacePage /> },
+
+              // Profile
+              { path: '/profile', element: <ProfilePage /> },
 
               // Every registered screen that is not built yet still resolves,
               // so the tab bar and the index never dead-end on a 404.

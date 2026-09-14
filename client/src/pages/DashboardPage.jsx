@@ -1,17 +1,29 @@
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext.jsx';
 import { NavyHeader } from '../layouts/AppLayout.jsx';
 import { Owl } from '../layouts/AuthLayout.jsx';
 import { KitCard } from '../components/KitCard.jsx';
 import { ArrowRightIcon } from '../components/ui.jsx';
-import { kits } from '../mock/fixtures.js';
-import { useT } from '../i18n/index.js';
+import { assignmentDates, classes, kits, septemberCalendar } from '../mock/fixtures.js';
+import { useLanguage, useT } from '../i18n/index.js';
 
-/** docs/screens/02-dashboard/01-dashboard-populated-navy-no-quote. */
+/**
+ * docs/screens/02-dashboard/ — three variants of one screen:
+ *
+ *   (default)        01-dashboard-populated-navy-no-quote
+ *   ?empty=1         main dashboard, before any kit exists
+ *   ?header=calendar 03-navy-owl-calendar-top, with the month calendar,
+ *                    assignment dates and class cards
+ */
 export const DashboardPage = () => {
   const t = useT();
+  const { language } = useLanguage();
   const { user } = useAuth();
+  const [params] = useSearchParams();
+
+  const isEmpty = params.get('empty') === '1';
+  const withCalendar = params.get('header') === 'calendar';
 
   return (
     <main>
@@ -44,7 +56,6 @@ export const DashboardPage = () => {
       </NavyHeader>
 
       <div className="space-y-6 px-5 pt-5">
-        {/* Add your material */}
         <Link
           to="/kits/new"
           className="flex items-center gap-4 rounded-card bg-white p-4 shadow-sm ring-1 ring-tint-200/70"
@@ -59,24 +70,96 @@ export const DashboardPage = () => {
           <ArrowRightIcon className="size-5 shrink-0 text-navy-800" />
         </Link>
 
-        {/* Study kits */}
+        {withCalendar && (
+          <>
+            <section className="grid grid-cols-2 gap-4 rounded-card bg-white p-4 shadow-sm ring-1 ring-tint-200/70">
+              <MonthCalendar />
+              <div className="min-w-0 border-s border-tint-200 ps-4">
+                <h2 className="font-bold text-navy-900">{t('dashboard.assignmentDates')}</h2>
+                <ul className="mt-3 space-y-3">
+                  {assignmentDates.map((item) => (
+                    <li key={item.title} className="flex items-start gap-2.5">
+                      <span className="grid shrink-0 rounded-lg bg-gold-400/30 px-2.5 py-1.5 text-center">
+                        <span className="text-[0.65rem] font-semibold text-navy-700">{item.month}</span>
+                        <span className="text-lg font-bold leading-none text-navy-900">{item.day}</span>
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-bold leading-snug text-navy-900">
+                          {item.title}
+                        </span>
+                        <span className="block text-xs text-navy-600">{item.course}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-bold text-navy-900">{t('classes.yourClasses')}</h2>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                {classes.map((klass) => (
+                  <Link
+                    key={klass.id}
+                    to={`/classes/${klass.id}`}
+                    className="rounded-card bg-white p-3.5 shadow-sm ring-1 ring-tint-200/70"
+                  >
+                    <span className="grid size-11 place-items-center rounded-xl bg-tint-100 text-navy-800">
+                      {klass.icon === 'laptop' ? <LaptopIcon /> : <BookIcon />}
+                    </span>
+                    <span className="mt-2.5 block font-bold leading-snug text-navy-900">
+                      {language === 'km' ? klass.titleKm : klass.title}
+                    </span>
+                    <span className="mt-1.5 block text-sm text-navy-600">{klass.teacher}</span>
+                    <span className="mt-2 flex items-center gap-1.5 text-sm text-navy-700">
+                      <span className="size-2 rounded-full bg-gold-400" aria-hidden="true" />
+                      {t('assignments.due', { date: klass.id === 'class-eng' ? 'Sep 14' : 'Sep 17' })}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
+
         <section>
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-navy-900">{t('dashboard.studyKits')}</h2>
-            <Link to="/kits" className="flex items-center gap-1 text-sm font-semibold text-navy-700">
-              {t('common.seeAll')}
-              <ArrowRightIcon className="size-4" />
-            </Link>
+            <div>
+              <h2 className="text-xl font-bold text-navy-900">{t('dashboard.studyKits')}</h2>
+              {isEmpty && (
+                <p className="text-sm text-navy-600">{t('dashboard.studyKitsReady')}</p>
+              )}
+            </div>
+            {!isEmpty && (
+              <Link to="/kits" className="flex items-center gap-1 text-sm font-semibold text-navy-700">
+                {t('common.seeAll')}
+                <ArrowRightIcon className="size-4" />
+              </Link>
+            )}
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            {kits.slice(0, 4).map((kit) => (
-              <KitCard key={kit.id} kit={kit} compact />
-            ))}
-          </div>
+          {isEmpty ? (
+            <div className="mt-3 rounded-card bg-white px-6 py-8 text-center shadow-sm ring-1 ring-tint-200/70">
+              <EmptyKitArt />
+              <h3 className="mt-4 text-xl font-bold text-navy-900">{t('dashboard.emptyTitle')}</h3>
+              <p className="mt-1.5 text-base text-navy-600">{t('dashboard.emptyBody')}</p>
+              <Link
+                to="/kits/new"
+                className="mt-5 inline-flex items-center gap-2 rounded-full bg-navy-800 px-6 py-3.5 text-base font-bold text-white"
+              >
+                {t('dashboard.emptyAction')}
+                <ArrowRightIcon className="size-4" />
+              </Link>
+            </div>
+          ) : (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              {kits.slice(0, 4).map((kit) => (
+                <KitCard key={kit.id} kit={kit} compact />
+              ))}
+            </div>
+          )}
         </section>
 
-        {/* Feature carousel */}
         <section className="rounded-card bg-tint-100 p-5">
           <span className="inline-block rounded-full bg-white/70 px-3 py-1 text-xs font-bold uppercase tracking-wide text-navy-700">
             {t('dashboard.featureBadge')}
@@ -97,15 +180,63 @@ export const DashboardPage = () => {
           </div>
           <div className="mt-4 flex justify-center gap-1.5" aria-hidden="true">
             {[0, 1, 2].map((i) => (
-              <span
-                key={i}
-                className={`size-2 rounded-full ${i === 0 ? 'bg-navy-800' : 'bg-navy-800/25'}`}
-              />
+              <span key={i} className={`size-2 rounded-full ${i === 0 ? 'bg-navy-800' : 'bg-navy-800/25'}`} />
             ))}
           </div>
         </section>
       </div>
     </main>
+  );
+};
+
+/** The month grid from docs/screens/02-dashboard/03. */
+const MonthCalendar = () => {
+  const t = useT();
+  const { label, days, today, marked } = septemberCalendar;
+  const DAY_INITIALS = ['s', 'm', 't', 'w', 'th', 'f', 'sa'];
+
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center justify-between">
+        <button type="button" aria-label={t('common.previous')} className="text-navy-800">
+          <svg viewBox="0 0 24 24" className="size-4" fill="none" aria-hidden="true">
+            <path d="m15 6-6 6 6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <p className="text-sm font-bold text-navy-900">{label}</p>
+        <button type="button" aria-label={t('common.next')} className="text-navy-800">
+          <svg viewBox="0 0 24 24" className="size-4" fill="none" aria-hidden="true">
+            <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="mt-2 grid grid-cols-7 gap-y-1 text-center">
+        {DAY_INITIALS.map((key, i) => (
+          <span key={i} className="text-[0.6rem] font-semibold text-navy-600">
+            {t(`dashboard.dayInitial_${key}`)}
+          </span>
+        ))}
+        {days.map((day, i) =>
+          day === null ? (
+            <span key={`blank-${i}`} />
+          ) : (
+            <span key={day} className="relative grid place-items-center py-0.5">
+              <span
+                className={`grid size-6 place-items-center rounded-full text-xs ${
+                  day === today ? 'bg-navy-800 font-bold text-white' : 'font-semibold text-navy-800'
+                }`}
+              >
+                {day}
+              </span>
+              {marked.includes(day) && (
+                <span className="mt-0.5 size-1 rounded-full bg-gold-400" aria-hidden="true" />
+              )}
+            </span>
+          ),
+        )}
+      </div>
+    </div>
   );
 };
 
@@ -115,7 +246,33 @@ const PlusIcon = () => (
   </svg>
 );
 
-/** The chat-bot + flashcards illustration on the feature card. */
+const BookIcon = () => (
+  <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 7c-2-1.6-4.4-2-7-2v12c2.6 0 5 .4 7 2 2-1.6 4.4-2 7-2V5c-2.6 0-5 .4-7 2z" />
+    <path d="M12 7v12" />
+  </svg>
+);
+
+const LaptopIcon = () => (
+  <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="5" width="18" height="12" rx="2" />
+    <path d="M2 20h20" />
+  </svg>
+);
+
+/** The document-with-plus illustration on the empty state. */
+const EmptyKitArt = () => (
+  <svg viewBox="0 0 96 88" className="mx-auto size-24" fill="none" aria-hidden="true">
+    <path d="M32 12h22l14 14v42a4 4 0 0 1-4 4H32a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4Z" fill="#fff" stroke="#0C3C85" strokeWidth="2.6" strokeLinejoin="round" />
+    <path d="M54 12v14h14" stroke="#0C3C85" strokeWidth="2.6" strokeLinejoin="round" />
+    <path d="M37 36h20M37 44h20M37 52h12" stroke="#0C3C85" strokeWidth="2.6" strokeLinecap="round" />
+    <circle cx="70" cy="60" r="11" fill="#FDC96A" />
+    <path d="M70 55v10M65 60h10" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" />
+    <path d="M18 30h8M16 40h6M20 50h6" stroke="#0C3C85" strokeWidth="2.4" strokeLinecap="round" />
+    <path d="M76 20l3 5M84 28h-5" stroke="#0C3C85" strokeWidth="2.4" strokeLinecap="round" />
+  </svg>
+);
+
 const TutorArt = () => (
   <svg viewBox="0 0 96 80" className="size-24 shrink-0" fill="none" aria-hidden="true">
     <g stroke="#0C3C85" strokeWidth="2.2" strokeLinejoin="round">
@@ -128,10 +285,7 @@ const TutorArt = () => (
       <rect x="54" y="38" width="30" height="34" rx="4" fill="#fff" />
       <path d="M40 52h16M40 59h12M40 66h9" strokeLinecap="round" />
     </g>
-    <path
-      d="m69 46 2.6 5.2 5.8.9-4.2 4 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4 5.8-.9z"
-      fill="#FDC96A"
-    />
+    <path d="m69 46 2.6 5.2 5.8.9-4.2 4 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4 5.8-.9z" fill="#FDC96A" />
     <path d="M60 8l3 5M70 4v6M78 9l-4 4" stroke="#0C3C85" strokeWidth="2.2" strokeLinecap="round" />
   </svg>
 );
