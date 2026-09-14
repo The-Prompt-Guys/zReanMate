@@ -226,6 +226,8 @@ export default {
     kind_image: 'Image',
     kind_youtube: 'YouTube video',
     kind_document: 'Document',
+    emptyFilesTitle: 'No files yet',
+    emptyFilesBody: 'Add a photo, PDF, link or topic to start learning.',
   },
 
   summary: {

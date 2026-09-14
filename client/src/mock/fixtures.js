@@ -140,6 +140,24 @@ export const summary = {
   sourceLabel: 'YouTube',
 };
 
+/**
+ * Files for the other seeded kits, so every demo kit has a coherent
+ * "N files · N cards" header rather than files borrowed from another kit.
+ */
+export const otherKitFiles = {
+  'kit-academic': [
+    { id: 'a1', name: 'Paragraph structure.pdf', kind: 'pdf', size: '1.6 MB' },
+    { id: 'a2', name: 'Topic sentences.docx', kind: 'document', size: '310 KB' },
+  ],
+  'kit-networks': [
+    { id: 'n1', name: 'OSI model overview.pdf', kind: 'pdf', size: '2.1 MB' },
+    { id: 'n2', name: 'Subnetting worksheet.jpg', kind: 'image', size: '940 KB' },
+  ],
+  'kit-literacy': [
+    { id: 'l1', name: 'Staying safe online.pdf', kind: 'pdf', size: '1.2 MB' },
+  ],
+};
+
 /** docs/screens/04-study-mode-summaries/03-summary-small-owl. */
 export const summarySections = [
   {

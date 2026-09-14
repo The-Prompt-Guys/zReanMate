@@ -1,19 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { BottomSheet, SheetOption } from '../../components/BottomSheet.jsx';
 import { ArrowRightIcon, Button, TextField } from '../../components/ui.jsx';
+import { useKits } from '../../kits/KitsContext.jsx';
 import { useT } from '../../i18n/index.js';
 
 /**
  * The four "add material" sheets, from docs/screens/03-study-kits/02, 04, 05
- * and 06. Each renders over whatever route is behind it.
+ * and 06. When opened from a kit detail page (`/kits/:kitId/add`), they stay
+ * scoped to that kit; otherwise they run from the Kits tab (`/kits/new`).
  */
+
+const useAddMaterialPaths = () => {
+  const { kitId } = useParams();
+  const root = kitId ? `/kits/${kitId}/add` : '/kits/new';
+  const closeTo = kitId ? `/kits/${kitId}` : '/kits';
+  return { kitId, root, closeTo };
+};
 
 /** 04-add-youtube-url-popup — the chooser. */
 export const AddMaterialSheet = () => {
   const t = useT();
   const navigate = useNavigate();
+  const { addFile } = useKits();
+  const { kitId, root, closeTo } = useAddMaterialPaths();
   const [leavingForYoutube, setLeavingForYoutube] = useState(false);
   const leaveTimer = useRef();
 
@@ -27,11 +38,22 @@ export const AddMaterialSheet = () => {
   const openYoutube = () => {
     if (leavingForYoutube) return;
     setLeavingForYoutube(true);
-    leaveTimer.current = window.setTimeout(() => navigate('/kits/new/youtube'), 300);
+    leaveTimer.current = window.setTimeout(() => navigate(`${root}/youtube`), 300);
+  };
+
+  const quickAddToKit = (kind) => {
+    if (!kitId) return;
+    const defaults = {
+      image: { name: 'Scanned notes.jpg', kind: 'image', size: '1.2 MB' },
+      pdf: { name: 'Uploaded reading.pdf', kind: 'pdf', size: '2.0 MB' },
+      topic: { name: 'Topic notes', kind: 'document', size: '—' },
+    };
+    addFile(kitId, defaults[kind]);
+    navigate(closeTo);
   };
 
   return (
-    <BottomSheet labelledBy="add-material-title" transition={leavingForYoutube ? 'to-left' : 'up'}>
+    <BottomSheet closeTo={closeTo} labelledBy="add-material-title" transition={leavingForYoutube ? 'to-left' : 'up'}>
       <h2 id="add-material-title" className="text-2xl font-bold text-navy-900">
         {t('dashboard.addMaterial')}
       </h2>
@@ -39,14 +61,16 @@ export const AddMaterialSheet = () => {
 
       <div className="mt-5 space-y-3">
         <SheetOption
-          to="/kits/new/photo"
+          to={kitId ? undefined : '/kits/new/photo'}
+          onClick={kitId ? () => quickAddToKit('image') : undefined}
           tone="blue"
           icon={<PhotoIcon />}
           title={t('kits.uploadPhoto')}
           description={t('kits.uploadPhotoHint')}
         />
         <SheetOption
-          to="/kits/new/pdf"
+          to={kitId ? undefined : '/kits/new/pdf'}
+          onClick={kitId ? () => quickAddToKit('pdf') : undefined}
           tone="violet"
           icon={<PdfIcon />}
           title={t('kits.uploadPdf')}
@@ -60,7 +84,8 @@ export const AddMaterialSheet = () => {
           description={t('kits.addYoutubeUrlHint')}
         />
         <SheetOption
-          to="/kits/new/topic"
+          to={kitId ? undefined : '/kits/new/topic'}
+          onClick={kitId ? () => quickAddToKit('topic') : undefined}
           tone="green"
           icon={<SparkIcon />}
           title={t('kits.enterTopic')}
@@ -75,10 +100,11 @@ export const AddMaterialSheet = () => {
 export const YouTubeUrlSheet = () => {
   const t = useT();
   const navigate = useNavigate();
+  const { root } = useAddMaterialPaths();
   const [url, setUrl] = useState('');
 
   return (
-    <BottomSheet closeTo="/kits/new" labelledBy="youtube-title" transition="from-right">
+    <BottomSheet closeTo={root} labelledBy="youtube-title" transition="from-right">
       <div className="flex items-start gap-4">
         <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-700">
           <PlayIcon />
@@ -95,7 +121,7 @@ export const YouTubeUrlSheet = () => {
         className="mt-6 space-y-5"
         onSubmit={(event) => {
           event.preventDefault();
-          navigate('/kits/new/processing');
+          navigate(`${root}/processing`);
         }}
       >
         <TextField
@@ -105,6 +131,7 @@ export const YouTubeUrlSheet = () => {
           onChange={(event) => setUrl(event.target.value)}
           type="url"
           inputMode="url"
+          required
         />
         <Button type="submit">
           {t('kits.createStudyKit')}
@@ -122,26 +149,48 @@ const STAGES = ['kits.stageReading', 'kits.stageFlashcards', 'kits.stagePreparin
 export const ProcessingSheet = () => {
   const t = useT();
   const navigate = useNavigate();
+  const { addKit, addFile } = useKits();
+  const { kitId, closeTo } = useAddMaterialPaths();
   const [progress, setProgress] = useState(0);
+  const finished = useRef(false);
 
   // Runs the staged bars so the prototype shows the real behaviour rather than
-  // a frozen mock, then lands on the finished kit.
+  // a frozen mock, then returns to the kit (or opens a new one).
   useEffect(() => {
     const timer = setInterval(() => {
       setProgress((p) => {
         if (p >= 300) {
           clearInterval(timer);
-          navigate('/kits/kit-database');
+          if (!finished.current) {
+            finished.current = true;
+            if (kitId) {
+              addFile(kitId, {
+                name: 'Intro to Databases — full lecture',
+                kind: 'youtube',
+                size: '5h 02m',
+              });
+              navigate(closeTo);
+            } else {
+              const kit = addKit({
+                title: 'YouTube study kit',
+                titleKm: 'ឯកសារសិក្សា YouTube',
+                sourceKind: 'youtube',
+                cardCount: 6,
+                progress: 5,
+              });
+              navigate(`/kits/${kit.id}`);
+            }
+          }
           return p;
         }
         return p + 4;
       });
     }, 60);
     return () => clearInterval(timer);
-  }, [navigate]);
+  }, [addFile, addKit, closeTo, kitId, navigate]);
 
   return (
-    <BottomSheet closeTo="/" labelledBy="processing-title">
+    <BottomSheet closeTo={closeTo} labelledBy="processing-title">
       <div className="flex flex-col items-center text-center">
         <span className="grid size-24 place-items-center rounded-full bg-tint-100">
           <VideoIcon />
@@ -190,10 +239,11 @@ export const ProcessingSheet = () => {
 export const CreateKitSheet = () => {
   const t = useT();
   const navigate = useNavigate();
+  const { addKit } = useKits();
   const [name, setName] = useState('');
 
   return (
-    <BottomSheet labelledBy="create-kit-title">
+    <BottomSheet closeTo="/kits" labelledBy="create-kit-title">
       <div className="flex flex-col items-center text-center">
         <span className="grid size-20 place-items-center rounded-2xl bg-tint-100 text-navy-800">
           <FolderPlusIcon />
@@ -208,7 +258,8 @@ export const CreateKitSheet = () => {
         className="mt-6 space-y-5"
         onSubmit={(event) => {
           event.preventDefault();
-          navigate('/kits/new');
+          const kit = addKit({ title: name });
+          navigate(`/kits/${kit.id}`);
         }}
       >
         <TextField
@@ -216,6 +267,7 @@ export const CreateKitSheet = () => {
           placeholder={t('kits.kitNamePlaceholder')}
           value={name}
           onChange={(event) => setName(event.target.value)}
+          required
         />
         <Button type="submit">
           {t('kits.createStudyKit')}

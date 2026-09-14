@@ -5,13 +5,13 @@ import { useT } from '../i18n/index.js';
 
 /**
  * The bottom sheet used across docs/screens/03-study-kits/02, 04, 05 and 06 —
- * those screens are sheets over the dashboard, not separate pages, so the route
+ * those screens are sheets over the Kits tab, not separate pages, so the route
  * behind them keeps rendering.
  *
  * Dismissing navigates back to `closeTo` rather than toggling local state, so
  * the sheet has a real URL and the back button behaves.
  */
-export const BottomSheet = ({ children, closeTo = '/', labelledBy, transition = 'up' }) => {
+export const BottomSheet = ({ children, closeTo = '/kits', labelledBy, transition = 'up' }) => {
   const t = useT();
   const navigate = useNavigate();
   const close = () => navigate(closeTo);

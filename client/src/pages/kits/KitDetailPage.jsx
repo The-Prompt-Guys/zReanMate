@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 
 import { NavyHeader } from '../../layouts/AppLayout.jsx';
 import { SearchField, PillSelect } from '../../components/listControls.jsx';
-import { kits, kitDetailFiles } from '../../mock/fixtures.js';
+import { useKits } from '../../kits/KitsContext.jsx';
 import { useLanguage, useT } from '../../i18n/index.js';
 
 /** docs/screens/03-study-kits/03-study-kit-file-list. */
@@ -11,12 +11,14 @@ export const KitDetailPage = () => {
   const t = useT();
   const { language } = useLanguage();
   const { kitId } = useParams();
+  const { kits, getKit, getFiles } = useKits();
   const [query, setQuery] = useState('');
 
-  const kit = kits.find((k) => k.id === kitId) ?? kits[1];
+  const kit = getKit(kitId) ?? kits[0];
   const title = language === 'km' ? kit.titleKm : kit.title;
+  const kitFiles = getFiles(kit.id);
 
-  const files = kitDetailFiles.filter((file) =>
+  const files = kitFiles.filter((file) =>
     query.trim() ? file.name.toLowerCase().includes(query.trim().toLowerCase()) : true,
   );
 
@@ -32,7 +34,7 @@ export const KitDetailPage = () => {
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold leading-tight">{title}</h1>
             <p className="mt-1 text-base text-white/75">
-              {t('kits.fileSummary', { files: kitDetailFiles.length, cards: kit.cardCount * 2 })}
+              {t('kits.fileSummary', { files: kitFiles.length, cards: kit.cardCount })}
             </p>
           </div>
           <button type="button" aria-label={t('common.seeAll')} className="mt-1 shrink-0">
@@ -56,7 +58,7 @@ export const KitDetailPage = () => {
             />
           </div>
           <Link
-            to="/kits/new"
+            to={`/kits/${kit.id}/add`}
             aria-label={t('kits.addMore')}
             className="grid size-12 shrink-0 place-items-center rounded-full bg-navy-800 text-white"
           >
@@ -80,11 +82,23 @@ export const KitDetailPage = () => {
           </button>
         </div>
 
+        {kitFiles.length === 0 ? (
+          <div className="rounded-card border border-dashed border-navy-600/30 bg-tint-100/50 px-6 py-10 text-center">
+            <p className="text-lg font-bold text-navy-900">{t('kits.emptyFilesTitle')}</p>
+            <p className="mt-1.5 text-base text-navy-600">{t('kits.emptyFilesBody')}</p>
+            <Link
+              to={`/kits/${kit.id}/add`}
+              className="mt-5 inline-flex rounded-full bg-navy-800 px-6 py-3.5 text-base font-bold text-white"
+            >
+              {t('dashboard.emptyAction')}
+            </Link>
+          </div>
+        ) : (
         <ul className="space-y-3">
           {files.map((file) => (
             <li key={file.id}>
               <Link
-                to={file.kind === 'youtube' ? `/study/${kit.id}/summary` : `/study/${kit.id}/pdf`}
+                to={`/study/${kit.id}`}
                 className="flex items-center gap-3.5 rounded-card bg-white p-3.5 shadow-sm ring-1 ring-tint-200/70"
               >
                 <FileTile kind={file.kind} />
@@ -101,13 +115,17 @@ export const KitDetailPage = () => {
             </li>
           ))}
         </ul>
+        )}
 
+        {kitFiles.length > 0 && (
         <div className="text-center">
-          <Link to="/kits/new" className="text-base font-semibold text-navy-700">
+          <Link to={`/kits/${kit.id}/add`} className="text-base font-semibold text-navy-700">
             {t('kits.addMore')}
           </Link>
         </div>
+        )}
 
+        {kit.cardCount > 0 && (
         <Link
           to={`/flashcards/${kit.id}`}
           className="flex items-center gap-4 rounded-card bg-tint-100 p-4"
@@ -122,6 +140,7 @@ export const KitDetailPage = () => {
             {t('kits.cardsReady', { count: kit.cardCount })}
           </span>
         </Link>
+        )}
       </div>
     </main>
   );

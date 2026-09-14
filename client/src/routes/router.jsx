@@ -48,10 +48,18 @@ const StudyOver = () => (
   </>
 );
 
-/** Renders a sheet over the dashboard, matching how the design layers them. */
+/** Renders a sheet over the Kits tab so create/add stays in the kits section. */
 const SheetOver = ({ sheet }) => (
   <>
-    <DashboardPage />
+    <KitsPage />
+    {sheet}
+  </>
+);
+
+/** Add-material sheets layered over a specific kit's file list. */
+const KitSheetOver = ({ sheet }) => (
+  <>
+    <KitDetailPage />
     {sheet}
   </>
 );
@@ -109,13 +117,16 @@ export const router = createBrowserRouter([
             children: [
               { path: '/', element: <DashboardPage /> },
 
-              // Study kits. The "add material" screens are sheets over the
-              // dashboard in the design, so the dashboard renders behind them.
+              // Study kits. Create sheets layer over the Kits tab; add-to-kit
+              // sheets layer over that kit's file list so students stay put.
               { path: '/kits', element: <KitsPage /> },
               { path: '/kits/new', element: <SheetOver sheet={<AddMaterialSheet />} /> },
               { path: '/kits/new/youtube', element: <SheetOver sheet={<YouTubeUrlSheet />} /> },
               { path: '/kits/new/processing', element: <SheetOver sheet={<ProcessingSheet />} /> },
               { path: '/kits/folders/new', element: <SheetOver sheet={<CreateKitSheet />} /> },
+              { path: '/kits/:kitId/add', element: <KitSheetOver sheet={<AddMaterialSheet />} /> },
+              { path: '/kits/:kitId/add/youtube', element: <KitSheetOver sheet={<YouTubeUrlSheet />} /> },
+              { path: '/kits/:kitId/add/processing', element: <KitSheetOver sheet={<ProcessingSheet />} /> },
               { path: '/kits/:kitId', element: <KitDetailPage /> },
 
               // Study mode. The chooser is a centered dialog over the kit, and

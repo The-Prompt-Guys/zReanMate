@@ -225,6 +225,8 @@ export default {
     kind_image: 'រូបភាព',
     kind_youtube: 'វីដេអូ YouTube',
     kind_document: 'ឯកសារ',
+    emptyFilesTitle: 'មិនទាន់មានឯកសារ',
+    emptyFilesBody: 'បន្ថែមរូបភាព PDF តំណ ឬប្រធានបទ ដើម្បីចាប់ផ្តើមរៀន។',
   },
 
   summary: {

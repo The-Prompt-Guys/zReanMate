@@ -39,16 +39,14 @@ export const Wordmark = ({ className = 'text-3xl', light = false }) => (
   </p>
 );
 
-/** Supplied ReanMate Learning Platform brand artwork, cropped to its logo area. */
-export const BrandLogo = ({ className = '' }) => {
+/** Supplied ReanMate Learning Platform brand artwork — full logo, not cropped. */
+export const BrandLogo = ({ className = 'h-12 max-w-[12rem]' }) => {
   const t = useT();
   return (
-    <div className={`inline-flex overflow-hidden rounded-lg bg-[#010817] ${className}`}>
-      <img
-        src="/brand/reanmate-brand.png"
-        alt={t('common.appName')}
-        className="h-12 w-40 object-cover object-center"
-      />
-    </div>
+    <img
+      src="/brand/reanmate-brand.png"
+      alt={t('common.appName')}
+      className={`w-auto object-contain object-left ${className}`}
+    />
   );
 };

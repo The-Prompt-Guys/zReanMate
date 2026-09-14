@@ -6,7 +6,8 @@ import { NavyHeader } from '../layouts/AppLayout.jsx';
 import { BrandLogo, Owl } from '../layouts/AuthLayout.jsx';
 import { KitCard } from '../components/KitCard.jsx';
 import { ArrowRightIcon } from '../components/ui.jsx';
-import { assignmentDates, classes, kits, septemberCalendar } from '../mock/fixtures.js';
+import { assignmentDates, classes, septemberCalendar } from '../mock/fixtures.js';
+import { useKits } from '../kits/KitsContext.jsx';
 import { useLanguage, useT } from '../i18n/index.js';
 
 /**
@@ -21,6 +22,7 @@ export const DashboardPage = () => {
   const t = useT();
   const { language } = useLanguage();
   const { user } = useAuth();
+  const { kits } = useKits();
   const [params] = useSearchParams();
   const [headerProgress, setHeaderProgress] = useState(0);
 
