@@ -227,6 +227,8 @@ export default {
     chapterStatusPending: 'កំពុងរង់ចាំ',
     showAllChapters: 'បង្ហាញជំពូកទាំងអស់',
     studyMode: 'របៀបសិក្សា',
+    heading: 'សេចក្តីសង្ខេប',
+    youtubeVideo: 'វីដេអូ YouTube',
   },
 
   tutor: {
@@ -238,6 +240,7 @@ export default {
     tryAsking: 'សាកល្បងសួរអំពីឯកសាររបស់អ្នក',
     thinking: 'កំពុងគិត…',
     failed: 'គ្រូ AI មិនអាចឆ្លើយបានទេ។ សូមព្យាយាមម្តងទៀត។',
+    send: 'ផ្ញើ',
   },
 
   quiz: {
@@ -354,5 +357,31 @@ export default {
     notFound: 'យើងរកមិនឃើញវាទេ។',
     validation: 'សូមពិនិត្យប្រអប់ដែលបានបន្លិច។',
     tooManyRequests: 'ព្យាយាមច្រើនដងពេក។ សូមរង់ចាំបន្តិច។',
+  },
+
+  study: {
+    howTitle: 'តើអ្នកចង់រៀនបែបណា?',
+    howSubtitle: 'ជ្រើសរើសរបៀបដើម្បីស្វែងយល់ឯកសារសិក្សាថ្មីរបស់អ្នក។',
+    summarize: 'សង្ខេប',
+    summarizeHint: 'ទទួលបានគំនិតសំខាន់',
+    summarizeRead: 'អានគំនិតសំខាន់',
+    quizMe: 'សាកល្បងខ្ញុំ',
+    quizMeHint: 'ធ្វើតេស្តការយល់ដឹងរបស់អ្នក',
+    practice: 'អនុវត្ត',
+    practiceHint: 'រៀនតាមការអនុវត្ត',
+    practiceApply: 'អនុវត្តអ្វីដែលអ្នកបានរៀន',
+    flashcards: 'កាតរំលឹក',
+    flashcardsHint: 'ពិនិត្យគំនិតសំខាន់',
+    flashcardsReview: 'ពិនិត្យពាក្យសំខាន់',
+    askAi: 'សួរ AI',
+    pageOf: 'ទំព័រ {current} ក្នុងចំណោម {total}',
+    zoomIn: 'ពង្រីក',
+    zoomOut: 'បង្រួម',
+    chatAboutPdf: 'ជជែកអំពី PDF នេះ',
+    chatHint: 'សួរសំណួរពីឯកសារ',
+    askAboutPdf: 'សួរអំពី PDF នេះ...',
+    studyThisFile: 'រៀនឯកសារនេះ',
+    studyThisFileHint: 'ជ្រើសរើសរបៀបដែលអ្នកចង់រៀនពី {name}',
+    contextNote: 'ជម្រើសនីមួយៗប្រើ {name} ជាបរិបទ។',
   },
 };

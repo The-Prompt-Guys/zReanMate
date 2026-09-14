@@ -10,6 +10,10 @@ import { PlanPage } from '../pages/PlanPage.jsx';
 import { DashboardPage } from '../pages/DashboardPage.jsx';
 import { KitsPage } from '../pages/kits/KitsPage.jsx';
 import { KitDetailPage } from '../pages/kits/KitDetailPage.jsx';
+import { StudyModePage } from '../pages/study/StudyModePage.jsx';
+import { SummaryPage } from '../pages/study/SummaryPage.jsx';
+import { ChapterSummaryPage } from '../pages/study/ChapterSummaryPage.jsx';
+import { PdfViewerPage } from '../pages/study/PdfViewerPage.jsx';
 import {
   AddMaterialSheet,
   CreateKitSheet,
@@ -20,6 +24,14 @@ import { ScreenIndexPage } from '../pages/ScreenIndexPage.jsx';
 import { PendingScreenPage } from '../pages/PendingScreenPage.jsx';
 import { FLOWS } from '../screens.js';
 import { NotFoundPage } from '../pages/NotFoundPage.jsx';
+
+/** The study-mode chooser is a dialog layered over the kit it belongs to. */
+const StudyOver = () => (
+  <>
+    <KitDetailPage />
+    <StudyModePage />
+  </>
+);
 
 /** Renders a sheet over the dashboard, matching how the design layers them. */
 const SheetOver = ({ sheet }) => (
@@ -90,6 +102,13 @@ export const router = createBrowserRouter([
               { path: '/kits/new/processing', element: <SheetOver sheet={<ProcessingSheet />} /> },
               { path: '/kits/folders/new', element: <SheetOver sheet={<CreateKitSheet />} /> },
               { path: '/kits/:kitId', element: <KitDetailPage /> },
+
+              // Study mode. The chooser is a centered dialog over the kit, and
+              // the PDF study actions are a sheet over the viewer (?actions=1).
+              { path: '/study/:kitId', element: <StudyOver /> },
+              { path: '/study/:kitId/summary', element: <SummaryPage /> },
+              { path: '/study/:kitId/summary/:chapter', element: <ChapterSummaryPage /> },
+              { path: '/study/:kitId/pdf', element: <PdfViewerPage /> },
 
               // Every registered screen that is not built yet still resolves,
               // so the tab bar and the index never dead-end on a 404.

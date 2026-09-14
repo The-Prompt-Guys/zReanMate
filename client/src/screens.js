@@ -49,11 +49,11 @@ export const FLOWS = [
     id: '04-study-mode-summaries',
     label: 'Study mode & summaries',
     screens: [
-      { shot: '01-study-mode-centered-final', name: 'Study mode', route: '/study/kit-database', built: false },
-      { shot: '02-five-hour-summary', name: 'Chaptered summary', route: '/study/kit-database/summary', built: false },
-      { shot: '03-summary-small-owl', name: 'Chapter summary', route: '/study/kit-database/summary/1', built: false },
-      { shot: '04-pdf-viewer-with-chat', name: 'PDF viewer', route: '/study/kit-database/pdf', built: false },
-      { shot: '05-pdf-study-actions', name: 'PDF study actions', route: '/study/kit-database/pdf?actions=1', built: false },
+      { shot: '01-study-mode-centered-final', name: 'Study mode', route: '/study/kit-database', built: true },
+      { shot: '02-five-hour-summary', name: 'Chaptered summary', route: '/study/kit-database/summary', built: true },
+      { shot: '03-summary-small-owl', name: 'Chapter summary', route: '/study/kit-database/summary/1', built: true },
+      { shot: '04-pdf-viewer-with-chat', name: 'PDF viewer', route: '/study/kit-database/pdf', built: true },
+      { shot: '05-pdf-study-actions', name: 'PDF study actions', route: '/study/kit-database/pdf?actions=1', built: true },
     ],
   },
   {

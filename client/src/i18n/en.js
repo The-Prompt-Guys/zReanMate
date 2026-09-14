@@ -228,6 +228,8 @@ export default {
     chapterStatusPending: 'Queued',
     showAllChapters: 'Show all chapters',
     studyMode: 'Study mode',
+    heading: 'Summary',
+    youtubeVideo: 'YouTube video',
   },
 
   tutor: {
@@ -239,6 +241,7 @@ export default {
     tryAsking: 'Try asking about your materials',
     thinking: 'Thinking…',
     failed: 'The tutor could not answer. Try again.',
+    send: 'Send',
   },
 
   quiz: {
@@ -355,5 +358,31 @@ export default {
     notFound: 'We could not find that.',
     validation: 'Please check the highlighted fields.',
     tooManyRequests: 'Too many attempts. Please wait a moment.',
+  },
+
+  study: {
+    howTitle: 'How do you want to study?',
+    howSubtitle: 'Choose a way to explore your new study kit.',
+    summarize: 'Summarize',
+    summarizeHint: 'Get the key ideas',
+    summarizeRead: 'Read the key ideas',
+    quizMe: 'Quiz me',
+    quizMeHint: 'Test your understanding',
+    practice: 'Practice',
+    practiceHint: 'Learn by doing',
+    practiceApply: 'Apply what you learned',
+    flashcards: 'Flashcards',
+    flashcardsHint: 'Review key concepts',
+    flashcardsReview: 'Review key terms',
+    askAi: 'Ask AI',
+    pageOf: 'Page {current} of {total}',
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
+    chatAboutPdf: 'Chat about this PDF',
+    chatHint: 'Ask questions from the document',
+    askAboutPdf: 'Ask about this PDF...',
+    studyThisFile: 'Study this file',
+    studyThisFileHint: 'Choose how you want to learn from {name}',
+    contextNote: 'Each option uses {name} as the context.',
   },
 };

@@ -140,6 +140,89 @@ export const summary = {
   sourceLabel: 'YouTube',
 };
 
+/** docs/screens/04-study-mode-summaries/03-summary-small-owl. */
+export const summarySections = [
+  {
+    id: 's1',
+    heading: 'What is a database?',
+    headingKm: 'តើមូលដ្ឋានទិន្នន័យជាអ្វី?',
+    body: 'A database is an organized collection of data designed for easy access, management, and updating.',
+    bodyKm: 'មូលដ្ឋានទិន្នន័យគឺជាសម្រាំងទិន្នន័យដែលរៀបចំយ៉ាងមានរបៀប ដើម្បីងាយស្រួលចូលប្រើ គ្រប់គ្រង និងធ្វើបច្ចុប្បន្នភាព។',
+  },
+  {
+    id: 's2',
+    heading: 'Why it matters',
+    headingKm: 'ហេតុអ្វីបានជាសំខាន់',
+    body: 'Databases help applications store, retrieve, and protect information efficiently.',
+    bodyKm: 'មូលដ្ឋានទិន្នន័យជួយកម្មវិធីរក្សាទុក ទាញយក និងការពារព័ត៌មានបានប្រសើរ។',
+  },
+  {
+    id: 's3',
+    heading: 'Core concepts',
+    headingKm: 'គំនិតស្នូល',
+    body: 'Tables, records, fields, relationships, and queries work together to organize information.',
+    bodyKm: 'តារាង កំណត់ត្រា វាល ទំនាក់ទំនង និងសំណួរ ដំណើរការរួមគ្នាដើម្បីរៀបចំព័ត៌មាន។',
+  },
+];
+
+/** docs/screens/04-study-mode-summaries/04-pdf-viewer-with-chat. */
+export const pdfDocument = {
+  name: 'Database Week 1.pdf',
+  size: '2.4 MB',
+  pages: 8,
+  title: 'Database Systems — Week 1',
+  sections: [
+    {
+      heading: 'Introduction to databases',
+      headingKm: 'ការណែនាំអំពីមូលដ្ឋានទិន្នន័យ',
+      body: 'A database is a structured collection of data that is stored in a way that makes it easy to access, manage, and update.',
+      bodyKm: 'មូលដ្ឋានទិន្នន័យគឺជាសម្រាំងទិន្នន័យដែលមានរចនាសម្ព័ន្ធ ហើយរក្សាទុកតាមរបៀបដែលងាយស្រួលចូលប្រើ។',
+    },
+    {
+      heading: 'Data, information, and knowledge',
+      headingKm: 'ទិន្នន័យ ព័ត៌មាន និងចំណេះដឹង',
+      body: 'Data are raw facts, information is data given meaning, and knowledge is information applied to make decisions.',
+      bodyKm: 'ទិន្នន័យគឺជាអង្គហេតុដើម ព័ត៌មានគឺជាទិន្នន័យដែលមានអត្ថន័យ ហើយចំណេះដឹងគឺជាព័ត៌មានដែលប្រើដើម្បីសម្រេចចិត្ត។',
+    },
+    {
+      heading: 'Why databases matter',
+      headingKm: 'ហេតុអ្វីមូលដ្ឋានទិន្នន័យសំខាន់',
+      bullets: [
+        'Organize large amounts of data',
+        'Enable fast and reliable access',
+        'Support better decision-making',
+      ],
+      bulletsKm: [
+        'រៀបចំទិន្នន័យច្រើន',
+        'ធ្វើឱ្យការចូលប្រើលឿន និងទុកចិត្តបាន',
+        'គាំទ្រការសម្រេចចិត្តឱ្យប្រសើរជាងមុន',
+      ],
+    },
+  ],
+};
+
+export const pdfChat = [
+  {
+    id: 'p1',
+    role: 'assistant',
+    content: 'Ask me anything about Database Week 1.',
+    contentKm: 'សួរខ្ញុំអំពី Database Week 1 បាន។',
+  },
+  {
+    id: 'p2',
+    role: 'user',
+    content: 'What is a database?',
+    contentKm: 'តើមូលដ្ឋានទិន្នន័យជាអ្វី?',
+  },
+  {
+    id: 'p3',
+    role: 'assistant',
+    content: 'A database is an organized collection of data designed for easy access, management, and updating.',
+    contentKm: 'មូលដ្ឋានទិន្នន័យគឺជាសម្រាំងទិន្នន័យដែលរៀបចំយ៉ាងមានរបៀប ងាយស្រួលចូលប្រើ និងធ្វើបច្ចុប្បន្នភាព។',
+    source: 'Database Week 1.pdf',
+  },
+];
+
 export const quizQuestions = [
   {
     id: 'q1',
