@@ -265,6 +265,13 @@ export default {
     masteryHint: 'Keep practicing to strengthen your recall.',
     reviewMissed: 'Review missed questions',
     backToKit: 'Back to study kit',
+    checkUnderstanding: 'Check your understanding',
+    checkAnswer: 'Check answer',
+    showAnswer: 'Show answer',
+    whyCorrect: 'Why this is correct',
+    whyWrong: 'Why that is not right',
+    explanationHeading: 'Databases organize information',
+    askOwl: 'Need more help? Ask the owl',
   },
 
   practice: {

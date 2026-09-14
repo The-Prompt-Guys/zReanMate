@@ -15,6 +15,8 @@ import { SummaryPage } from '../pages/study/SummaryPage.jsx';
 import { ChapterSummaryPage } from '../pages/study/ChapterSummaryPage.jsx';
 import { PdfViewerPage } from '../pages/study/PdfViewerPage.jsx';
 import { TutorPage } from '../pages/tutor/TutorPage.jsx';
+import { QuizPage } from '../pages/quiz/QuizPage.jsx';
+import { QuizResultsPage } from '../pages/quiz/QuizResultsPage.jsx';
 import {
   AddMaterialSheet,
   CreateKitSheet,
@@ -113,6 +115,11 @@ export const router = createBrowserRouter([
 
               // AI tutor
               { path: '/tutor', element: <TutorPage /> },
+
+              // Quiz. These screens use the contextual Practice / Learn /
+              // Flashcards / More bar, so AppLayout hides the app tab bar.
+              { path: '/quiz/:kitId', element: <QuizPage /> },
+              { path: '/quiz/:kitId/results', element: <QuizResultsPage /> },
 
               // Every registered screen that is not built yet still resolves,
               // so the tab bar and the index never dead-end on a 404.

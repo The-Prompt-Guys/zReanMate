@@ -68,9 +68,9 @@ export const FLOWS = [
     id: '06-quiz',
     label: 'Quiz',
     screens: [
-      { shot: '01-quiz-controls-reordered', name: 'Quiz question', route: '/quiz/kit-database', built: false },
-      { shot: '02-quiz-answer-explanation', name: 'Answer explanation', route: '/quiz/kit-database?explain=1', built: false },
-      { shot: '03-quiz-completed-results', name: 'Quiz results', route: '/quiz/kit-database/results', built: false },
+      { shot: '01-quiz-controls-reordered', name: 'Quiz question', route: '/quiz/kit-database', built: true },
+      { shot: '02-quiz-answer-explanation', name: 'Answer explanation', route: '/quiz/kit-database?explain=1', built: true },
+      { shot: '03-quiz-completed-results', name: 'Quiz results', route: '/quiz/kit-database/results', built: true },
     ],
   },
   {

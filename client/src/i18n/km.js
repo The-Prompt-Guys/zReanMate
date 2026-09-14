@@ -264,6 +264,13 @@ export default {
     masteryHint: 'បន្តអនុវត្តដើម្បីពង្រឹងការចងចាំរបស់អ្នក។',
     reviewMissed: 'ពិនិត្យសំណួរដែលខុស',
     backToKit: 'ត្រឡប់ទៅឯកសារសិក្សា',
+    checkUnderstanding: 'ពិនិត្យការយល់ដឹងរបស់អ្នក',
+    checkAnswer: 'ពិនិត្យចម្លើយ',
+    showAnswer: 'បង្ហាញចម្លើយ',
+    whyCorrect: 'ហេតុអ្វីបានជាត្រឹមត្រូវ',
+    whyWrong: 'ហេតុអ្វីបានជាមិនត្រឹមត្រូវ',
+    explanationHeading: 'មូលដ្ឋានទិន្នន័យរៀបចំព័ត៌មាន',
+    askOwl: 'ត្រូវការជំនួយបន្ថែម? សួរសត្វទីទុយ',
   },
 
   practice: {
