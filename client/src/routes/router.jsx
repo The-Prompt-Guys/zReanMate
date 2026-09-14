@@ -33,6 +33,7 @@ import {
   AddMaterialSheet,
   CreateKitSheet,
   ProcessingSheet,
+  UploadingSheet,
   YouTubeUrlSheet,
 } from '../pages/kits/sheets.jsx';
 import { ScreenIndexPage } from '../pages/ScreenIndexPage.jsx';
@@ -127,6 +128,8 @@ export const router = createBrowserRouter([
               { path: '/kits/:kitId/add', element: <KitSheetOver sheet={<AddMaterialSheet />} /> },
               { path: '/kits/:kitId/add/youtube', element: <KitSheetOver sheet={<YouTubeUrlSheet />} /> },
               { path: '/kits/:kitId/add/processing', element: <KitSheetOver sheet={<ProcessingSheet />} /> },
+              // Real file upload, with progress driven by the request itself.
+              { path: '/kits/:kitId/add/uploading', element: <KitSheetOver sheet={<UploadingSheet />} /> },
               { path: '/kits/:kitId', element: <KitDetailPage /> },
 
               // Study mode. The chooser is a centered dialog over the kit, and

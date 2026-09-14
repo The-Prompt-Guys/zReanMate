@@ -1,10 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { BottomSheet, SheetOption } from '../../components/BottomSheet.jsx';
 import { ArrowRightIcon, Button, TextField } from '../../components/ui.jsx';
 import { useKits } from '../../kits/KitsContext.jsx';
-import { useT } from '../../i18n/index.js';
+import { api, toFormError } from '../../lib/api.js';
+import { formatBytes } from '../../lib/format.js';
+import { useLanguage, useT } from '../../i18n/index.js';
+
+/**
+ * What the server's fileFilter accepts (server/src/middleware/upload.js). Kept
+ * in step by hand — the accept attribute is a convenience for the file picker,
+ * never the check that matters; the server re-validates mime, extension and
+ * magic bytes on every upload.
+ */
+const ACCEPT_IMAGE = 'image/jpeg,image/png,image/webp';
+const ACCEPT_PDF = 'application/pdf';
 
 /**
  * The four "add material" sheets, from docs/screens/03-study-kits/02, 04, 05
@@ -23,10 +34,10 @@ const useAddMaterialPaths = () => {
 export const AddMaterialSheet = () => {
   const t = useT();
   const navigate = useNavigate();
-  const { addFile } = useKits();
   const { kitId, root, closeTo } = useAddMaterialPaths();
   const [leavingForYoutube, setLeavingForYoutube] = useState(false);
   const leaveTimer = useRef();
+  const fileInputRef = useRef(null);
 
   useEffect(
     () => () => {
@@ -41,15 +52,26 @@ export const AddMaterialSheet = () => {
     leaveTimer.current = window.setTimeout(() => navigate(`${root}/youtube`), 300);
   };
 
-  const quickAddToKit = (kind) => {
+  /**
+   * Opens the OS picker for one of the two accepted kinds. The upload itself
+   * runs on the next screen so progress has somewhere to render, and so a
+   * backgrounded sheet cannot cancel an upload in flight.
+   */
+  const pickFile = (accept) => {
     if (!kitId) return;
-    const defaults = {
-      image: { name: 'Scanned notes.jpg', kind: 'image', size: '1.2 MB' },
-      pdf: { name: 'Uploaded reading.pdf', kind: 'pdf', size: '2.0 MB' },
-      topic: { name: 'Topic notes', kind: 'document', size: '—' },
-    };
-    addFile(kitId, defaults[kind]);
-    navigate(closeTo);
+    const input = fileInputRef.current;
+    if (!input) return;
+    input.accept = accept;
+    input.value = '';
+    input.click();
+  };
+
+  const onFileChosen = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    // Handing the File through router state keeps it out of the URL and out of
+    // context, so it lives exactly as long as the upload screen does.
+    navigate(`${root}/uploading`, { state: { file } });
   };
 
   return (
@@ -59,18 +81,27 @@ export const AddMaterialSheet = () => {
       </h2>
       <p className="mt-1 text-base text-navy-600">{t('kits.addMaterialSubtitle')}</p>
 
+      {/* One input for both options; `accept` is set per click. Hidden rather
+          than absent so the picker has something to open. */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="sr-only"
+        onChange={onFileChosen}
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+
       <div className="mt-5 space-y-3">
         <SheetOption
-          to={kitId ? undefined : '/kits/new/photo'}
-          onClick={kitId ? () => quickAddToKit('image') : undefined}
+          onClick={kitId ? () => pickFile(ACCEPT_IMAGE) : () => navigate('/kits/folders/new')}
           tone="blue"
           icon={<PhotoIcon />}
           title={t('kits.uploadPhoto')}
           description={t('kits.uploadPhotoHint')}
         />
         <SheetOption
-          to={kitId ? undefined : '/kits/new/pdf'}
-          onClick={kitId ? () => quickAddToKit('pdf') : undefined}
+          onClick={kitId ? () => pickFile(ACCEPT_PDF) : () => navigate('/kits/folders/new')}
           tone="violet"
           icon={<PdfIcon />}
           title={t('kits.uploadPdf')}
@@ -84,8 +115,7 @@ export const AddMaterialSheet = () => {
           description={t('kits.addYoutubeUrlHint')}
         />
         <SheetOption
-          to={kitId ? undefined : '/kits/new/topic'}
-          onClick={kitId ? () => quickAddToKit('topic') : undefined}
+          to={kitId ? undefined : '/kits/folders/new'}
           tone="green"
           icon={<SparkIcon />}
           title={t('kits.enterTopic')}
@@ -96,12 +126,158 @@ export const AddMaterialSheet = () => {
   );
 };
 
+/**
+ * Upload progress for a real request.
+ *
+ * The bar is driven by axios's onUploadProgress, so it advances with bytes on
+ * the wire and stops where the wire stops. The YouTube sheet below still runs a
+ * timer, because nothing is being uploaded there — it is waiting on work the
+ * server has not been taught to do yet. Keeping the two apart matters: a fake
+ * bar next to a real one teaches you to distrust both.
+ */
+export const UploadingSheet = () => {
+  const t = useT();
+  const { language } = useLanguage();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { uploadFile } = useKits();
+  const { kitId, root, closeTo } = useAddMaterialPaths();
+
+  const file = location.state?.file ?? null;
+  const [percent, setPercent] = useState(0);
+  const [error, setError] = useState(null);
+  const started = useRef(false);
+
+  useEffect(() => {
+    // A File cannot survive a reload — router state is gone on refresh — so
+    // send the user back to pick again rather than showing an empty bar.
+    if (!file || !kitId) {
+      navigate(root, { replace: true });
+      return;
+    }
+    if (started.current) return;
+    started.current = true;
+
+    uploadFile(kitId, file, { onProgress: setPercent })
+      .then(() => navigate(closeTo, { replace: true }))
+      .catch(setError);
+  }, [file, kitId, navigate, root, closeTo, uploadFile]);
+
+  const message = () => {
+    if (!error) return null;
+    if (error.code === 'file_too_large') {
+      return t('kits.uploadTooLarge', { limit: formatBytes(error.details?.limit, language) });
+    }
+    if (error.code === 'unsupported_file_type') return t('kits.uploadWrongType');
+    return error.message ?? t('kits.uploadFailed');
+  };
+
+  return (
+    <BottomSheet closeTo={closeTo} labelledBy="uploading-title">
+      <div className="flex flex-col items-center text-center">
+        <span className="grid size-20 place-items-center rounded-2xl bg-tint-100 text-navy-800">
+          <PdfIcon />
+        </span>
+        <h2 id="uploading-title" className="mt-5 text-2xl font-bold text-navy-900">
+          {error ? t('kits.uploadFailed') : t('kits.processingTitle')}
+        </h2>
+        {file && (
+          <p className="mt-2 max-w-full truncate text-base text-navy-600">
+            {file.name} · {formatBytes(file.size, language)}
+          </p>
+        )}
+      </div>
+
+      {error ? (
+        <div className="mt-6">
+          <p className="rounded-card bg-danger-50 px-4 py-3 text-center text-base text-danger-600">
+            {message()}
+          </p>
+          <div className="mt-5 space-y-3">
+            <Button onClick={() => navigate(root, { replace: true })}>
+              {t('kits.uploadAnother')}
+            </Button>
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => navigate(closeTo, { replace: true })}
+                className="font-semibold text-navy-700"
+              >
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-7">
+          <div
+            className="h-2.5 overflow-hidden rounded-full bg-tint-100"
+            role="progressbar"
+            aria-valuenow={percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={t('kits.uploading', { percent })}
+          >
+            <span
+              className="block h-full rounded-full bg-navy-800 transition-[width] duration-150"
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+          <p className="mt-3 text-center text-base text-navy-600">
+            {t('kits.uploading', { percent })}
+          </p>
+        </div>
+      )}
+    </BottomSheet>
+  );
+};
+
 /** 05-youtube-url-entry. */
 export const YouTubeUrlSheet = () => {
   const t = useT();
   const navigate = useNavigate();
-  const { root } = useAddMaterialPaths();
+  const { addKit, isPrototype } = useKits();
+  const { kitId, root } = useAddMaterialPaths();
   const [url, setUrl] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!url.trim() || submitting) return;
+
+    if (isPrototype) {
+      navigate(`${root}/processing`);
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      let targetKitId = kitId;
+      if (!targetKitId) {
+        const createdKit = await addKit({
+          title: 'YouTube study kit',
+          titleKm: 'ឯកសារសិក្សា YouTube',
+          sourceKind: 'youtube',
+        });
+        targetKitId = createdKit.id;
+      }
+
+      const { data } = await api.post(`/kits/${targetKitId}/sources`, {
+        kind: 'youtube',
+        url: url.trim(),
+      });
+
+      navigate(`/kits/${targetKitId}/add/processing`, {
+        state: { kitId: targetKitId, sourceId: data.source.id },
+      });
+    } catch (err) {
+      setError(toFormError(err));
+      setSubmitting(false);
+    }
+  };
 
   return (
     <BottomSheet closeTo={root} labelledBy="youtube-title" transition="from-right">
@@ -117,13 +293,7 @@ export const YouTubeUrlSheet = () => {
         </div>
       </div>
 
-      <form
-        className="mt-6 space-y-5"
-        onSubmit={(event) => {
-          event.preventDefault();
-          navigate(`${root}/processing`);
-        }}
-      >
+      <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
         <TextField
           label={t('kits.youtubeTitle')}
           placeholder={t('kits.youtubePlaceholder')}
@@ -133,9 +303,16 @@ export const YouTubeUrlSheet = () => {
           inputMode="url"
           required
         />
-        <Button type="submit">
-          {t('kits.createStudyKit')}
-          <ArrowRightIcon />
+
+        {error && (
+          <p className="rounded-card bg-danger-50 px-4 py-3 text-center text-base text-danger-600">
+            {error.message ?? t('kits.createFailed')}
+          </p>
+        )}
+
+        <Button type="submit" disabled={submitting || !url.trim()}>
+          {submitting ? t('kits.creating') : t('kits.createStudyKit')}
+          {!submitting && <ArrowRightIcon />}
         </Button>
         <p className="text-center text-sm text-ink-500">{t('kits.youtubeFootnote')}</p>
       </form>
@@ -149,14 +326,22 @@ const STAGES = ['kits.stageReading', 'kits.stageFlashcards', 'kits.stagePreparin
 export const ProcessingSheet = () => {
   const t = useT();
   const navigate = useNavigate();
-  const { addKit, addFile } = useKits();
-  const { kitId, closeTo } = useAddMaterialPaths();
+  const location = useLocation();
+  const { addKit, addFile, isPrototype, refresh, loadFiles } = useKits();
+  const { kitId, closeTo, root } = useAddMaterialPaths();
+
+  const stateKitId = location.state?.kitId || kitId;
+  const stateSourceId = location.state?.sourceId;
+
   const [progress, setProgress] = useState(0);
+  const [_source, setSource] = useState(null);
+  const [pollError, setPollError] = useState(null);
   const finished = useRef(false);
 
-  // Runs the staged bars so the prototype shows the real behaviour rather than
-  // a frozen mock, then returns to the kit (or opens a new one).
+  // Prototype fallback (timer-driven)
   useEffect(() => {
+    if (!isPrototype && stateSourceId && stateKitId) return;
+
     const timer = setInterval(() => {
       setProgress((p) => {
         if (p >= 300) {
@@ -171,14 +356,14 @@ export const ProcessingSheet = () => {
               });
               navigate(closeTo);
             } else {
-              const kit = addKit({
+              const created = addKit({
                 title: 'YouTube study kit',
                 titleKm: 'ឯកសារសិក្សា YouTube',
                 sourceKind: 'youtube',
                 cardCount: 6,
                 progress: 5,
               });
-              navigate(`/kits/${kit.id}`);
+              navigate(`/kits/${created.id}`);
             }
           }
           return p;
@@ -187,7 +372,57 @@ export const ProcessingSheet = () => {
       });
     }, 60);
     return () => clearInterval(timer);
-  }, [addFile, addKit, closeTo, kitId, navigate]);
+  }, [addFile, addKit, closeTo, isPrototype, kitId, navigate, stateKitId, stateSourceId]);
+
+  // Live polling mode
+  useEffect(() => {
+    if (isPrototype || !stateSourceId || !stateKitId) return;
+
+    let isMounted = true;
+    let pollTimer;
+
+    const poll = async () => {
+      try {
+        const { data } = await api.get(`/kits/${stateKitId}/sources/${stateSourceId}`);
+        if (!isMounted) return;
+        const currentSource = data.source;
+        setSource(currentSource);
+
+        const stage = currentSource.stage || 'reading';
+        const pct = currentSource.progressPercent ?? 0;
+
+        if (currentSource.status === 'ready' || stage === 'ready') {
+          setProgress(300);
+          await refresh();
+          await loadFiles(stateKitId).catch(() => {});
+          navigate(`/kits/${stateKitId}`, { replace: true });
+        } else if (currentSource.status === 'failed') {
+          setPollError(currentSource.errorMessage || t('kits.processingFailed'));
+        } else {
+          // Progress bar mapping based on real backend progress
+          if (stage === 'extracting' || stage === 'reading') {
+            setProgress(Math.max(10, Math.min(100, Math.round(pct * 2))));
+          } else if (stage === 'embedding' || stage === 'generating') {
+            setProgress(100 + Math.max(10, Math.min(100, Math.round((pct - 30) * 1.5))));
+          } else if (stage === 'preparing') {
+            setProgress(200 + Math.max(10, Math.min(100, pct)));
+          }
+
+          pollTimer = setTimeout(poll, 1500);
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        setPollError(err.message || t('kits.processingFailed'));
+      }
+    };
+
+    poll();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(pollTimer);
+    };
+  }, [isPrototype, loadFiles, navigate, refresh, stateKitId, stateSourceId, t]);
 
   return (
     <BottomSheet closeTo={closeTo} labelledBy="processing-title">
@@ -196,41 +431,62 @@ export const ProcessingSheet = () => {
           <VideoIcon />
         </span>
         <h2 id="processing-title" className="mt-5 text-2xl font-bold text-navy-900">
-          {t('kits.processingTitle')}
+          {pollError ? t('kits.processingFailed') : t('kits.processingTitle')}
         </h2>
-        <p className="mt-2 text-base text-navy-600">{t('kits.processingSubtitle')}</p>
+        <p className="mt-2 text-base text-navy-600">
+          {pollError ? pollError : t('kits.processingSubtitle')}
+        </p>
       </div>
 
-      <ol className="mt-7 space-y-5">
-        {STAGES.map((key, i) => {
-          const stageProgress = Math.max(0, Math.min(100, progress - i * 100));
-          const active = stageProgress > 0;
-          return (
-            <li key={key}>
-              <div className="flex items-center gap-3">
-                <span
-                  className={`grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold ${
-                    active ? 'bg-navy-800 text-white' : 'bg-tint-200 text-white'
-                  }`}
-                >
-                  {i + 1}
-                </span>
-                <span className={`font-bold ${active ? 'text-navy-900' : 'text-navy-600/70'}`}>
-                  {t(key)}
-                </span>
-              </div>
-              <div className="ms-11 mt-2 h-2 overflow-hidden rounded-full bg-tint-100">
-                <span
-                  className="block h-full rounded-full bg-navy-800 transition-[width] duration-100"
-                  style={{ width: `${stageProgress}%` }}
-                />
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+      {pollError ? (
+        <div className="mt-6 space-y-3">
+          <Button onClick={() => navigate(`${root}/youtube`, { replace: true })}>
+            {t('kits.uploadAnother')}
+          </Button>
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => navigate(closeTo, { replace: true })}
+              className="font-semibold text-navy-700"
+            >
+              {t('common.cancel')}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <ol className="mt-7 space-y-5">
+          {STAGES.map((key, i) => {
+            const stageProgress = Math.max(0, Math.min(100, progress - i * 100));
+            const active = stageProgress > 0;
+            return (
+              <li key={key}>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold ${
+                      active ? 'bg-navy-800 text-white' : 'bg-tint-200 text-white'
+                    }`}
+                  >
+                    {i + 1}
+                  </span>
+                  <span className={`font-bold ${active ? 'text-navy-900' : 'text-navy-600/70'}`}>
+                    {t(key)}
+                  </span>
+                </div>
+                <div className="ms-11 mt-2 h-2 overflow-hidden rounded-full bg-tint-100">
+                  <span
+                    className="block h-full rounded-full bg-navy-800 transition-[width] duration-100"
+                    style={{ width: `${stageProgress}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
 
-      <p className="mt-6 text-center text-sm text-ink-500">{t('kits.processingFootnote')}</p>
+      {!pollError && (
+        <p className="mt-6 text-center text-sm text-ink-500">{t('kits.processingFootnote')}</p>
+      )}
     </BottomSheet>
   );
 };
@@ -241,6 +497,8 @@ export const CreateKitSheet = () => {
   const navigate = useNavigate();
   const { addKit } = useKits();
   const [name, setName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
   return (
     <BottomSheet closeTo="/kits" labelledBy="create-kit-title">
@@ -256,10 +514,18 @@ export const CreateKitSheet = () => {
 
       <form
         className="mt-6 space-y-5"
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault();
-          const kit = addKit({ title: name });
-          navigate(`/kits/${kit.id}`);
+          if (submitting) return;
+          setSubmitting(true);
+          setError(null);
+          try {
+            const kit = await addKit({ title: name });
+            navigate(`/kits/${kit.id}`);
+          } catch (err) {
+            setError(err);
+            setSubmitting(false);
+          }
         }}
       >
         <TextField
@@ -269,9 +535,36 @@ export const CreateKitSheet = () => {
           onChange={(event) => setName(event.target.value)}
           required
         />
-        <Button type="submit">
-          {t('kits.createStudyKit')}
-          <ArrowRightIcon />
+
+        {/* The cap is the one failure with a way out, so it gets the count and
+            a route to Plus rather than a bare error line. */}
+        {error?.code === 'quota_exceeded' ? (
+          <div className="rounded-card bg-gold-400/20 p-4 text-center">
+            <p className="text-base font-bold text-navy-900">{t('kits.quotaTitle')}</p>
+            <p className="mt-1 text-sm text-navy-700">
+              {t('kits.quotaBody', {
+                used: error.details?.used ?? 0,
+                limit: error.details?.limit ?? 0,
+              })}
+            </p>
+            <Link
+              to="/onboarding/plan"
+              className="mt-4 inline-flex rounded-full bg-navy-800 px-6 py-3 text-base font-bold text-white"
+            >
+              {t('kits.upgradeToPlus')}
+            </Link>
+          </div>
+        ) : (
+          error && (
+            <p className="rounded-card bg-danger-50 px-4 py-3 text-center text-base text-danger-600">
+              {error.message ?? t('kits.createFailed')}
+            </p>
+          )
+        )}
+
+        <Button type="submit" disabled={submitting || !name.trim()}>
+          {submitting ? t('kits.creating') : t('kits.createStudyKit')}
+          {!submitting && <ArrowRightIcon />}
         </Button>
         <p className="text-center text-sm text-ink-500">{t('kits.createKitFootnote')}</p>
       </form>

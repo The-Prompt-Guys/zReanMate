@@ -11,7 +11,7 @@ import { useT } from '../../i18n/index.js';
 /** docs/screens/03-study-kits/01-kits-tab. */
 export const KitsPage = () => {
   const t = useT();
-  const { kits } = useKits();
+  const { kits, status, error, refresh } = useKits();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
 
@@ -73,17 +73,41 @@ export const KitsPage = () => {
           ]}
         />
 
-        {visible.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3">
-            {visible.map((kit) => (
-              <KitCard key={kit.id} kit={kit} />
-            ))}
+        {status === 'loading' && <KitGridSkeleton />}
+
+        {status === 'error' && (
+          <div className="rounded-card bg-white px-6 py-8 text-center shadow-sm ring-1 ring-tint-200/70">
+            <p className="text-base font-bold text-navy-900">{t('kits.loadFailed')}</p>
+            {error?.message && <p className="mt-1 text-sm text-navy-600">{error.message}</p>}
+            <button
+              type="button"
+              onClick={refresh}
+              className="mt-4 rounded-full bg-navy-800 px-6 py-3 text-base font-bold text-white"
+            >
+              {t('common.retry')}
+            </button>
           </div>
-        ) : (
-          <p className="py-10 text-center text-base text-ink-500">
-            {t('kits.noResults', { query })}
-          </p>
         )}
+
+        {status === 'ready' &&
+          (visible.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3">
+              {visible.map((kit) => (
+                <KitCard key={kit.id} kit={kit} />
+              ))}
+            </div>
+          ) : query.trim() || filter !== 'all' ? (
+            <p className="py-10 text-center text-base text-ink-500">
+              {t('kits.noResults', { query: query.trim() })}
+            </p>
+          ) : (
+            // No kits at all is a different screen from no search results — the
+            // first needs a way forward, the second needs a way back.
+            <div className="rounded-card bg-white px-6 py-8 text-center shadow-sm ring-1 ring-tint-200/70">
+              <h3 className="text-xl font-bold text-navy-900">{t('dashboard.emptyTitle')}</h3>
+              <p className="mt-1.5 text-base text-navy-600">{t('dashboard.emptyBody')}</p>
+            </div>
+          ))}
 
         <Link
           to="/kits/folders/new"
@@ -101,5 +125,29 @@ export const KitsPage = () => {
         </Link>
       </div>
     </main>
+  );
+};
+
+/**
+ * Four cards in the real grid shape, so the page does not reflow when the kits
+ * land. aria-busy lets a screen reader announce loading rather than read out
+ * four empty boxes.
+ */
+const KitGridSkeleton = () => {
+  const t = useT();
+  return (
+    <div className="grid grid-cols-2 gap-3" aria-busy="true" aria-label={t('common.loading')}>
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="animate-pulse rounded-card bg-white p-3.5 shadow-sm ring-1 ring-tint-200/70"
+        >
+          <span className="block size-11 rounded-xl bg-tint-200" />
+          <span className="mt-2.5 block h-4 w-4/5 rounded bg-tint-200" />
+          <span className="mt-2 block h-3 w-1/2 rounded bg-tint-100" />
+          <span className="mt-3 block h-1.5 w-full rounded-full bg-tint-100" />
+        </div>
+      ))}
+    </div>
   );
 };

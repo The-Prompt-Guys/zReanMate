@@ -34,6 +34,10 @@ export const env = {
   uploadDir: process.env.UPLOAD_DIR ?? 'uploads',
   maxUploadBytes: toInt(process.env.MAX_UPLOAD_BYTES, 25 * 1024 * 1024),
 
+  // How many study kits a free account may hold at once. Counted live from
+  // study_kits, so deleting a kit frees the slot again.
+  freeKitLimit: toInt(process.env.FREE_KIT_LIMIT, 3),
+
   // Absent on purpose for now — server/src/ai/index.js falls back to the mock
   // provider and logs a single warning at boot. See CLAUDE.md, AI layer.
   openaiApiKey: process.env.OPENAI_API_KEY ?? null,

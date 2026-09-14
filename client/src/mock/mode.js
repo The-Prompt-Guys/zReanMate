@@ -23,11 +23,15 @@
 /**
  * Every switchable flow, and what it does with no env vars set at all.
  *
- * `auth` is the exception on both counts: it is live, and it deliberately does
- * NOT inherit the global flag. VITE_PROTOTYPE defaults to prototype, so an
- * inheriting `auth` would silently drop back to the fixture user and the
- * pass-through guards the moment someone set the global — re-mocking a flow
- * that is finished and verified. Only an explicit VITE_PROTOTYPE_AUTH moves it.
+ * `inheritsGlobal` means "not migrated yet". VITE_PROTOTYPE is the dial for
+ * everything still on fixtures; once a flow is wired to the API its default
+ * flips to live and it stops inheriting, so setting the global to demo the
+ * remaining screens offline cannot silently re-mock a flow that is finished.
+ * Only that flow's own VITE_PROTOTYPE_<FLOW> moves it after that.
+ *
+ * Migrated so far:
+ *   auth  — session, register/login, onboarding role + survey
+ *   kits  — kits CRUD, folders, file upload (docs/API-CONTRACT.md §3)
  *
  * Auth and onboarding are one entry because they are one flow in the client:
  * AuthContext owns register/login *and* chooseRole/submitSurvey, guards.jsx
@@ -35,7 +39,7 @@
  */
 const FLOWS = {
   auth: { fallback: false, inheritsGlobal: false },
-  kits: { fallback: true, inheritsGlobal: true },
+  kits: { fallback: false, inheritsGlobal: false },
   study: { fallback: true, inheritsGlobal: true },
   chat: { fallback: true, inheritsGlobal: true },
   quiz: { fallback: true, inheritsGlobal: true },

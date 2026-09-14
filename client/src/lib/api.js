@@ -101,5 +101,13 @@ export const toFormError = (error) => {
     fields[payload.details.field] = payload.message;
   }
 
-  return { code: payload.code ?? 'unknown', message: payload.message ?? null, fields };
+  return {
+    code: payload.code ?? 'unknown',
+    message: payload.message ?? null,
+    fields,
+    // Structured details pass through untouched so a caller can read what the
+    // code implies — quota_exceeded carries { used, limit }, file_too_large
+    // carries { limit }. Array details are already flattened into `fields`.
+    details: Array.isArray(payload.details) ? {} : (payload.details ?? {}),
+  };
 };
