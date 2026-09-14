@@ -34,10 +34,9 @@ const useAddMaterialPaths = () => {
 export const AddMaterialSheet = () => {
   const t = useT();
   const navigate = useNavigate();
-  const { kitId, root, closeTo } = useAddMaterialPaths();
-  const [leavingForYoutube, setLeavingForYoutube] = useState(false);
+  const { root, closeTo } = useAddMaterialPaths();
+  const [leaving, setLeaving] = useState(null);
   const leaveTimer = useRef();
-  const fileInputRef = useRef(null);
 
   useEffect(
     () => () => {
@@ -46,76 +45,49 @@ export const AddMaterialSheet = () => {
     [],
   );
 
-  const openYoutube = () => {
-    if (leavingForYoutube) return;
-    setLeavingForYoutube(true);
-    leaveTimer.current = window.setTimeout(() => navigate(`${root}/youtube`), 300);
-  };
-
   /**
-   * Opens the OS picker for one of the two accepted kinds. The upload itself
-   * runs on the next screen so progress has somewhere to render, and so a
-   * backgrounded sheet cannot cancel an upload in flight.
+   * Every option leaves the same way: this sheet slides out to the left and
+   * the chosen one slides in from the right, so the four routes feel like one
+   * stack rather than four unrelated popups. The 300ms matches
+   * `.sheet-slide-to-left` in index.css — shorten one and they tear.
    */
-  const pickFile = (accept) => {
-    if (!kitId) return;
-    const input = fileInputRef.current;
-    if (!input) return;
-    input.accept = accept;
-    input.value = '';
-    input.click();
-  };
-
-  const onFileChosen = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    // Handing the File through router state keeps it out of the URL and out of
-    // context, so it lives exactly as long as the upload screen does.
-    navigate(`${root}/uploading`, { state: { file } });
+  const slideTo = (step) => {
+    if (leaving) return;
+    setLeaving(step);
+    leaveTimer.current = window.setTimeout(() => navigate(`${root}/${step}`), 300);
   };
 
   return (
-    <BottomSheet closeTo={closeTo} labelledBy="add-material-title" transition={leavingForYoutube ? 'to-left' : 'up'}>
+    <BottomSheet closeTo={closeTo} labelledBy="add-material-title" transition={leaving ? 'to-left' : 'up'}>
       <h2 id="add-material-title" className="text-2xl font-bold text-navy-900">
         {t('dashboard.addMaterial')}
       </h2>
       <p className="mt-1 text-base text-navy-600">{t('kits.addMaterialSubtitle')}</p>
 
-      {/* One input for both options; `accept` is set per click. Hidden rather
-          than absent so the picker has something to open. */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="sr-only"
-        onChange={onFileChosen}
-        tabIndex={-1}
-        aria-hidden="true"
-      />
-
       <div className="mt-5 space-y-3">
         <SheetOption
-          onClick={kitId ? () => pickFile(ACCEPT_IMAGE) : () => navigate('/kits/folders/new')}
+          onClick={() => slideTo('photo')}
           tone="blue"
           icon={<PhotoIcon />}
           title={t('kits.uploadPhoto')}
           description={t('kits.uploadPhotoHint')}
         />
         <SheetOption
-          onClick={kitId ? () => pickFile(ACCEPT_PDF) : () => navigate('/kits/folders/new')}
+          onClick={() => slideTo('pdf')}
           tone="violet"
           icon={<PdfIcon />}
           title={t('kits.uploadPdf')}
           description={t('kits.uploadPdfHint')}
         />
         <SheetOption
-          onClick={openYoutube}
+          onClick={() => slideTo('youtube')}
           tone="amber"
           icon={<PlayIcon />}
           title={t('kits.addYoutubeUrl')}
           description={t('kits.addYoutubeUrlHint')}
         />
         <SheetOption
-          to={kitId ? undefined : '/kits/folders/new'}
+          onClick={() => slideTo('topic')}
           tone="green"
           icon={<SparkIcon />}
           title={t('kits.enterTopic')}
@@ -315,6 +287,185 @@ export const YouTubeUrlSheet = () => {
           {!submitting && <ArrowRightIcon />}
         </Button>
         <p className="text-center text-sm text-ink-500">{t('kits.youtubeFootnote')}</p>
+      </form>
+    </BottomSheet>
+  );
+};
+
+/**
+ * Photo and PDF both need the same sheet: a word about what the file is for,
+ * then the OS picker. They slide in like the YouTube sheet so every option in
+ * the chooser behaves the same way.
+ *
+ * A file cannot be uploaded until a kit exists, so when this runs from the
+ * Kits tab the kit is created the moment a file is chosen — not before, or an
+ * abandoned picker would leave an empty kit against the free-plan cap.
+ */
+const PickFileSheet = ({ kind }) => {
+  const t = useT();
+  const navigate = useNavigate();
+  const { addKit } = useKits();
+  const { kitId, root } = useAddMaterialPaths();
+  const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const isPhoto = kind === 'photo';
+  const accept = isPhoto ? ACCEPT_IMAGE : ACCEPT_PDF;
+
+  const onFileChosen = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file || busy) return;
+    setBusy(true);
+    setError(null);
+
+    try {
+      let targetKitId = kitId;
+      if (!targetKitId) {
+        const created = await addKit({
+          title: file.name.replace(/\.[^.]+$/, '') || t('kits.uploadPdf'),
+          sourceKind: isPhoto ? 'image' : 'pdf',
+        });
+        targetKitId = created.id;
+      }
+      // The File rides in router state: out of the URL, and gone the moment
+      // the upload screen unmounts.
+      navigate(`/kits/${targetKitId}/add/uploading`, { state: { file } });
+    } catch (err) {
+      setError(toFormError(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <BottomSheet closeTo={root} labelledBy="pick-file-title" transition="from-right">
+      <div className="flex items-start gap-4">
+        <span
+          className={`grid size-14 shrink-0 place-items-center rounded-2xl ${
+            isPhoto ? 'bg-blue-100 text-blue-700' : 'bg-violet-100 text-violet-700'
+          }`}
+        >
+          {isPhoto ? <PhotoIcon /> : <PdfIcon />}
+        </span>
+        <div className="min-w-0">
+          <h2 id="pick-file-title" className="text-2xl font-bold text-navy-900">
+            {t(isPhoto ? 'kits.photoTitle' : 'kits.pdfTitle')}
+          </h2>
+          <p className="mt-1 text-base text-navy-600">
+            {t(isPhoto ? 'kits.photoSubtitle' : 'kits.pdfSubtitle')}
+          </p>
+        </div>
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        className="sr-only"
+        onChange={onFileChosen}
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+
+      <div className="mt-6 space-y-5">
+        {error && (
+          <p className="rounded-card bg-danger-50 px-4 py-3 text-center text-base text-danger-600">
+            {error.message ?? t('kits.createFailed')}
+          </p>
+        )}
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            if (busy) return;
+            inputRef.current.value = '';
+            inputRef.current.click();
+          }}
+        >
+          {busy ? t('kits.creating') : t(isPhoto ? 'kits.choosePhoto' : 'kits.choosePdf')}
+          {!busy && <ArrowRightIcon />}
+        </Button>
+        <p className="text-center text-sm text-ink-500">
+          {t(isPhoto ? 'kits.photoFootnote' : 'kits.pdfFootnote')}
+        </p>
+      </div>
+    </BottomSheet>
+  );
+};
+
+export const PhotoPickSheet = () => <PickFileSheet kind="photo" />;
+export const PdfPickSheet = () => <PickFileSheet kind="pdf" />;
+
+/** The topic sheet — the same shape as the YouTube one, a field and a submit. */
+export const TopicSheet = () => {
+  const t = useT();
+  const navigate = useNavigate();
+  const { addKit } = useKits();
+  const { kitId, root } = useAddMaterialPaths();
+  const [topic, setTopic] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const title = topic.trim();
+    if (!title || submitting) return;
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      let targetKitId = kitId;
+      if (!targetKitId) {
+        const created = await addKit({ title, sourceKind: 'topic' });
+        targetKitId = created.id;
+      }
+
+      const { data } = await api.post(`/kits/${targetKitId}/sources`, { kind: 'topic', title });
+
+      navigate(`/kits/${targetKitId}/add/processing`, {
+        state: { kitId: targetKitId, sourceId: data.source.id },
+      });
+    } catch (err) {
+      setError(toFormError(err));
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <BottomSheet closeTo={root} labelledBy="topic-title" transition="from-right">
+      <div className="flex items-start gap-4">
+        <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-green-100 text-green-700">
+          <SparkIcon />
+        </span>
+        <div className="min-w-0">
+          <h2 id="topic-title" className="text-2xl font-bold text-navy-900">
+            {t('kits.topicTitle')}
+          </h2>
+          <p className="mt-1 text-base text-navy-600">{t('kits.topicSubtitle')}</p>
+        </div>
+      </div>
+
+      <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
+        <TextField
+          label={t('kits.topicTitle')}
+          placeholder={t('kits.topicPlaceholder')}
+          value={topic}
+          onChange={(event) => setTopic(event.target.value)}
+          required
+        />
+
+        {error && (
+          <p className="rounded-card bg-danger-50 px-4 py-3 text-center text-base text-danger-600">
+            {error.message ?? t('kits.createFailed')}
+          </p>
+        )}
+
+        <Button type="submit" disabled={submitting || !topic.trim()}>
+          {submitting ? t('kits.creating') : t('kits.createStudyKit')}
+          {!submitting && <ArrowRightIcon />}
+        </Button>
+        <p className="text-center text-sm text-ink-500">{t('kits.topicFootnote')}</p>
       </form>
     </BottomSheet>
   );

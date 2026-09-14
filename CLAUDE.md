@@ -4,6 +4,32 @@ Bilingual (Khmer/English) study app. Students upload PDFs or YouTube links and g
 summaries, quizzes, flashcards, and an AI tutor. Teachers create classes, lessons,
 and assignments.
 
+## Build state
+
+**The build is complete.** Every flow — kits, ingest, summaries, tutor chat, quiz,
+practice, flashcards, classes, assignments, plan limits — has a migration, a service,
+a route, and a wired React page. 39 of 41 screens are built; the two skipped are the
+phone-OTP and email-code screens, which need a provider that does not exist yet.
+
+Prototype mode is retired. `client/src/mock/` is kept for backend-free design review
+behind a single `VITE_DEMO` flag, default off. The shipped default is the live API.
+
+**The mock AI and notify providers remain in place** — see the two sections below.
+They are not placeholders to be removed; they are the automatic fallback whenever a
+real key is absent, and every feature was built and tested against them.
+
+What is left before real users:
+
+1. **OpenAI key** — swap from the mock, measure Khmer token ratios against English,
+   log `usage.prompt_tokens` / `completion_tokens` / `reasoning_tokens` per call into
+   `ai_generations`. A week of real data beats every cost estimate.
+2. **SMS/email provider** — wire `notify`, add `requireVerified`, build the two
+   skipped screens in `docs/screens/01-auth-onboarding/`.
+3. **Storage** — off local disk to S3 or equivalent.
+4. **Rate limiting** — `server/src/middleware/rateLimit.js` is in-memory; move it to
+   Postgres before running more than one instance.
+5. **Deploy** — client to Vercel, server to Railway, database to Neon.
+
 ## Architecture
 
 Monorepo, two apps, no shared build tooling.
@@ -95,7 +121,7 @@ If a migration cannot run in the current environment, fix the environment.
 
 ## AI layer
 
-The OpenAI API key is NOT set up yet.
+The OpenAI API key is NOT set up yet. The mock provider serves every AI feature.
 
 - All AI calls go through `server/src/ai/index.js`. Never call the API from a
   controller or route directly.
@@ -117,7 +143,7 @@ The OpenAI API key is NOT set up yet.
 
 ## OTP and email delivery
 
-No SMS or email provider is configured yet.
+No SMS or email provider is configured yet. The mock notifier serves every code.
 
 - Delivery goes through `server/src/notify/index.js` with the same mock-fallback pattern.
 - In dev, the mock provider logs the code to the console and returns success.
@@ -133,3 +159,10 @@ screenshots. Navy primary, owl mascot. Do not invent a visual style.
 
 One feature per session, as a vertical slice: migration → service → route → React page.
 Commit after each working step.
+
+The vertical slices are done. New work is now change to a built flow, so the order
+still holds — write the migration first, keep logic in services, wire the existing
+screen rather than rebuilding it — but the slice is usually smaller than a session.
+
+Run `npm run migrate` from `server/` after pulling. The runner checksums each file
+and refuses a migration whose contents changed after it was applied.

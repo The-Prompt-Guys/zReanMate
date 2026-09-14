@@ -78,20 +78,26 @@ export const ingestService = {
 
         chunks = chunkYouTubeTranscript(cues);
         metrics = {
-          title: source.title === 'YouTube study kit' || !source.title ? title : source.title,
+          // Same aliasing trap as below: the row exposes `name`, not `title`.
+          // Reading source.title made this branch always overwrite whatever
+          // the student had named the source with the video's own title.
+          title: source.name === 'YouTube study kit' || !source.name ? title : source.name,
           durationSeconds,
           thumbnailUrl,
           extractedText: fullText.slice(0, 5000),
         };
       } else if (source.kind === 'topic' || source.kind === 'text') {
-        const text = source.extracted_text || source.title || '';
+        // `name` not `title`: sources.db aliases s.title AS name, so reading
+        // source.title here always yielded undefined and every topic source
+        // failed with EMPTY_CONTENT.
+        const text = source.extracted_text || source.name || '';
         chunks = chunkText(text, { kind: source.kind });
         metrics = {
           extractedText: text.slice(0, 5000),
         };
       } else if (source.kind === 'image') {
         // Images without OCR are stored as a placeholder chunk
-        const label = source.original_filename || source.title || 'Image material';
+        const label = source.original_filename || source.name || 'Image material';
         chunks = chunkText(`[Image: ${label}]`, { kind: 'image' });
       }
 

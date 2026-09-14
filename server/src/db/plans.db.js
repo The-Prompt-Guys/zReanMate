@@ -47,7 +47,7 @@ export const plansDb = {
                 'limit', pl.limit_value,
                 'used', CASE pl.limit_key
                   WHEN 'max_kits' THEN (SELECT count(*)::int FROM study_kits k WHERE k.user_id = u.id AND k.class_id IS NULL)
-                  WHEN 'practice_sessions_per_week' THEN (SELECT count(*)::int FROM practice_sessions ps WHERE ps.user_id = u.id AND ps.created_at >= date_trunc('week', now() AT TIME ZONE 'UTC'))
+                  WHEN 'practice_sessions_per_week' THEN (SELECT count(*)::int FROM practice_sessions ps WHERE ps.user_id = u.id AND ps.started_at >= date_trunc('week', now()))
                   ELSE COALESCE((SELECT uc.quantity FROM usage_counters uc WHERE uc.user_id = u.id AND uc.counter_key = pl.limit_key AND uc.period_start = $2), 0)
                 END
               )) FROM plan_limits pl WHERE pl.plan_tier = u.plan_tier), '{}'::jsonb) AS limits,

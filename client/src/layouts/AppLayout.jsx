@@ -24,9 +24,12 @@ const TABS = [
 export const AppLayout = () => {
   const t = useT();
   const { pathname } = useLocation();
-  const [planWall, setPlanWall] = useState(false);
+  // Holds the code, not a boolean: a countable cap and a plan-gated feature are
+  // different messages, and showing "you have reached your free limit" for a
+  // Plus-only feature tells the user to delete things that are not the problem.
+  const [planWall, setPlanWall] = useState(null);
   useEffect(() => {
-    const show = () => setPlanWall(true);
+    const show = (event) => setPlanWall(event.detail?.code ?? 'quota_exceeded');
     window.addEventListener('reanmate:plan-wall', show);
     return () => window.removeEventListener('reanmate:plan-wall', show);
   }, []);
@@ -38,7 +41,7 @@ export const AppLayout = () => {
   return (
     <div className="min-h-dvh bg-canvas">
       <div className="mx-auto flex min-h-dvh w-full max-w-[26rem] flex-col bg-canvas">
-        {planWall && <div className="sticky top-0 z-30 flex items-center gap-3 bg-gold-400 px-4 py-3 text-sm font-semibold text-navy-900"><span className="flex-1">{t('kits.quotaTitle')}</span><Link to="/onboarding/plan" className="underline">{t('profile.upgrade')}</Link><button type="button" onClick={() => setPlanWall(false)} aria-label={t('common.close')}>×</button></div>}
+        {planWall && <div className="sticky top-0 z-30 flex items-center gap-3 bg-gold-400 px-4 py-3 text-sm font-semibold text-navy-900"><span className="flex-1">{t(planWall === 'feature_unavailable' ? 'plan.featureWall' : 'kits.quotaTitle')}</span><Link to="/onboarding/plan" className="underline">{t('profile.upgrade')}</Link><button type="button" onClick={() => setPlanWall(null)} aria-label={t('common.close')}>×</button></div>}
         <div className={immersive ? 'flex-1' : 'flex-1 pb-24'}>
           <Outlet />
         </div>

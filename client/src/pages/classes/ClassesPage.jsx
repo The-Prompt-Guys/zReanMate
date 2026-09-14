@@ -29,7 +29,6 @@ export const ClassesPage = () => {
         <Owl variant="default" className="size-20 shrink-0" />
       </NavyHeader>
       <div className="space-y-3 px-5 pt-5">
-        <div className="flex items-center gap-3 rounded-card bg-tint-100 p-4"><span className="grid size-11 shrink-0 place-items-center rounded-xl text-navy-800"><StackIcon /></span><h2 className="text-xl font-bold text-navy-900">{t('classes.yourClasses')}</h2></div>
         {status === 'loading' && <p className="py-8 text-center text-navy-600">{t('common.loading')}</p>}
         {error && <p className="py-4 text-center text-danger-600">{error.message}</p>}
         {status === 'ready' && classes.length === 0 && <div className="rounded-card bg-white p-6 text-center ring-1 ring-tint-200"><Owl variant="waving" className="mx-auto size-20" /><p className="mt-2 text-navy-600">{t('classes.noUpcoming')}</p></div>}
@@ -44,6 +43,5 @@ export const ClassesPage = () => {
   );
 };
 
-const StackIcon = () => <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v5c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 13v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5" /></svg>;
 const PeopleIcon = () => <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2" /><path d="M3 19a6 6 0 0 1 12 0M16 5.5a3.2 3.2 0 0 1 0 5M18 19a6 6 0 0 0-2-4.5" /></svg>;
 const ClassIcon = () => <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 7c-2-1.6-4.4-2-7-2v12c2.6 0 5 .4 7 2 2-1.6 4.4-2 7-2V5c-2.6 0-5 .4-7 2zM12 7v12" /></svg>;

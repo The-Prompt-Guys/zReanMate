@@ -1,6 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 
-import { RequireAuth, RequireGuest, RequireOnboarded } from '../auth/guards.jsx';
+import { RequireAuth, RequireGuest } from '../auth/guards.jsx';
 import { AuthLayout } from '../layouts/AuthLayout.jsx';
 import { AppLayout } from '../layouts/AppLayout.jsx';
 import { AuthPage } from '../pages/AuthPage.jsx';
@@ -31,6 +31,9 @@ import { AssignmentWorkspacePage } from '../pages/classes/AssignmentWorkspacePag
 import { ProfilePage } from '../pages/ProfilePage.jsx';
 import {
   AddMaterialSheet,
+  PhotoPickSheet,
+  PdfPickSheet,
+  TopicSheet,
   CreateKitSheet,
   ProcessingSheet,
   UploadingSheet,
@@ -77,9 +80,10 @@ const pendingRoutes = FLOWS.flatMap((flow) => flow.screens)
 /**
  * Three zones, each behind its own guard:
  *
- *   RequireGuest     — signed-out only.
- *   RequireAuth      — signed in; onboarding may still be unfinished.
- *   RequireOnboarded — signed in AND finished; the app proper.
+ *   RequireGuest — signed-out only.
+ *   RequireAuth  — signed in. Onboarding may be unfinished: it is a signup
+ *                  wizard, not a gate, so an existing account reaches the app
+ *                  whether or not it ever completed the survey.
  *
  * In prototype mode every guard passes through, so all screens are reachable
  * by URL — see src/mock/mode.js and the index at /screens.
@@ -111,67 +115,68 @@ export const router = createBrowserRouter([
     element: <RequireAuth />,
     children: [
       {
-        element: <RequireOnboarded />,
+        element: <AppLayout />,
         children: [
-          {
-            element: <AppLayout />,
-            children: [
-              { path: '/', element: <DashboardPage /> },
+          { path: '/', element: <DashboardPage /> },
 
-              // Study kits. Create sheets layer over the Kits tab; add-to-kit
-              // sheets layer over that kit's file list so students stay put.
-              { path: '/kits', element: <KitsPage /> },
-              { path: '/kits/new', element: <SheetOver sheet={<AddMaterialSheet />} /> },
-              { path: '/kits/new/youtube', element: <SheetOver sheet={<YouTubeUrlSheet />} /> },
-              { path: '/kits/new/processing', element: <SheetOver sheet={<ProcessingSheet />} /> },
-              { path: '/kits/folders/new', element: <SheetOver sheet={<CreateKitSheet />} /> },
-              { path: '/kits/:kitId/add', element: <KitSheetOver sheet={<AddMaterialSheet />} /> },
-              { path: '/kits/:kitId/add/youtube', element: <KitSheetOver sheet={<YouTubeUrlSheet />} /> },
-              { path: '/kits/:kitId/add/processing', element: <KitSheetOver sheet={<ProcessingSheet />} /> },
-              // Real file upload, with progress driven by the request itself.
-              { path: '/kits/:kitId/add/uploading', element: <KitSheetOver sheet={<UploadingSheet />} /> },
-              { path: '/kits/:kitId', element: <KitDetailPage /> },
+          // Study kits. Create sheets layer over the Kits tab; add-to-kit
+          // sheets layer over that kit's file list so students stay put.
+          { path: '/kits', element: <KitsPage /> },
+          { path: '/kits/new', element: <SheetOver sheet={<AddMaterialSheet />} /> },
+          { path: '/kits/new/photo', element: <SheetOver sheet={<PhotoPickSheet />} /> },
+          { path: '/kits/new/pdf', element: <SheetOver sheet={<PdfPickSheet />} /> },
+          { path: '/kits/new/youtube', element: <SheetOver sheet={<YouTubeUrlSheet />} /> },
+          { path: '/kits/new/topic', element: <SheetOver sheet={<TopicSheet />} /> },
+          { path: '/kits/new/processing', element: <SheetOver sheet={<ProcessingSheet />} /> },
+          { path: '/kits/folders/new', element: <SheetOver sheet={<CreateKitSheet />} /> },
+          { path: '/kits/:kitId/add', element: <KitSheetOver sheet={<AddMaterialSheet />} /> },
+          { path: '/kits/:kitId/add/photo', element: <KitSheetOver sheet={<PhotoPickSheet />} /> },
+          { path: '/kits/:kitId/add/pdf', element: <KitSheetOver sheet={<PdfPickSheet />} /> },
+          { path: '/kits/:kitId/add/youtube', element: <KitSheetOver sheet={<YouTubeUrlSheet />} /> },
+          { path: '/kits/:kitId/add/topic', element: <KitSheetOver sheet={<TopicSheet />} /> },
+          { path: '/kits/:kitId/add/processing', element: <KitSheetOver sheet={<ProcessingSheet />} /> },
+          // Real file upload, with progress driven by the request itself.
+          { path: '/kits/:kitId/add/uploading', element: <KitSheetOver sheet={<UploadingSheet />} /> },
+          { path: '/kits/:kitId', element: <KitDetailPage /> },
 
-              // Study mode. The chooser is a centered dialog over the kit, and
-              // the PDF study actions are a sheet over the viewer (?actions=1).
-              { path: '/study/:kitId', element: <StudyOver /> },
-              { path: '/study/:kitId/summary', element: <SummaryPage /> },
-              { path: '/study/:kitId/summary/:chapter', element: <ChapterSummaryPage /> },
-              { path: '/study/:kitId/pdf', element: <PdfViewerPage /> },
+          // Study mode. The chooser is a centered dialog over the kit, and
+          // the PDF study actions are a sheet over the viewer (?actions=1).
+          { path: '/study/:kitId', element: <StudyOver /> },
+          { path: '/study/:kitId/summary', element: <SummaryPage /> },
+          { path: '/study/:kitId/summary/:chapter', element: <ChapterSummaryPage /> },
+          { path: '/study/:kitId/pdf', element: <PdfViewerPage /> },
 
-              // AI tutor
-              { path: '/tutor', element: <TutorPage /> },
+          // AI tutor
+          { path: '/tutor', element: <TutorPage /> },
 
-              // Quiz. These screens use the contextual Practice / Learn /
-              // Flashcards / More bar, so AppLayout hides the app tab bar.
-              { path: '/quiz/:kitId', element: <QuizPage /> },
-              { path: '/quiz/:kitId/results', element: <QuizResultsPage /> },
+          // Quiz. These screens use the contextual Practice / Learn /
+          // Flashcards / More bar, so AppLayout hides the app tab bar.
+          { path: '/quiz/:kitId', element: <QuizPage /> },
+          { path: '/quiz/:kitId/results', element: <QuizResultsPage /> },
 
-              // Practice
-              { path: '/practice', element: <PracticeHomePage /> },
-              { path: '/practice/setup', element: <PracticeSetupPage /> },
-              { path: '/practice/lessons', element: <PracticeLessonsPage /> },
-              { path: '/practice/session', element: <PracticeSessionPage /> },
-              { path: '/practice/results', element: <PracticeResultsPage /> },
+          // Practice
+          { path: '/practice', element: <PracticeHomePage /> },
+          { path: '/practice/setup', element: <PracticeSetupPage /> },
+          { path: '/practice/lessons', element: <PracticeLessonsPage /> },
+          { path: '/practice/session', element: <PracticeSessionPage /> },
+          { path: '/practice/results', element: <PracticeResultsPage /> },
 
-              // Flashcards (contextual tab bar, like quiz)
-              { path: '/flashcards/:kitId', element: <FlashcardsPage /> },
-              { path: '/flashcards/:kitId/complete', element: <FlashcardsCompletePage /> },
+          // Flashcards (contextual tab bar, like quiz)
+          { path: '/flashcards/:kitId', element: <FlashcardsPage /> },
+          { path: '/flashcards/:kitId/complete', element: <FlashcardsCompletePage /> },
 
-              // Classes and assignments
-              { path: '/classes', element: <ClassesPage /> },
-              { path: '/classes/:classId', element: <ClassDetailPage /> },
-              { path: '/assignments/:assignmentId', element: <AssignmentDetailPage /> },
-              { path: '/assignments/:assignmentId/work', element: <AssignmentWorkspacePage /> },
+          // Classes and assignments
+          { path: '/classes', element: <ClassesPage /> },
+          { path: '/classes/:classId', element: <ClassDetailPage /> },
+          { path: '/assignments/:assignmentId', element: <AssignmentDetailPage /> },
+          { path: '/assignments/:assignmentId/work', element: <AssignmentWorkspacePage /> },
 
-              // Profile
-              { path: '/profile', element: <ProfilePage /> },
+          // Profile
+          { path: '/profile', element: <ProfilePage /> },
 
-              // Every registered screen that is not built yet still resolves,
-              // so the tab bar and the index never dead-end on a 404.
-              ...pendingRoutes,
-            ],
-          },
+          // Every registered screen that is not built yet still resolves,
+          // so the tab bar and the index never dead-end on a 404.
+          ...pendingRoutes,
         ],
       },
     ],

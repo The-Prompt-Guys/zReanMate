@@ -19,9 +19,9 @@ const KitsContext = createContext(null);
 const DEMO = isDemo();
 
 /**
- * Prototype seed, unchanged from when this context was in-memory. Kept so
- * VITE_PROTOTYPE_KITS=true still reviews the screens with no server, which is
- * the whole point of the per-flow switch.
+ * Demo seed, unchanged from when this context was in-memory. Kept so
+ * VITE_DEMO=true still reviews the screens with no server, which is the
+ * whole point of keeping the fixtures around.
  */
 let demoSeedFiles = {};
 

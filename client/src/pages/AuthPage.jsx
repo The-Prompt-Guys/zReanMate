@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext.jsx';
-import { onboardingDestination } from '../auth/guards.jsx';
+import { signupDestination } from '../auth/guards.jsx';
 import { Button, FormAlert, TextField } from '../components/ui.jsx';
 import { Owl, Wordmark } from '../layouts/AuthLayout.jsx';
 import { toFormError } from '../lib/api.js';
@@ -29,6 +29,8 @@ export const AuthPage = () => {
   const t = useT();
   const { language } = useLanguage();
   const navigate = useNavigate();
+  // RequireAuth records where an unauthenticated visitor was headed.
+  const location = useLocation();
   const { register, login } = useAuth();
 
   const [mode, setMode] = useState('signup');
@@ -74,10 +76,14 @@ export const AuthPage = () => {
       } else {
         await login({ identifier: values.identifier, password: values.password });
       }
-      // A fresh account has no role yet, so this lands on role selection.
-      navigate(onboardingDestination({ onboarding: { roleChosen: false, completedAt: null } }), {
-        replace: true,
-      });
+      // Signup runs the onboarding wizard; a fresh account has no role yet, so
+      // this lands on role selection. Signing in to an existing account does
+      // NOT — it goes to wherever they were headed, or the dashboard. Handing
+      // a returning user the survey again is the bug this replaced.
+      const destination = mode === 'signup'
+        ? signupDestination({ onboarding: { roleChosen: false, completedAt: null } })
+        : (location.state?.from ?? '/');
+      navigate(destination, { replace: true });
     } catch (error) {
       const { code, message, fields } = toFormError(error);
       setErrors(fields);

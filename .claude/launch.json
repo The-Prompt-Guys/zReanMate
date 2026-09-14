@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "reanmate-server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "server", "run", "dev"],
+      "port": 4000
+    },
+    {
       "name": "reanmate-client",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "client", "run", "dev"],

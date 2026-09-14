@@ -207,23 +207,6 @@ export const KitDetailPage = () => {
           </Link>
         </div>
         )}
-
-        {kit.cardCount > 0 && (
-        <Link
-          to={`/flashcards/${kit.id}`}
-          className="flex items-center gap-4 rounded-card bg-tint-100 p-4"
-        >
-          <span className="grid size-12 shrink-0 place-items-center rounded-full bg-navy-800 text-white">
-            <svg viewBox="0 0 24 24" className="size-6" fill="none" aria-hidden="true">
-              <path d="m12 3 9 4.5-9 4.5-9-4.5z" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
-              <path d="m3 12 9 4.5 9-4.5M3 16.5 12 21l9-4.5" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
-            </svg>
-          </span>
-          <span className="text-lg font-bold text-navy-900">
-            {t('kits.cardsReady', { count: kit.cardCount })}
-          </span>
-        </Link>
-        )}
       </div>
     </main>
   );

@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 
+import { Markdown } from '../../components/Markdown.jsx';
 import { useLanguage, useT } from '../../i18n/index.js';
 import { NavyHeader } from '../../layouts/AppLayout.jsx';
 import { useSourceSummaries, useStudySource } from './useSourceSummaries.js';
@@ -33,9 +34,13 @@ export const SummaryPage = () => {
     <div className="px-5 pt-5">
       <p className="text-sm font-bold uppercase tracking-wide text-navy-600">{t('summary.label')}</p>
       <h2 className="mt-1 text-3xl font-bold text-navy-900">{summary?.title ?? t('summary.heading')}</h2>
-      <div className="mt-2 whitespace-pre-wrap text-base leading-relaxed text-navy-600">{summary?.bodyMd ?? (sourceStatus === 'loading' ? t('common.loading') : t('summary.generatingSummary'))}</div>
+      <div className="mt-2 text-base leading-relaxed text-navy-600">
+        {summary?.bodyMd
+          ? <Markdown source={summary.bodyMd} />
+          : (sourceStatus === 'loading' ? t('common.loading') : t('summary.generatingSummary'))}
+      </div>
       {error && <p className="mt-4 text-sm text-red-700">{t('summary.loadFailed')}</p>}
-      {plusRequired ? <Link to="/plan" className="mt-5 inline-block rounded-full bg-navy-800 px-5 py-2.5 font-bold text-white">{t('summary.plusRequired')}</Link> : <>
+      {plusRequired ? <Link to="/onboarding/plan" className="mt-5 inline-block rounded-full bg-navy-800 px-5 py-2.5 font-bold text-white">{t('summary.plusRequired')}</Link> : <>
         <p className="mt-5 text-base text-navy-700">{t('summary.ready', { done: ready, total: chapters.length })}</p>
         <div className="mt-2 flex items-center gap-3"><div className="h-2.5 flex-1 overflow-hidden rounded-full bg-tint-100"><span className="block h-full rounded-full bg-navy-600" style={{ width: `${percent}%` }} /></div><span className="text-base font-bold text-navy-900">{percent}%</span></div>
         <ul className="mt-5 divide-y divide-tint-200">{chapters.map((item) => {

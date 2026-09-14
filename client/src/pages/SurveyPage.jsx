@@ -152,7 +152,8 @@ export const SurveyPage = () => {
         skipped: skip,
         complete: skip || isLast,
       });
-      skip ? navigate('/onboarding/plan') : advance();
+      if (skip) navigate('/onboarding/plan');
+      else advance();
     } catch (error) {
       const { code, message, fields } = toFormError(error);
 
@@ -166,6 +167,10 @@ export const SurveyPage = () => {
       } else {
         setFormError(code === 'network' ? t('errors.network') : (message ?? t('errors.generic')));
       }
+    } finally {
+      // Steps 1 and 2 navigate within this same component, so `busy` survives
+      // the step change. Clearing it only on the error path left Continue and
+      // Skip disabled from step 2 onwards — the survey could not be finished.
       setBusy(false);
     }
   };

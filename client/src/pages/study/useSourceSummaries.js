@@ -29,18 +29,26 @@ export const useSourceSummaries = (source, language) => {
 
   const refresh = useCallback(async () => {
     if (!source?.id || source.status !== 'ready') return;
-    const [summaryResponse, chaptersResponse] = await Promise.allSettled([
-      api.post(`/sources/${source.id}/summarize`, { language }),
-      api.post(`/sources/${source.id}/chapters`, { language, chapterCount: 12 }),
-    ]);
-    if (summaryResponse.status === 'fulfilled') setSummary(summaryResponse.value.data);
+
+    // Chapter summaries are Plus-only. Once the server has said so there is
+    // nothing to poll for — asking again every 1.5s just collects 403s.
+    const requests = [api.post(`/sources/${source.id}/summarize`, { language })];
+    if (!plusRequired) {
+      requests.push(api.post(`/sources/${source.id}/chapters`, { language, chapterCount: 12 }));
+    }
+    const [summaryResponse, chaptersResponse] = await Promise.allSettled(requests);
+
+    if (summaryResponse.status === 'fulfilled') { setSummary(summaryResponse.value.data); setError(null); }
     else setError(toFormError(summaryResponse.reason));
+
+    if (!chaptersResponse) return;
     if (chaptersResponse.status === 'fulfilled') {
       setChapterData(chaptersResponse.value.data); setPlusRequired(false);
-    } else if (chaptersResponse.reason?.response?.status === 403 && chaptersResponse.reason.response.data?.error === 'feature_unavailable') {
+    } else if (toFormError(chaptersResponse.reason).code === 'feature_unavailable') {
+      // A plan gate is not a failure — the screen offers the upgrade instead.
       setPlusRequired(true);
     } else setError(toFormError(chaptersResponse.reason));
-  }, [source, language]);
+  }, [source, language, plusRequired]);
 
   useEffect(() => { refresh(); }, [refresh]);
   const generating = summary?.status !== 'ready' || (chapterData && chapterData.status !== 'ready');

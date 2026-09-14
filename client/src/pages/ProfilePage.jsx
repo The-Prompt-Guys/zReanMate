@@ -2,7 +2,7 @@ import { NavyHeader } from '../layouts/AppLayout.jsx';
 import { Owl } from '../layouts/AuthLayout.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { LanguageSwitcher, useT } from '../i18n/index.js';
-import { useProfile } from '../profile/useProfile.js';
+import { LIMIT_LABELS, useProfile } from '../profile/useProfile.js';
 
 /** docs/screens/10-profile/01-profile-tab. */
 export const ProfilePage = () => {
@@ -57,7 +57,7 @@ export const ProfilePage = () => {
           </dl>
         </section>
 
-        {limits && <section className="rounded-card bg-white p-4 shadow-sm ring-1 ring-tint-200/70"><h2 className="text-xl font-bold text-navy-900">{t('profile.plan')}</h2><p className="mt-1 capitalize text-navy-600">{limits.planTier}</p><ul className="mt-3 space-y-2 text-sm text-navy-700">{Object.entries(limits.limits).map(([key, value]) => <li key={key} className="flex justify-between gap-3"><span>{key.replaceAll('_', ' ')}</span><strong>{value.remaining === null ? '∞' : `${value.remaining} / ${value.limit}`}</strong></li>)}</ul></section>}
+        {limits && <section className="rounded-card bg-white p-4 shadow-sm ring-1 ring-tint-200/70"><h2 className="text-xl font-bold text-navy-900">{t('profile.plan')}</h2><p className="mt-1 capitalize text-navy-600">{limits.planTier}</p><ul className="mt-3 space-y-2 text-sm text-navy-700">{Object.entries(limits.limits).filter(([key]) => LIMIT_LABELS[key]).map(([key, value]) => <li key={key} className="flex justify-between gap-3"><span>{t(LIMIT_LABELS[key])}</span><strong>{value.remaining === null ? t('plan.unlimited') : t('profile.limitRemaining', { remaining: value.remaining, limit: value.limit })}</strong></li>)}</ul></section>}
 
         <section>
           <h2 className="text-xl font-bold text-navy-900">{t('profile.activity')}</h2>

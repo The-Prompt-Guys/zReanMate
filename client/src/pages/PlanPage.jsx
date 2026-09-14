@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, CheckIcon, SegmentedProgress, TextButton } from '../components/ui.jsx';
 import { Owl, Wordmark } from '../layouts/AuthLayout.jsx';
 import { useT } from '../i18n/index.js';
-import { useProfile } from '../profile/useProfile.js';
+import { LIMIT_LABELS, useProfile } from '../profile/useProfile.js';
 
 /**
  * docs/screens/01-auth-onboarding/08-free-vs-plus-comparison.
@@ -27,6 +27,9 @@ export const PlanPage = () => {
   const navigate = useNavigate();
   const [notice, setNotice] = useState(null);
   const { limits } = useProfile();
+  // The free kit count is a plan_limits row, not copy — reading it here keeps
+  // the feature list from drifting from what the server actually enforces.
+  const freeKitLimit = limits?.plans?.free?.limits?.max_kits;
 
   const finish = () => navigate('/', { replace: true });
 
@@ -56,10 +59,13 @@ export const PlanPage = () => {
         <p className="text-base text-ink-500">{t('plan.freePrice')}</p>
         <ul className="mt-4 space-y-3">
           {FREE_FEATURES.map((key) => (
-            <FeatureRow key={key} label={t(key)} />
+            <FeatureRow
+              key={key}
+              label={key === 'plan.freeKits' ? t(key, { count: freeKitLimit ?? 3 }) : t(key)}
+            />
           ))}
+          {limits?.plans?.free && <PlanNumbers plan={limits.plans.free} />}
         </ul>
-        {limits?.plans?.free && <PlanNumbers plan={limits.plans.free} />}
       </section>
 
       {/* Plus */}
@@ -100,7 +106,21 @@ export const PlanPage = () => {
   );
 };
 
-const PlanNumbers = ({ plan }) => <li className="rounded-xl bg-tint-100 px-3 py-2 text-sm text-navy-700">{Object.entries(plan.limits).map(([key, value]) => <span key={key} className="mr-3 inline-block">{key.replaceAll('_', ' ')}: <strong>{value ?? '∞'}</strong></span>)}</li>;
+const PlanNumbers = ({ plan }) => {
+  const t = useT();
+  const rows = Object.entries(plan.limits).filter(([key]) => LIMIT_LABELS[key]);
+  if (rows.length === 0) return null;
+
+  return (
+    <li className="mt-3 rounded-xl bg-tint-100 px-3 py-2 text-sm text-navy-700">
+      {rows.map(([key, value]) => (
+        <span key={key} className="mr-3 inline-block">
+          {t(LIMIT_LABELS[key])}: <strong>{value ?? t('plan.unlimited')}</strong>
+        </span>
+      ))}
+    </li>
+  );
+};
 
 const FeatureRow = ({ label }) => (
   <li className="flex items-center gap-3">

@@ -5,7 +5,7 @@
  * Runs against the built bundle's route table via the dev server, using plain
  * fetch for the HTML shell plus a check that the registry and the router agree.
  */
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 
 const registry = await import('../src/screens.js');
 const routerSrc = readFileSync(new URL('../src/routes/router.jsx', import.meta.url), 'utf8');
@@ -55,4 +55,50 @@ const c = registry.screenCounts();
 console.log('-'.repeat(118));
 console.log(`${c.built} built · ${c.skipped} skipped · ${c.total - c.built - c.skipped} pending · ${c.total} total`);
 console.log(problems === 0 ? 'registry and router agree on every built screen' : `${problems} MISMATCH(ES)`);
-process.exit(problems === 0 ? 0 : 1);
+
+/**
+ * Second pass: literal <Link to="/..."> targets.
+ *
+ * The registry check above only covers screens.js. It cannot see a hardcoded
+ * link inside a page, which is how every upgrade CTA pointed at `/plan` — a
+ * path no route declares — while this script still reported a clean run.
+ * Template links (`to={`/kits/${id}`}`) are skipped: their shape is only known
+ * at runtime.
+ */
+const pageFiles = [...walk(new URL('../src/', import.meta.url))];
+const linkProblems = [];
+
+for (const file of pageFiles) {
+  const src = readFileSync(file, 'utf8');
+  for (const match of src.matchAll(/(?:to|href)=\{?["'](\/[^"'`{}\s]*)["']/g)) {
+    const target = match[1].split('?')[0].split('#')[0];
+    if (target === '/') continue;
+    const matched = declared.some((d) => {
+      const dp = d.split('/');
+      const tp = target.split('/');
+      if (dp.length !== tp.length) return false;
+      return dp.every((seg, i) => seg.startsWith(':') || seg === tp[i]);
+    });
+    if (!matched) {
+      linkProblems.push(`${file.pathname.split('/src/')[1]} -> ${target}`);
+    }
+  }
+}
+
+if (linkProblems.length > 0) {
+  console.log('-'.repeat(118));
+  console.log(`${linkProblems.length} LINK(S) TO AN UNDECLARED ROUTE:`);
+  for (const item of linkProblems) console.log('  ' + item);
+} else {
+  console.log('every literal <Link to> target resolves to a declared route');
+}
+
+process.exit(problems === 0 && linkProblems.length === 0 ? 0 : 1);
+
+function* walk(dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const child = new URL(entry.name + (entry.isDirectory() ? '/' : ''), dir);
+    if (entry.isDirectory()) yield* walk(child);
+    else if (/\.(jsx|js)$/.test(entry.name)) yield child;
+  }
+}

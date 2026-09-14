@@ -11,8 +11,82 @@ document records every disagreement. Where honouring the fixture would be expens
 or would need a migration, it is flagged as an open decision (**D1**–**D13**) rather
 than resolved here.
 
-Nothing in this document is implemented yet except the auth and onboarding section,
-which is already live and is documented as-built.
+**Status: the server is built.** Sessions C through M implemented every flow, and
+the routes that shipped are not always the routes drafted below. Read
+[As shipped](#as-shipped--divergence-from-this-contract) first: it maps every
+endpoint in this document to the route that actually serves it. The request and
+response shapes below remain accurate — it is the paths and verbs that moved.
+
+---
+
+## As shipped — divergence from this contract
+
+This contract was written before the server existed. Implementation moved several
+endpoints, mostly for one reason: **generation is per-source, not per-kit.** A kit
+holds many sources, and a summary, quiz or flashcard deck belongs to exactly one of
+them, so `/kits/:kitId/<thing>` became `POST /sources/:sourceId/<thing>`. The POST is
+not a mistake either — these endpoints generate on a cache miss rather than read.
+
+Paths below are relative to `/api`.
+
+### Moved
+
+| This document | What shipped | Why |
+| --- | --- | --- |
+| `GET /kits/:kitId/summary` | `POST /sources/:id/summarize` | Per-source; generates on cache miss |
+| `GET /kits/:kitId/summary/chapters/:index` | `POST /sources/:id/chapters` | Per-source; resumable, returns all chapters with per-chapter status |
+| `GET /kits/:kitId/quiz` | `POST /sources/:id/quiz` | Per-source; generates on cache miss |
+| `GET /kits/:kitId/flashcards` | `POST /sources/:id/flashcards` and `GET /flashcards/due` | Generation and SM-2 scheduling are separate concerns; due cards span sources |
+| `POST /flashcards/:cardId/reviews` | `POST /flashcards/:id/review` | Singular — one review per call |
+| `GET /kits/:kitId/conversation` | `GET /chat/conversation/:kitId` | Chat owns its own namespace |
+| `POST /conversations/:conversationId/messages` | `POST /chat`, then `GET /chat/:sessionId/stream` | Split: the POST creates a session, the GET is the SSE stream. See the SSE event contract in the chat section |
+| `GET /practice/lessons?q=` | `GET /practice/topics?q=` | The rows are `topics`, not lessons |
+| `GET /profile/summary` | `GET /profile` (+ `PATCH /profile`) | No separate summary resource |
+| `POST /attempts/:attemptId/answers` | `PUT /attempts/:attemptId/answers` | Idempotent — an answer is saved on every change, not appended |
+
+### Never built
+
+| This document | What the screens use instead |
+| --- | --- |
+| `GET /dashboard` | `DashboardPage` composes `GET /classes` + `GET /classes/:classId` |
+| `GET /me/agenda?month=` | Same composition; assignment dates are derived client-side from class detail |
+| `GET /sources/:sourceId/document` | `GET /kits/:kitId/sources/:sourceId` |
+| `GET /kits/:kitId/flashcards/session-summary` | Computed client-side from the review responses |
+
+The calendar-header dashboard variant (`/?header=calendar`) still renders an empty
+month grid against the live API — nothing serves `septemberCalendar`. It is the one
+screen that has no live data path.
+
+### Added since
+
+Endpoints with no counterpart in this document:
+
+- `GET /health` — liveness plus database and migration state
+- `GET /kits/quota` — kit count against `max_kits`, for the pre-flight check
+- `GET /kits/:kitId/files`, `GET /kits/:kitId/files/:sourceId` — aliases of the `sources` routes
+- `GET|POST /folders`, `GET|PATCH|DELETE /folders/:folderId` — `study_folders` is live
+- `GET /attempts/:attemptId` — resume a quiz attempt after a refresh
+- `PUT /practice/sessions/:sessionId/answers` — same resume guarantee for practice
+- `GET /practice/progress` — accuracy over time, per-topic mastery, streak
+- `GET /me/limits` — every plan limit and feature with current usage
+- `POST /chat/:sessionId/retry` — retry after a terminal `error` event
+- Teacher-side: `POST /classes`, `POST /classes/:classId/lessons`,
+  `POST /classes/:classId/kits/:kitId`, `POST /lessons/:lessonId/assignments`,
+  `GET /assignments/:assignmentId/submissions`,
+  `PATCH /assignments/:assignmentId/submissions/:submissionId`
+- `POST /classes/lesson-items/:itemId/complete` — student lesson progress
+
+### Error shapes
+
+Two plan errors are returned throughout, both as
+`{ error: { code, message, details } }`:
+
+- `403 quota_exceeded` — `details: { key, used, limit }`. Countable caps checked
+  before the work (kits).
+- `403 feature_unavailable` — `details: { requiredPlan: 'plus' }`. Feature flags
+  (chapter summaries, mock exams).
+- `429 quota_exceeded` — `details: { used, limit }`. Metered counters consumed
+  through `usage_counters` (tutor messages, practice sessions).
 
 ---
 
@@ -1278,12 +1352,12 @@ the value.
 
 ## Not covered
 
-- **Teacher-side endpoints.** `classes`, `lessons`, `assignments` and `class_materials`
-  all have authoring columns (`created_by`, `uploaded_by`, `status: 'draft'`), and
-  `users.role` allows `'teacher'`, but `screens.js` registers no teacher screens. There
-  are no fixtures, so there is no contract to write yet.
-- **`study_folders`.** The table exists; no screen reads it. `/kits/folders/new` creates
-  a **kit**, not a folder.
+- ~~**Teacher-side endpoints.**~~ Built in session J and K — see
+  [Added since](#added-since). Still no teacher screens in `screens.js`, so these
+  routes are API-only and untested against a UI.
+- ~~**`study_folders`.**~~ Built in session C: `GET|POST /folders` and
+  `GET|PATCH|DELETE /folders/:folderId`. `/kits/folders/new` still creates a **kit**,
+  not a folder — the screen was never rewired.
 - **`plan_events`, `ai_generations`.** Audit tables, no screen.
 - **Rate limiting** beyond the existing login/register limiters.
 - **Pagination.** No fixture list is long enough to have needed it and no screen has a

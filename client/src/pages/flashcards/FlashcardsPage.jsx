@@ -10,6 +10,8 @@ import { useStudySource } from '../study/useSourceSummaries.js';
 import { useFlashcards } from './useFlashcards.js';
 
 const summaryKey = (kitId) => `flashcard-session:${kitId}`;
+/** Both faces must be the same box, or the card changes shape mid-flip. */
+const FACE = 'absolute inset-0 flex flex-col rounded-[1.5rem] bg-white p-6 shadow-sm ring-1 ring-tint-200/70';
 const ratings = [
   { quality: 1, key: 'again' }, { quality: 3, key: 'hard' },
   { quality: 4, key: 'good' }, { quality: 5, key: 'easy' },
@@ -90,11 +92,26 @@ export const FlashcardsPage = () => {
       <div className="flex-1 px-5 pt-5">
         <p className="font-bold text-navy-900">{t('flashcards.cardProgress', { current: index + 1, total })}</p>
         <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-tint-100"><span className="block h-full rounded-full bg-navy-800 transition-[width]" style={{ width: `${((index + 1) / total) * 100}%` }} /></div>
-        <button type="button" onClick={() => setRevealed((value) => !value)} aria-expanded={revealed} className="mt-5 flex min-h-[19rem] w-full flex-col rounded-[1.5rem] bg-white p-6 text-left shadow-sm ring-1 ring-tint-200/70">
-          <span className="flex items-start justify-between gap-3"><span className="text-sm font-bold uppercase tracking-wide text-navy-600/80">{t(revealed ? 'flashcards.definition' : 'flashcards.term')}</span><Owl variant="default" className="-mt-2 size-16 shrink-0" /></span>
-          <span className="mt-3 flex-1 text-3xl font-bold leading-tight text-navy-900">{revealed ? card.definition : card.term}</span>
-          {revealed && card.hint && <span className="mt-2 text-sm text-navy-500">{card.hint}</span>}
-          <span className="mt-4 text-base text-navy-600">{t(revealed ? 'flashcards.tapToHide' : 'flashcards.tapToReveal')}</span>
+        <button
+          key={card.id}
+          type="button"
+          onClick={() => setRevealed((value) => !value)}
+          aria-expanded={revealed}
+          className="flashcard-scene flashcard-deal mt-5 block min-h-[19rem] w-full text-left transition-transform active:scale-[0.99]"
+        >
+          <span className={`flashcard-inner relative block min-h-[19rem] w-full ${revealed ? 'is-flipped' : ''}`}>
+            <span aria-hidden={revealed} className={FACE + ' flashcard-face'}>
+              <span className="flex items-start justify-between gap-3"><span className="text-sm font-bold uppercase tracking-wide text-navy-600/80">{t('flashcards.term')}</span><Owl variant="default" className="-mt-2 size-16 shrink-0" /></span>
+              <span className="mt-3 flex-1 text-3xl font-bold leading-tight text-navy-900">{card.term}</span>
+              <span className="mt-4 text-base text-navy-600">{t('flashcards.tapToReveal')}</span>
+            </span>
+            <span aria-hidden={!revealed} className={FACE + ' flashcard-face flashcard-face-back'}>
+              <span className="flex items-start justify-between gap-3"><span className="text-sm font-bold uppercase tracking-wide text-navy-600/80">{t('flashcards.definition')}</span><Owl variant="default" className="-mt-2 size-16 shrink-0" /></span>
+              <span className="mt-3 flex-1 overflow-y-auto text-3xl font-bold leading-tight text-navy-900">{card.definition}</span>
+              {card.hint && <span className="mt-2 text-sm text-navy-500">{card.hint}</span>}
+              <span className="mt-4 text-base text-navy-600">{t('flashcards.tapToHide')}</span>
+            </span>
+          </span>
         </button>
         {!revealed ? <div className="mt-5"><Button onClick={() => setRevealed(true)}>{t('flashcards.reveal')}</Button></div> : <div className="mt-5 grid grid-cols-4 gap-2">{ratings.map(({ quality, key }) => <button key={quality} type="button" disabled={saving} onClick={() => rate(quality)} className="rounded-xl border border-tint-200 bg-white px-2 py-3 text-sm font-bold text-navy-800 disabled:opacity-50">{t(`flashcards.${key}`)}</button>)}</div>}
         {reviewError && <p className="mt-2 text-center text-sm text-danger-600">{reviewError.message}</p>}
