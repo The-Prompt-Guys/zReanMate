@@ -1,0 +1,138 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+
+import { api, setSessionExpiredHandler } from '../lib/api.js';
+
+/**
+ * Holds the signed-in user and their onboarding state — the two things the
+ * router needs to decide where someone belongs.
+ *
+ * `status` distinguishes "still checking" from "definitely signed out", which
+ * matters: guarding on `user == null` alone would bounce a signed-in user to
+ * login for the split second before GET /api/auth/me returns.
+ */
+const AuthContext = createContext(null);
+
+const EMPTY_ONBOARDING = {
+  roleChosen: false,
+  surveyAnswers: {},
+  surveySkipped: false,
+  completedAt: null,
+};
+
+export const AuthProvider = ({ children }) => {
+  const [status, setStatus] = useState('loading'); // loading | authenticated | anonymous
+  const [user, setUser] = useState(null);
+  const [onboarding, setOnboarding] = useState(EMPTY_ONBOARDING);
+
+  const applySession = useCallback((payload) => {
+    setUser(payload.user);
+    setOnboarding(payload.onboarding ?? EMPTY_ONBOARDING);
+    setStatus('authenticated');
+  }, []);
+
+  const clearSession = useCallback(() => {
+    setUser(null);
+    setOnboarding(EMPTY_ONBOARDING);
+    setStatus('anonymous');
+  }, []);
+
+  /** Re-reads the session from the server; the source of truth is the cookie. */
+  const reload = useCallback(async () => {
+    try {
+      const { data } = await api.get('/auth/me');
+      applySession(data);
+      return data;
+    } catch {
+      clearSession();
+      return null;
+    }
+  }, [applySession, clearSession]);
+
+  // Lets the axios interceptor drop us to anonymous when a refresh fails,
+  // rather than leaving a stale user in state while every request 401s.
+  useEffect(() => {
+    setSessionExpiredHandler(clearSession);
+    return () => setSessionExpiredHandler(null);
+  }, [clearSession]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  const register = useCallback(
+    async (payload) => {
+      const { data } = await api.post('/auth/register', payload);
+      // Registration returns the user but not onboarding state; read it back so
+      // the router can route on a complete picture.
+      setUser(data.user);
+      setStatus('authenticated');
+      await reload();
+      return data.user;
+    },
+    [reload],
+  );
+
+  const login = useCallback(
+    async (payload) => {
+      const { data } = await api.post('/auth/login', payload);
+      setUser(data.user);
+      setStatus('authenticated');
+      await reload();
+      return data.user;
+    },
+    [reload],
+  );
+
+  const logout = useCallback(async () => {
+    try {
+      await api.post('/auth/logout');
+    } finally {
+      // Clear locally even if the call failed — the user asked to be signed out.
+      clearSession();
+    }
+  }, [clearSession]);
+
+  const chooseRole = useCallback(async (role) => {
+    const { data } = await api.post('/onboarding/role', { role });
+    setUser(data.user);
+    setOnboarding((prev) => ({ ...prev, roleChosen: true }));
+    return data.user;
+  }, []);
+
+  const submitSurvey = useCallback(async ({ answers, skipped = false, complete = false }) => {
+    const { data } = await api.post('/onboarding/survey', { answers, skipped, complete });
+    setOnboarding((prev) => ({
+      ...prev,
+      surveyAnswers: data.survey.answers,
+      surveySkipped: data.survey.skipped,
+      completedAt: data.survey.completedAt,
+    }));
+    if (data.user) setUser(data.user);
+    return data.survey;
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      status,
+      user,
+      onboarding,
+      isAuthenticated: status === 'authenticated',
+      isLoading: status === 'loading',
+      register,
+      login,
+      logout,
+      reload,
+      chooseRole,
+      submitSurvey,
+    }),
+    [status, user, onboarding, register, login, logout, reload, chooseRole, submitSurvey],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used inside <AuthProvider>');
+  return context;
+};

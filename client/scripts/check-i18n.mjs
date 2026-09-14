@@ -1,12 +1,43 @@
 /**
- * Fails if km.js and en.js disagree on keys, or if any value is not a string.
+ * Fails if km.js and en.js disagree on keys, if any value is not a string, or
+ * if a component references a key that neither dictionary defines.
  *
  * Dictionary drift is the standard i18n bug: a key is added to one file, the
  * other renders the fallback, and nobody notices until a Khmer screen shows
- * English. Run via `npm run check:i18n` in client/.
+ * English. A key referenced but never defined is worse — translate() falls back
+ * to printing the key itself, so the UI shows "quiz.takeaways" to a student.
+ *
+ * Run via `npm run check:i18n` in client/.
  */
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import km from '../src/i18n/km.js';
 import en from '../src/i18n/en.js';
+
+const srcDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
+
+const walk = (dir, files = []) => {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) walk(full, files);
+    else if (/\.(jsx?|mjs)$/.test(entry) && !full.includes(`${'i18n'}`)) files.push(full);
+  }
+  return files;
+};
+
+/** Collects t('some.key') and translate(lang, 'some.key') references. */
+const collectUsedKeys = () => {
+  const used = new Map();
+  for (const file of walk(srcDir)) {
+    const source = readFileSync(file, 'utf8');
+    for (const match of source.matchAll(/\bt\(\s*'([A-Za-z0-9_.]+)'/g)) {
+      if (!used.has(match[1])) used.set(match[1], file);
+    }
+  }
+  return used;
+};
 
 const flatten = (node, prefix = '', out = new Map()) => {
   for (const [key, value] of Object.entries(node)) {
@@ -46,9 +77,17 @@ const placeholderMismatches = [...kmKeys]
   })
   .filter(Boolean);
 
+const usedKeys = collectUsedKeys();
+const undefinedKeys = [...usedKeys]
+  .filter(([key]) => !kmKeys.has(key) && !enKeys.has(key))
+  .map(([key, file]) => `${key}  (${file.split(/[/\\]src[/\\]/).pop()})`);
+
 const problems = [];
 if (missingInKm.length) problems.push(`Missing in km.js:\n  ${missingInKm.join('\n  ')}`);
 if (missingInEn.length) problems.push(`Missing in en.js:\n  ${missingInEn.join('\n  ')}`);
+if (undefinedKeys.length) {
+  problems.push(`Referenced in components but defined nowhere:\n  ${undefinedKeys.join('\n  ')}`);
+}
 if (nonString.length) problems.push(`Non-string values:\n  ${nonString.join('\n  ')}`);
 if (placeholderMismatches.length) {
   problems.push(
@@ -63,4 +102,7 @@ if (problems.length) {
   process.exit(1);
 }
 
-console.log(`i18n check passed — ${kmKeys.size} keys, km and en in sync`);
+console.log(
+  `i18n check passed — ${kmKeys.size} keys, km and en in sync, ` +
+    `${usedKeys.size} referenced in components, all defined`,
+);
