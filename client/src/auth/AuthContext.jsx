@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { api, setSessionExpiredHandler } from '../lib/api.js';
-import { PROTOTYPE } from '../mock/mode.js';
+import { isPrototype } from '../mock/mode.js';
 import { mockOnboarding, mockUser } from '../mock/fixtures.js';
 
 /**
@@ -13,6 +13,12 @@ import { mockOnboarding, mockUser } from '../mock/fixtures.js';
  * login for the split second before GET /api/auth/me returns.
  */
 const AuthContext = createContext(null);
+
+/**
+ * Resolved once at module load. When true the whole auth flow is served from
+ * fixtures — no /api call, no cookie, mockUser signed in. See src/mock/mode.js.
+ */
+const AUTH_PROTOTYPE = isPrototype('auth');
 
 const EMPTY_ONBOARDING = {
   roleChosen: false,
@@ -41,7 +47,7 @@ export const AuthProvider = ({ children }) => {
   /** Re-reads the session from the server; the source of truth is the cookie. */
   const reload = useCallback(async () => {
     // Prototype mode never calls the API — see src/mock/mode.js.
-    if (PROTOTYPE) {
+    if (AUTH_PROTOTYPE) {
       const data = { user: mockUser, onboarding: mockOnboarding };
       applySession(data);
       return data;
@@ -69,7 +75,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = useCallback(
     async (payload) => {
-      if (PROTOTYPE) return (await reload()).user;
+      if (AUTH_PROTOTYPE) return (await reload()).user;
       const { data } = await api.post('/auth/register', payload);
       // Registration returns the user but not onboarding state; read it back so
       // the router can route on a complete picture.
@@ -83,7 +89,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = useCallback(
     async (payload) => {
-      if (PROTOTYPE) return (await reload()).user;
+      if (AUTH_PROTOTYPE) return (await reload()).user;
       const { data } = await api.post('/auth/login', payload);
       setUser(data.user);
       setStatus('authenticated');
@@ -95,7 +101,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = useCallback(async () => {
     try {
-      if (!PROTOTYPE) await api.post('/auth/logout');
+      if (!AUTH_PROTOTYPE) await api.post('/auth/logout');
     } finally {
       // Clear locally even if the call failed — the user asked to be signed out.
       clearSession();
@@ -103,7 +109,7 @@ export const AuthProvider = ({ children }) => {
   }, [clearSession]);
 
   const chooseRole = useCallback(async (role) => {
-    if (PROTOTYPE) {
+    if (AUTH_PROTOTYPE) {
       setUser((prev) => ({ ...prev, role }));
       setOnboarding((prev) => ({ ...prev, roleChosen: true }));
       return { ...mockUser, role };
@@ -115,7 +121,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const submitSurvey = useCallback(async ({ answers, skipped = false, complete = false }) => {
-    if (PROTOTYPE) {
+    if (AUTH_PROTOTYPE) {
       const next = { ...mockOnboarding, surveyAnswers: { ...answers } };
       setOnboarding(next);
       return { answers: next.surveyAnswers, skipped, completedAt: next.completedAt };

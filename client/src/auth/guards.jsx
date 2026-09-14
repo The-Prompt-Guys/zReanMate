@@ -1,7 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
 import { useAuth } from './AuthContext.jsx';
-import { PROTOTYPE } from '../mock/mode.js';
+import { isPrototype } from '../mock/mode.js';
 import { FullPageSpinner } from '../components/FullPageSpinner.jsx';
 
 /**
@@ -15,9 +15,19 @@ export const onboardingDestination = ({ onboarding }) => {
 };
 
 /**
+ * Resolved once: the auth flow either runs against the real session or it does
+ * not, and that cannot change while the app is running.
+ *
+ * When the auth flow is live these guards enforce real redirects, which means
+ * the flows still on fixtures need a real signed-in session to reach. Set
+ * VITE_PROTOTYPE_AUTH=true to get URL-reachable screens back for design review.
+ */
+const AUTH_PROTOTYPE = isPrototype('auth');
+
+/**
  * Hooks run before any branch so the call order is identical on every render —
- * PROTOTYPE is a build-time constant, but an early return above a hook is still
- * a rules-of-hooks violation and would break the moment it became dynamic.
+ * AUTH_PROTOTYPE is a build-time constant, but an early return above a hook is
+ * still a rules-of-hooks violation and would break the moment it became dynamic.
  */
 
 /** Blocks a route until the session is known, then requires one. */
@@ -26,7 +36,7 @@ export const RequireAuth = () => {
   const location = useLocation();
 
   // Prototype mode: every screen stays reachable by URL for review.
-  if (PROTOTYPE) return <Outlet />;
+  if (AUTH_PROTOTYPE) return <Outlet />;
   if (isLoading) return <FullPageSpinner />;
 
   if (!isAuthenticated) {
@@ -41,7 +51,7 @@ export const RequireAuth = () => {
 export const RequireGuest = () => {
   const { isLoading, isAuthenticated, onboarding } = useAuth();
 
-  if (PROTOTYPE) return <Outlet />;
+  if (AUTH_PROTOTYPE) return <Outlet />;
   if (isLoading) return <FullPageSpinner />;
   if (isAuthenticated) return <Navigate to={onboardingDestination({ onboarding })} replace />;
 
@@ -57,7 +67,7 @@ export const RequireOnboarded = () => {
   const { onboarding } = useAuth();
   const destination = onboardingDestination({ onboarding });
 
-  if (PROTOTYPE) return <Outlet />;
+  if (AUTH_PROTOTYPE) return <Outlet />;
   if (destination !== '/') return <Navigate to={destination} replace />;
 
   return <Outlet />;
