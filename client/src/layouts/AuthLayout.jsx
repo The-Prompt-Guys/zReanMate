@@ -21,20 +21,34 @@ export const AuthLayout = () => (
 );
 
 /** Owl mascot. `variant` maps to the files in public/brand/. */
-export const Owl = ({ variant = 'default', className = 'size-24' }) => {
+export const Owl = ({ variant = 'default', className = 'size-24', alt }) => {
   const t = useT();
   return (
     <img
       src={`/brand/reanmate-owl-logo-${variant}.png`}
-      alt={t('common.owlAlt')}
+      alt={alt ?? t('common.owlAlt')}
       className={className}
     />
   );
 };
 
 /** Wordmark: bold "Rean" + regular "Mate", as drawn in the screenshots. */
-export const Wordmark = ({ className = 'text-3xl' }) => (
-  <p className={`font-bold tracking-tight text-navy-800 ${className}`}>
-    Rean<span className="font-normal text-navy-600">Mate</span>
+export const Wordmark = ({ className = 'text-3xl', light = false }) => (
+  <p className={`font-bold tracking-tight ${light ? 'text-white' : 'text-navy-800'} ${className}`}>
+    Rean<span className={light ? 'font-normal text-white/85' : 'font-normal text-navy-600'}>Mate</span>
   </p>
 );
+
+/** Supplied ReanMate Learning Platform brand artwork, cropped to its logo area. */
+export const BrandLogo = ({ className = '' }) => {
+  const t = useT();
+  return (
+    <div className={`inline-flex overflow-hidden rounded-lg bg-[#010817] ${className}`}>
+      <img
+        src="/brand/reanmate-brand.png"
+        alt={t('common.appName')}
+        className="h-12 w-40 object-cover object-center"
+      />
+    </div>
+  );
+};

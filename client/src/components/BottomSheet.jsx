@@ -11,7 +11,7 @@ import { useT } from '../i18n/index.js';
  * Dismissing navigates back to `closeTo` rather than toggling local state, so
  * the sheet has a real URL and the back button behaves.
  */
-export const BottomSheet = ({ children, closeTo = '/', labelledBy }) => {
+export const BottomSheet = ({ children, closeTo = '/', labelledBy, transition = 'up' }) => {
   const t = useT();
   const navigate = useNavigate();
   const close = () => navigate(closeTo);
@@ -31,20 +31,27 @@ export const BottomSheet = ({ children, closeTo = '/', labelledBy }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [closeTo]);
 
+  const sheetAnimation =
+    transition === 'from-right'
+      ? 'sheet-slide-from-right'
+      : transition === 'to-left'
+        ? 'sheet-slide-to-left'
+        : 'sheet-slide-up';
+
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center">
       <button
         type="button"
         aria-label={t('common.cancel')}
         onClick={close}
-        className="absolute inset-0 bg-navy-900/45"
+        className="sheet-backdrop-enter absolute inset-0 bg-navy-900/45"
       />
 
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
-        className="relative w-full max-w-[26rem] rounded-t-[1.75rem] bg-white px-6 pb-8 pt-3 shadow-2xl"
+        className={`${sheetAnimation} relative w-full max-w-[26rem] rounded-t-[1.75rem] bg-white px-6 pb-8 pt-3 shadow-2xl`}
       >
         <span className="mx-auto block h-1.5 w-12 rounded-full bg-tint-200" aria-hidden="true" />
 

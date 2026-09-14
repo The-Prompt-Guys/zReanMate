@@ -1,8 +1,9 @@
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext.jsx';
 import { NavyHeader } from '../layouts/AppLayout.jsx';
-import { Owl } from '../layouts/AuthLayout.jsx';
+import { BrandLogo, Owl } from '../layouts/AuthLayout.jsx';
 import { KitCard } from '../components/KitCard.jsx';
 import { ArrowRightIcon } from '../components/ui.jsx';
 import { assignmentDates, classes, kits, septemberCalendar } from '../mock/fixtures.js';
@@ -21,22 +22,47 @@ export const DashboardPage = () => {
   const { language } = useLanguage();
   const { user } = useAuth();
   const [params] = useSearchParams();
+  const [headerProgress, setHeaderProgress] = useState(0);
 
   const isEmpty = params.get('empty') === '1';
   const withCalendar = params.get('header') === 'calendar';
 
+  useEffect(() => {
+    let frame;
+    const updateHeader = () => {
+      frame = undefined;
+      setHeaderProgress(Math.min(window.scrollY / 180, 1));
+    };
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(updateHeader);
+    };
+
+    updateHeader();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
+
   return (
     <main>
-      <NavyHeader>
+      <NavyHeader
+        className="will-change-transform transition-[transform,opacity] duration-150 ease-out"
+        style={{
+          transform: `translateY(-${Math.round(headerProgress * 32)}px)`,
+          opacity: 1 - headerProgress * 0.2,
+        }}
+      >
         <div className="flex items-start justify-between">
-          <p className="text-lg font-bold">{t('common.appName')}</p>
-          <Link
-            to="/profile"
-            aria-label={t('profile.title')}
-            className="grid size-10 place-items-center overflow-hidden rounded-full bg-white/20 text-sm font-bold"
+          <BrandLogo />
+          <button
+            type="button"
+            aria-label={t('profile.notifications')}
+            className="grid size-10 place-items-center rounded-full bg-white/20 text-white transition-colors hover:bg-white/30"
           >
-            {(user?.full_name ?? 'S').charAt(0)}
-          </Link>
+            <BellIcon />
+          </button>
         </div>
 
         <div className="mt-4 flex items-end justify-between gap-3">
@@ -243,6 +269,13 @@ const MonthCalendar = () => {
 const PlusIcon = () => (
   <svg viewBox="0 0 24 24" className="size-6" fill="none" aria-hidden="true">
     <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+  </svg>
+);
+
+const BellIcon = () => (
+  <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M18 15V10a6 6 0 0 0-12 0v5l-1.5 3h15z" />
+    <path d="M10 21a2.2 2.2 0 0 0 4 0" />
   </svg>
 );
 

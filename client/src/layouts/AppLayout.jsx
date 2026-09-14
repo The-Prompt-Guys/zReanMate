@@ -73,8 +73,8 @@ export const AppLayout = () => {
  * Navy hero used at the top of Home, Kits and Classes — rounded bottom corners,
  * white text, per docs/screens/02-dashboard/01.
  */
-export const NavyHeader = ({ children, className = '' }) => (
-  <header className={`rounded-b-[1.75rem] bg-navy-800 px-6 pb-7 pt-6 text-white ${className}`}>
+export const NavyHeader = ({ children, className = '', ...props }) => (
+  <header className={`rounded-b-[1.75rem] bg-navy-800 px-6 pb-7 pt-6 text-white ${className}`} {...props}>
     {children}
   </header>
 );

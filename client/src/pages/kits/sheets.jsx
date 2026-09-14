@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { BottomSheet, SheetOption } from '../../components/BottomSheet.jsx';
@@ -13,8 +13,25 @@ import { useT } from '../../i18n/index.js';
 /** 04-add-youtube-url-popup — the chooser. */
 export const AddMaterialSheet = () => {
   const t = useT();
+  const navigate = useNavigate();
+  const [leavingForYoutube, setLeavingForYoutube] = useState(false);
+  const leaveTimer = useRef();
+
+  useEffect(
+    () => () => {
+      window.clearTimeout(leaveTimer.current);
+    },
+    [],
+  );
+
+  const openYoutube = () => {
+    if (leavingForYoutube) return;
+    setLeavingForYoutube(true);
+    leaveTimer.current = window.setTimeout(() => navigate('/kits/new/youtube'), 300);
+  };
+
   return (
-    <BottomSheet labelledBy="add-material-title">
+    <BottomSheet labelledBy="add-material-title" transition={leavingForYoutube ? 'to-left' : 'up'}>
       <h2 id="add-material-title" className="text-2xl font-bold text-navy-900">
         {t('dashboard.addMaterial')}
       </h2>
@@ -36,7 +53,7 @@ export const AddMaterialSheet = () => {
           description={t('kits.uploadPdfHint')}
         />
         <SheetOption
-          to="/kits/new/youtube"
+          onClick={openYoutube}
           tone="amber"
           icon={<PlayIcon />}
           title={t('kits.addYoutubeUrl')}
@@ -61,7 +78,7 @@ export const YouTubeUrlSheet = () => {
   const [url, setUrl] = useState('');
 
   return (
-    <BottomSheet closeTo="/kits/new" labelledBy="youtube-title">
+    <BottomSheet closeTo="/kits/new" labelledBy="youtube-title" transition="from-right">
       <div className="flex items-start gap-4">
         <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-700">
           <PlayIcon />
