@@ -22,6 +22,8 @@ import { PracticeSetupPage } from '../pages/practice/PracticeSetupPage.jsx';
 import { PracticeLessonsPage } from '../pages/practice/PracticeLessonsPage.jsx';
 import { PracticeSessionPage } from '../pages/practice/PracticeSessionPage.jsx';
 import { PracticeResultsPage } from '../pages/practice/PracticeResultsPage.jsx';
+import { FlashcardsPage } from '../pages/flashcards/FlashcardsPage.jsx';
+import { FlashcardsCompletePage } from '../pages/flashcards/FlashcardsCompletePage.jsx';
 import {
   AddMaterialSheet,
   CreateKitSheet,
@@ -132,6 +134,10 @@ export const router = createBrowserRouter([
               { path: '/practice/lessons', element: <PracticeLessonsPage /> },
               { path: '/practice/session', element: <PracticeSessionPage /> },
               { path: '/practice/results', element: <PracticeResultsPage /> },
+
+              // Flashcards (contextual tab bar, like quiz)
+              { path: '/flashcards/:kitId', element: <FlashcardsPage /> },
+              { path: '/flashcards/:kitId/complete', element: <FlashcardsCompletePage /> },
 
               // Every registered screen that is not built yet still resolves,
               // so the tab bar and the index never dead-end on a 404.

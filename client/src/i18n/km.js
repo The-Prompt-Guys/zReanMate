@@ -334,6 +334,18 @@ export default {
     easy: 'ងាយ',
     completeTitle: 'បញ្ចប់សំណុំកាត',
     dueToday: 'ត្រូវរៀនថ្ងៃនេះ {count}',
+    previous: 'មុន',
+    hide: 'លាក់ចម្លើយ',
+    tapToHide: 'ប៉ះកាតដើម្បីមើលពាក្យ',
+    niceSession: 'វគ្គពិនិត្យឡើងវិញល្អណាស់!',
+    reviewedAll: 'អ្នកបានពិនិត្យកាតរំលឹកទាំង {count}។',
+    cardsReviewed: 'កាតដែលបានពិនិត្យ',
+    reviewComplete: 'ការពិនិត្យបានបញ្ចប់',
+    keepBuilding: 'បន្តពង្រឹងការចងចាំ',
+    cardsReviewedLabel: 'កាតបានពិនិត្យ',
+    needAnotherLook: 'កាតត្រូវពិនិត្យម្តងទៀត',
+    nextReview: 'ណែនាំឱ្យពិនិត្យម្តងទៀតថ្ងៃស្អែក',
+    reviewAgain: 'ពិនិត្យម្តងទៀត',
   },
 
   classes: {

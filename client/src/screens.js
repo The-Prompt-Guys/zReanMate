@@ -88,8 +88,8 @@ export const FLOWS = [
     id: '08-flashcards',
     label: 'Flashcards',
     screens: [
-      { shot: '01-flashcards-interface', name: 'Flashcards', route: '/flashcards/kit-database', built: false },
-      { shot: '02-flashcards-complete', name: 'Deck complete', route: '/flashcards/kit-database/complete', built: false },
+      { shot: '01-flashcards-interface', name: 'Flashcards', route: '/flashcards/kit-database', built: true },
+      { shot: '02-flashcards-complete', name: 'Deck complete', route: '/flashcards/kit-database/complete', built: true },
     ],
   },
   {

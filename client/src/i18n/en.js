@@ -335,6 +335,18 @@ export default {
     easy: 'Easy',
     completeTitle: 'Deck complete',
     dueToday: '{count} due today',
+    previous: 'Previous',
+    hide: 'Hide answer',
+    tapToHide: 'Tap the card to see the term',
+    niceSession: 'Nice review session!',
+    reviewedAll: 'You reviewed all {count} flashcards.',
+    cardsReviewed: 'Cards reviewed',
+    reviewComplete: 'Review complete',
+    keepBuilding: 'Keep building recall',
+    cardsReviewedLabel: 'cards reviewed',
+    needAnotherLook: 'cards need another look',
+    nextReview: 'Next review recommended tomorrow',
+    reviewAgain: 'Review again',
   },
 
   classes: {
