@@ -17,6 +17,11 @@ import { PdfViewerPage } from '../pages/study/PdfViewerPage.jsx';
 import { TutorPage } from '../pages/tutor/TutorPage.jsx';
 import { QuizPage } from '../pages/quiz/QuizPage.jsx';
 import { QuizResultsPage } from '../pages/quiz/QuizResultsPage.jsx';
+import { PracticeHomePage } from '../pages/practice/PracticeHomePage.jsx';
+import { PracticeSetupPage } from '../pages/practice/PracticeSetupPage.jsx';
+import { PracticeLessonsPage } from '../pages/practice/PracticeLessonsPage.jsx';
+import { PracticeSessionPage } from '../pages/practice/PracticeSessionPage.jsx';
+import { PracticeResultsPage } from '../pages/practice/PracticeResultsPage.jsx';
 import {
   AddMaterialSheet,
   CreateKitSheet,
@@ -120,6 +125,13 @@ export const router = createBrowserRouter([
               // Flashcards / More bar, so AppLayout hides the app tab bar.
               { path: '/quiz/:kitId', element: <QuizPage /> },
               { path: '/quiz/:kitId/results', element: <QuizResultsPage /> },
+
+              // Practice
+              { path: '/practice', element: <PracticeHomePage /> },
+              { path: '/practice/setup', element: <PracticeSetupPage /> },
+              { path: '/practice/lessons', element: <PracticeLessonsPage /> },
+              { path: '/practice/session', element: <PracticeSessionPage /> },
+              { path: '/practice/results', element: <PracticeResultsPage /> },
 
               // Every registered screen that is not built yet still resolves,
               // so the tab bar and the index never dead-end on a 404.

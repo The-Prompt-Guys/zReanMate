@@ -295,6 +295,42 @@ export const practiceResult = {
   weakTopicsKm: ['សំណួរ SQL', 'គន្លឹះចម្បង'],
 };
 
+/** docs/screens/07-practice/02-practice-lesson-selection. */
+export const practiceLessons = [
+  { id: 'pl1', title: 'Introduction to databases', titleKm: 'ការណែនាំអំពីមូលដ្ឋានទិន្នន័យ', week: 1, mastery: 80, kind: 'database' },
+  { id: 'pl2', title: 'Paragraph structure', titleKm: 'រចនាសម្ព័ន្ធកថាខណ្ឌ', week: 1, mastery: 60, kind: 'doc' },
+  { id: 'pl3', title: 'Academic vocabulary', titleKm: 'វាក្យសព្ទសិក្សា', week: 2, mastery: 72, kind: 'book' },
+  { id: 'pl4', title: 'SQL JOINs', titleKm: 'SQL JOIN', week: 3, mastery: 18, kind: 'database', recommended: true, needsPractice: true },
+];
+
+/** docs/screens/07-practice/03-practice-batch-session. */
+export const batchQuestions = [
+  {
+    id: 'b1',
+    prompt: 'Which component organizes data into rows and columns?',
+    promptKm: 'តើសមាសភាគណាដែលរៀបចំទិន្នន័យជាជួរដេក និងជួរឈរ?',
+    options: ['A database table', 'A web browser', 'A video timeline', 'A presentation slide'],
+    optionsKm: ['តារាងមូលដ្ឋានទិន្នន័យ', 'កម្មវិធីរុករកបណ្តាញ', 'បន្ទាត់ពេលវេលាវីដេអូ', 'ស្លាយបទបង្ហាញ'],
+    correct: 0,
+  },
+  {
+    id: 'b2',
+    prompt: 'What does SQL help you do?',
+    promptKm: 'តើ SQL ជួយអ្នកធ្វើអ្វី?',
+    options: ['Store data in a spreadsheet', 'Write and run queries on data', 'Create a website', 'Design a presentation'],
+    optionsKm: ['រក្សាទុកទិន្នន័យក្នុងសៀវភៅបញ្ជី', 'សរសេរ និងដំណើរការសំណួរលើទិន្នន័យ', 'បង្កើតគេហទំព័រ', 'រចនាបទបង្ហាញ'],
+    correct: 1,
+  },
+  {
+    id: 'b3',
+    prompt: 'What is a primary key?',
+    promptKm: 'តើគន្លឹះចម្បងជាអ្វី?',
+    options: ['A unique identifier for each record', 'A column that stores images', 'A way to delete data', 'A type of database'],
+    optionsKm: ['អត្តសញ្ញាណតែមួយគត់សម្រាប់កំណត់ត្រានីមួយៗ', 'ជួរឈរដែលរក្សាទុករូបភាព', 'វិធីលុបទិន្នន័យ', 'ប្រភេទមូលដ្ឋានទិន្នន័យ'],
+    correct: 0,
+  },
+];
+
 export const flashcards = [
   { id: 'c1', term: 'Relational database', termKm: 'មូលដ្ឋានទិន្នន័យទំនាក់ទំនង', definition: 'A database that stores information in tables that relate to one another', definitionKm: 'មូលដ្ឋានទិន្នន័យដែលរក្សាទុកព័ត៌មានជាតារាងដែលមានទំនាក់ទំនងគ្នា' },
   { id: 'c2', term: 'Primary key', termKm: 'គន្លឹះចម្បង', definition: 'A column whose value uniquely identifies each record', definitionKm: 'ជួរឈរដែលកំណត់អត្តសញ្ញាណកំណត់ត្រានីមួយៗដោយឯកឯង' },

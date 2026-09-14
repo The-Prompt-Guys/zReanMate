@@ -77,11 +77,11 @@ export const FLOWS = [
     id: '07-practice',
     label: 'Practice',
     screens: [
-      { shot: '01-practice-setup', name: 'Practice setup', route: '/practice', built: false },
-      { shot: '02-practice-lesson-selection', name: 'Lesson selection', route: '/practice/lessons', built: false },
-      { shot: '03-practice-batch-session', name: 'Batch session', route: '/practice/session', built: false },
-      { shot: '04-practice-results', name: 'Practice results', route: '/practice/results', built: false },
-      { shot: '05-practice-with-mock-exam', name: 'Mock exam', route: '/practice?mock=1', built: false },
+      { shot: '01-practice-setup', name: 'Practice setup', route: '/practice/setup', built: true },
+      { shot: '02-practice-lesson-selection', name: 'Lesson selection', route: '/practice/lessons', built: true },
+      { shot: '03-practice-batch-session', name: 'Batch session', route: '/practice/session', built: true },
+      { shot: '04-practice-results', name: 'Practice results', route: '/practice/results', built: true },
+      { shot: '05-practice-with-mock-exam', name: 'Practice home / mock exam', route: '/practice', built: true },
     ],
   },
   {
