@@ -37,6 +37,10 @@ export const env = {
   // Absent on purpose for now — server/src/ai/index.js falls back to the mock
   // provider and logs a single warning at boot. See CLAUDE.md, AI layer.
   openaiApiKey: process.env.OPENAI_API_KEY ?? null,
+  // Any OpenAI-compatible endpoint (a gateway, proxy, or self-hosted server).
+  // Null means api.openai.com, the SDK's own default. Logged at boot, because
+  // silently sending study material to a different host is not a detail.
+  openaiBaseUrl: process.env.OPENAI_BASE_URL ?? null,
   openaiModel: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
   openaiEmbeddingModel: process.env.OPENAI_EMBEDDING_MODEL ?? 'text-embedding-3-small',
 

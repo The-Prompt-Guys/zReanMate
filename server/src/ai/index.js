@@ -43,7 +43,14 @@ const buildProvider = () => {
 
   try {
     const real = assertConformsToInterface(createOpenAIProvider());
-    console.log(`[ai] using OpenAI (${env.openaiModel}, embeddings ${env.openaiEmbeddingModel})`);
+    // The endpoint is logged, not just the model: an OpenAI-compatible gateway
+    // receives the same study material as api.openai.com would, and which host
+    // that is should never be something you have to read the env to discover.
+    const endpoint = env.openaiBaseUrl ?? 'api.openai.com (default)';
+    console.log(
+      `[ai] using OpenAI-compatible endpoint ${endpoint} ` +
+        `(${env.openaiModel}, embeddings ${env.openaiEmbeddingModel})`,
+    );
     return real;
   } catch (err) {
     // A bad key or config shouldn't take the server down — degrade and say so.

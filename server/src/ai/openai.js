@@ -202,11 +202,14 @@ export const createOpenAIProvider = ({
   apiKey = env.openaiApiKey,
   model = env.openaiModel,
   embeddingModel = env.openaiEmbeddingModel,
+  baseURL = env.openaiBaseUrl,
 } = {}) => {
   if (!apiKey) throw new Error('createOpenAIProvider requires OPENAI_API_KEY');
 
   // maxRetries: 0 — withRetry owns backoff, so the SDK must not retry too.
-  const client = new OpenAI({ apiKey, maxRetries: 0 });
+  // baseURL is omitted rather than passed as null so the SDK keeps its own
+  // default; an OpenAI-compatible endpoint overrides it.
+  const client = new OpenAI({ apiKey, maxRetries: 0, ...(baseURL && { baseURL }) });
 
   /** One strict structured-output call, returning the parsed object. */
   const structured = async ({ label, schemaName, schema, language, prompt, material, serviceTier = 'default', reasoningEffort, onUsage }) => {
