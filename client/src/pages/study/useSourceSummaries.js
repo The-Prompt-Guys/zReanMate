@@ -18,7 +18,24 @@ export const useStudySource = (kitId) => {
   }, [kitId, loadFiles]);
 
   const files = getFiles(kitId);
-  return { kit: getKit(kitId) ?? kits[0], source: files.find((item) => item.status === 'ready') ?? files[0], status, error };
+  const source = files.find((item) => item.status === 'ready') ?? files[0];
+
+  // Ingest runs asynchronously, so this page can open while the file is still
+  // processing. Without this the source stayed 'processing' for the life of the
+  // page: useSourceSummaries refuses to start until it is ready, nothing ever
+  // refetched it, and the screen sat on "Generating your summary..." forever —
+  // even after ingest had finished. Only a manual reload recovered. Poll until
+  // the source reaches a terminal state, then stop.
+  const settled = !source || source.status === 'ready' || source.status === 'failed';
+  useEffect(() => {
+    if (settled) return undefined;
+    const timer = window.setInterval(() => {
+      loadFiles(kitId).catch(() => {});
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [settled, kitId, loadFiles]);
+
+  return { kit: getKit(kitId) ?? kits[0], source, status, error };
 };
 
 export const useSourceSummaries = (source, language) => {
