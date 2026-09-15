@@ -23,6 +23,32 @@ const RETRY_BASE_MS = 500;
 const LANGUAGE_NAMES = { km: 'Khmer (ភាសាខ្មែរ)', en: 'English' };
 
 /**
+ * What a caller's output budget has to be multiplied by to hold the same
+ * answer in each language. Khmer measures at ~2.9x English on this tokenizer
+ * (`npm run measure:khmer-ratio`), so a flat cap sized for English truncates
+ * Khmer replies mid-sentence — backwards for a product whose default language
+ * is Khmer.
+ */
+const LANGUAGE_TOKEN_COST = { km: 3, en: 1 };
+
+/**
+ * Reasoning models spend max_completion_tokens on reasoning before writing a
+ * word, so the visible reply competes with the thinking for one budget. Ample
+ * headroom, because a cap is not a charge: only tokens actually generated are
+ * billed, so raising it costs nothing on the replies that never reach it.
+ */
+const REASONING_HEADROOM_TOKENS = 256;
+
+/**
+ * Turns a caller's "how long should the reply be" into a wire cap.
+ * `maxOutputTokens` stays what it has always meant: the visible answer, sized
+ * in English.
+ */
+const outputBudget = (maxOutputTokens, language) =>
+  Math.ceil(maxOutputTokens * (LANGUAGE_TOKEN_COST[language] ?? LANGUAGE_TOKEN_COST.km)) +
+  REASONING_HEADROOM_TOKENS;
+
+/**
  * Request parameters that are optimisations rather than requirements, and that
  * plenty of models and endpoints reject outright with a 400.
  *
@@ -524,7 +550,7 @@ export const createOpenAIProvider = ({
           // turn would log as zero tokens — the most-used AI path costing
           // nothing on paper.
           ...(!skip.has('stream_options') && { stream_options: { include_usage: true } }),
-          max_completion_tokens: maxOutputTokens,
+          max_completion_tokens: outputBudget(maxOutputTokens, language),
           messages: [
             { role: 'system', content: `${systemPrompt(language)} ${TUTOR_CITATION_HINT}` },
             { role: 'system', content: `--- STUDY MATERIAL ---\n${grounding}` },

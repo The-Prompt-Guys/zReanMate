@@ -41,7 +41,7 @@ export const env = {
   // Null means api.openai.com, the SDK's own default. Logged at boot, because
   // silently sending study material to a different host is not a detail.
   openaiBaseUrl: process.env.OPENAI_BASE_URL ?? null,
-  openaiModel: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
+  openaiModel: process.env.OPENAI_MODEL ?? 'gpt-5.6-luna',
   openaiEmbeddingModel: process.env.OPENAI_EMBEDDING_MODEL ?? 'text-embedding-3-small',
 
   // Likewise absent — server/src/notify/index.js falls back to the mock

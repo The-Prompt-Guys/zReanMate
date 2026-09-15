@@ -31,7 +31,7 @@ What is left before real users:
    `npm run verify:ai-usage` from `server/` exercises the whole path.
    A week of real data beats every cost estimate.
 
-   Measured on gpt-4o-mini + text-embedding-3-small, same paragraph in both
+   Measured on gpt-5.6-luna + text-embedding-3-small, same paragraph in both
    languages (`npm run measure:khmer-ratio`): Khmer costs **7.2x** the tokens
    in embeddings and **2.9x** in chat. The models do not share a tokenizer, so
    there is no single Khmer multiplier — re-run the script after any change of
@@ -43,6 +43,13 @@ What is left before real users:
    streamed usage and 1536-wide embeddings are actually supported. Embedding
    width is the expensive one — `document_chunks.embedding` is a fixed
    `vector(1536)`, so a mismatch means a migration and a full re-embed.
+
+   `gpt-5.6-luna` reasons, and reasoning tokens are spent out of
+   `max_completion_tokens` before any visible text is written. The tutor's
+   output cap therefore covers thinking, the answer, and Khmer's ~3x token
+   cost all at once — `outputBudget()` in `server/src/ai/openai.js` scales for
+   both. A flat cap truncated Khmer replies mid-sentence while leaving English
+   intact. Raising a cap is close to free: only generated tokens are billed.
 2. **SMS/email provider** — wire `notify`, add `requireVerified`, build the two
    skipped screens in `docs/screens/01-auth-onboarding/`.
 3. **Storage** — off local disk to S3 or equivalent.

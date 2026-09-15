@@ -42,16 +42,34 @@ const embedTokens = async (text) => {
   return r.usage.prompt_tokens;
 };
 
+/**
+ * Only prompt_tokens matter here, so the output cap wants to be as small as
+ * possible — but a reasoning model spends that same budget on reasoning before
+ * it writes anything and returns a 400 when the cap is too low to finish. The
+ * retry ladder keeps the cheap path for ordinary models and still completes on
+ * a reasoning one.
+ */
+const OUTPUT_CAPS = [1, 256, 2048];
+
 const chatPromptTokens = async (text) => {
-  const r = await client.chat.completions.create({
-    model: env.openaiModel,
-    max_completion_tokens: 1,
-    messages: [
-      { role: 'system', content: 'You are a study tutor.' },
-      { role: 'user', content: `Summarise this.\n\n${text}` },
-    ],
-  });
-  return r.usage.prompt_tokens;
+  let lastErr;
+  for (const cap of OUTPUT_CAPS) {
+    try {
+      const r = await client.chat.completions.create({
+        model: env.openaiModel,
+        max_completion_tokens: cap,
+        messages: [
+          { role: 'system', content: 'You are a study tutor.' },
+          { role: 'user', content: `Summarise this.\n\n${text}` },
+        ],
+      });
+      return r.usage.prompt_tokens;
+    } catch (err) {
+      lastErr = err;
+      if (err?.status !== 400) throw err;
+    }
+  }
+  throw lastErr;
 };
 
 console.log('\nMethod A — embeddings (text only, no instructions)\n');
