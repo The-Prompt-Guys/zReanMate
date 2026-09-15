@@ -1,4 +1,3 @@
-import { getAI } from '../ai/index.js';
 import { chunksDb } from '../db/chunks.db.js';
 import { withTransaction } from '../db/pool.js';
 import { sourcesDb } from '../db/sources.db.js';
@@ -9,13 +8,14 @@ import { extractPdf } from '../ingest/pdf.js';
 import { ingestYouTube } from '../ingest/youtube.js';
 import { jobQueue } from '../jobs/queue.js';
 import { absoluteUploadPath } from '../middleware/upload.js';
+import { detectCostLanguage, trackGeneration } from './aiUsage.service.js';
 
 /**
  * Ingest pipeline service:
  * 1. Text extraction with citation preservation (PDF pageNumber / YouTube timestamps)
  * 2. Pre-token plan limits enforcement (50-page PDF / 30-min YouTube for Free plan)
  * 3. Token-aware chunking (~500 tokens with overlap)
- * 4. Batched embeddings via getAI().embed()
+ * 4. Batched embeddings via the AI layer, recorded in ai_generations
  * 5. Vector persistence in document_chunks
  */
 
@@ -115,9 +115,24 @@ export const ingestService = {
         ...metrics,
       });
 
-      const ai = getAI();
       const textsToEmbed = chunks.map((c) => c.content);
-      const { embeddings } = await ai.embed({ texts: textsToEmbed });
+
+      // Embedding a whole document is the single biggest token spend in the
+      // product, and the one most sensitive to Khmer's tokenizer penalty, so
+      // the language is inferred here rather than left null.
+      const { embeddings } = await trackGeneration(
+        {
+          kind: 'embedding',
+          userId: source.user_id,
+          studyKitId: source.study_kit_id,
+          sourceId,
+          language: detectCostLanguage(textsToEmbed.join('\n')),
+          sourceText: textsToEmbed.join('\n'),
+          request: { chunks: textsToEmbed.length },
+          describe: (value) => ({ vectors: value.embeddings?.length ?? 0, dimensions: value.dimensions }),
+        },
+        ({ ai, onUsage }) => ai.embed({ texts: textsToEmbed, onUsage }),
+      );
 
       const chunksWithEmbeddings = chunks.map((chunk, i) => ({
         ...chunk,

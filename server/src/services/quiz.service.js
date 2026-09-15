@@ -6,6 +6,7 @@ import { jobQueue } from '../jobs/queue.js';
 import { ApiError } from '../middleware/errors.js';
 import { summaryCacheKey } from './summaries.service.js';
 import { plansService } from './plans.service.js';
+import { trackGeneration } from './aiUsage.service.js';
 
 const activeCaches = new Set();
 const activeSubmissions = new Map();
@@ -73,9 +74,22 @@ const runGeneration = async ({ cacheId, sourceId, params }) => {
     if (!claimed) return;
     const source = await sourcesDb.findByIdUnscoped(sourceId);
     const ai = getAI();
-    const raw = await ai.generateQuiz({ text: source.extracted_text, title: source.name,
-      language: params.language, difficulty: params.difficulty, count: params.count,
-      reasoningEffort: 'medium' });
+    const raw = await trackGeneration(
+      {
+        kind: 'quiz',
+        userId: source.user_id,
+        studyKitId: source.study_kit_id,
+        sourceId,
+        language: params.language,
+        sourceText: source.extracted_text,
+        request: { count: params.count, difficulty: params.difficulty, reasoningEffort: 'medium' },
+        describe: (value) => ({ questions: value.questions?.length ?? 0 }),
+      },
+      ({ onUsage }) =>
+        ai.generateQuiz({ text: source.extracted_text, title: source.name,
+          language: params.language, difficulty: params.difficulty, count: params.count,
+          reasoningEffort: 'medium', onUsage }),
+    );
     const quiz = validateGeneratedQuiz(raw, params.count);
     await quizDb.saveGenerated({ cacheId, source, quiz, params, model: ai.name });
   } catch (error) {
@@ -136,9 +150,23 @@ export const quizService = {
       if (!stats) throw ApiError.notFound('That quiz attempt does not exist');
       if (stats.status === 'submitted') return { attempt: attemptApi(stats) };
       const mastery = Math.round((stats.computedCorrect / Math.max(1, stats.total_questions)) * 100);
-      const prose = await getAI().summarizeAttempt({ correctCount: stats.computedCorrect,
-        totalQuestions: stats.total_questions, missedTopics: stats.missedTopics,
-        quizTitle: stats.quiz_title, language: stats.language });
+      const prose = await trackGeneration(
+        {
+          kind: 'takeaways',
+          userId,
+          language: stats.language,
+          request: {
+            totalQuestions: stats.total_questions,
+            correctCount: stats.computedCorrect,
+            missedTopics: stats.missedTopics?.length ?? 0,
+          },
+          describe: (value) => ({ takeaways: value.takeaways?.length ?? 0 }),
+        },
+        ({ ai, onUsage }) =>
+          ai.summarizeAttempt({ correctCount: stats.computedCorrect,
+            totalQuestions: stats.total_questions, missedTopics: stats.missedTopics,
+            quizTitle: stats.quiz_title, language: stats.language, onUsage }),
+      );
       const finished = await quizDb.finishAttempt({ userId, attemptId, correct: stats.computedCorrect,
         mastery, takeaways: prose.takeaways });
       if (!finished) {

@@ -6,6 +6,7 @@ import { sourcesDb } from '../db/sources.db.js';
 import { jobQueue } from '../jobs/queue.js';
 import { ApiError } from '../middleware/errors.js';
 import { plansService } from './plans.service.js';
+import { trackGeneration } from './aiUsage.service.js';
 
 const canonicalize = (value) => {
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -74,7 +75,23 @@ const runSummary = async ({ cacheId, sourceId, language }) => {
     if (!claimed) return;
     const source = await sourcesDb.findByIdUnscoped(sourceId);
     const ai = getAI();
-    const result = await ai.summarize({ text: source.extracted_text, title: source.name, language, serviceTier: 'batch' });
+    const result = await trackGeneration(
+      {
+        kind: 'summary',
+        userId: source.user_id,
+        studyKitId: source.study_kit_id,
+        sourceId,
+        language,
+        sourceText: source.extracted_text,
+        request: { method: 'summarize', serviceTier: 'batch' },
+        describe: (summary) => ({
+          bodyChars: summary.bodyMd?.length ?? 0,
+          keyPoints: summary.keyPoints?.length ?? 0,
+        }),
+      },
+      ({ onUsage }) =>
+        ai.summarize({ text: source.extracted_text, title: source.name, language, serviceTier: 'batch', onUsage }),
+    );
     await summariesDb.saveSummary({ cacheId, source, result: { ...result, language }, model: ai.name });
   } catch (error) {
     await summariesDb.failCache(cacheId, error.message);
@@ -91,7 +108,20 @@ const runChapters = async ({ cacheId, sourceId, language, chapterCount }) => {
     const ai = getAI();
     let outline = claimed.outline;
     if (!outline) {
-      const outlined = await ai.summarizeChapters({ text: source.extracted_text, title: source.name, language, durationSeconds: source.duration_seconds, chapterCount, only: [], serviceTier: 'batch' });
+      const outlined = await trackGeneration(
+        {
+          kind: 'summary',
+          userId: source.user_id,
+          studyKitId: source.study_kit_id,
+          sourceId,
+          language,
+          sourceText: source.extracted_text,
+          request: { method: 'summarizeChapters', phase: 'outline', chapterCount, serviceTier: 'batch' },
+          describe: (value) => ({ chapters: value.outline?.length ?? 0 }),
+        },
+        ({ onUsage }) =>
+          ai.summarizeChapters({ text: source.extracted_text, title: source.name, language, durationSeconds: source.duration_seconds, chapterCount, only: [], serviceTier: 'batch', onUsage }),
+      );
       outline = outlined.outline;
       await summariesDb.saveOutline({ cacheId, source, outline, language });
     }
@@ -101,7 +131,20 @@ const runChapters = async ({ cacheId, sourceId, language, chapterCount }) => {
       const bodyClaim = await summariesDb.claimChapter(cacheId, row.chapter_index);
       if (!bodyClaim) continue;
       try {
-        const generated = await ai.summarizeChapters({ text: source.extracted_text, title: source.name, language, durationSeconds: source.duration_seconds, outline, only: [row.chapter_index], serviceTier: 'batch' });
+        const generated = await trackGeneration(
+          {
+            kind: 'summary',
+            userId: source.user_id,
+            studyKitId: source.study_kit_id,
+            sourceId,
+            language,
+            sourceText: source.extracted_text,
+            request: { method: 'summarizeChapters', phase: 'body', chapterIndex: row.chapter_index, serviceTier: 'batch' },
+            describe: (value) => ({ bodyChars: value.chapters?.[0]?.bodyMd?.length ?? 0 }),
+          },
+          ({ onUsage }) =>
+            ai.summarizeChapters({ text: source.extracted_text, title: source.name, language, durationSeconds: source.duration_seconds, outline, only: [row.chapter_index], serviceTier: 'batch', onUsage }),
+        );
         await summariesDb.saveChapter({ cacheId, chapter: generated.chapters[0], model: ai.name });
       } catch (error) {
         await summariesDb.failChapter(cacheId, row.chapter_index);

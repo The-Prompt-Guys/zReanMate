@@ -20,9 +20,16 @@ real key is absent, and every feature was built and tested against them.
 
 What is left before real users:
 
-1. **OpenAI key** — swap from the mock, measure Khmer token ratios against English,
-   log `usage.prompt_tokens` / `completion_tokens` / `reasoning_tokens` per call into
-   `ai_generations`. A week of real data beats every cost estimate.
+1. **OpenAI key** — the token logging is built and only the key is missing. Every
+   provider method takes an `onUsage` callback (`server/src/ai/types.js`), services
+   wrap their calls in `trackGeneration` (`server/src/services/aiUsage.service.js`),
+   and each call lands in `ai_generations` with prompt / completion / reasoning /
+   cached token counts, the language, and the source character count. Set
+   `OPENAI_API_KEY` and real numbers start accruing with no code change.
+   Then read `ai_token_ratios` for the Khmer-versus-English cost multiplier —
+   it excludes mock rows, so it stays empty until a real key is in use.
+   `npm run verify:ai-usage` from `server/` exercises the whole path.
+   A week of real data beats every cost estimate.
 2. **SMS/email provider** — wire `notify`, add `requireVerified`, build the two
    skipped screens in `docs/screens/01-auth-onboarding/`.
 3. **Storage** — off local disk to S3 or equivalent.

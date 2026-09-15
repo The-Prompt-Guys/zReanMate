@@ -7,6 +7,7 @@ import { ApiError } from '../middleware/errors.js';
 import { scheduleSm2Review } from './sm2.js';
 import { summaryCacheKey } from './summaries.service.js';
 import { plansService } from './plans.service.js';
+import { trackGeneration } from './aiUsage.service.js';
 
 const activeCaches = new Set();
 const normalize = (value) => value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('und');
@@ -56,10 +57,23 @@ const runGeneration = async ({ cacheId, sourceId, params }) => {
     if (!await summariesDb.claimCache(cacheId)) return;
     const source = await sourcesDb.findByIdUnscoped(sourceId);
     const ai = getAI();
-    const raw = await ai.generateFlashcards({
-      text: source.extracted_text, language: params.language, count: params.count,
-      reasoningEffort: 'none',
-    });
+    const raw = await trackGeneration(
+      {
+        kind: 'flashcards',
+        userId: source.user_id,
+        studyKitId: source.study_kit_id,
+        sourceId,
+        language: params.language,
+        sourceText: source.extracted_text,
+        request: { count: params.count, reasoningEffort: 'none' },
+        describe: (value) => ({ cards: Array.isArray(value) ? value.length : 0 }),
+      },
+      ({ onUsage }) =>
+        ai.generateFlashcards({
+          text: source.extracted_text, language: params.language, count: params.count,
+          reasoningEffort: 'none', onUsage,
+        }),
+    );
     const cards = validateGeneratedFlashcards(raw, params.count);
     await flashcardsDb.saveGenerated({ cacheId, source, cards, language: params.language });
   } catch (error) {

@@ -24,6 +24,42 @@ const LANGUAGE_NAMES = { km: 'Khmer (ភាសាខ្មែរ)', en: 'English
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * OpenAI's usage block -> the provider-neutral TokenUsage in ./types.js.
+ *
+ * Reasoning and cached counts arrive in sub-objects only some models send, so
+ * both default to 0 rather than null: a model that does not reason has
+ * genuinely spent zero reasoning tokens, and these get summed downstream.
+ */
+const normalizeUsage = (usage, model) => {
+  if (!usage) return null;
+  return {
+    promptTokens: usage.prompt_tokens ?? 0,
+    completionTokens: usage.completion_tokens ?? 0,
+    reasoningTokens: usage.completion_tokens_details?.reasoning_tokens ?? 0,
+    cachedPromptTokens: usage.prompt_tokens_details?.cached_tokens ?? 0,
+    totalTokens: usage.total_tokens ?? 0,
+    apiCalls: 1,
+    model,
+  };
+};
+
+/**
+ * Best-effort by contract (types.js, UsageReporter): telemetry must never break
+ * a generation that already succeeded, so a throwing reporter is logged and
+ * swallowed rather than surfaced to the student.
+ */
+const reportUsage = (onUsage, usage, model) => {
+  if (typeof onUsage !== 'function') return;
+  const normalized = normalizeUsage(usage, model);
+  if (!normalized) return;
+  try {
+    onUsage(normalized);
+  } catch (err) {
+    console.warn(`[ai] usage reporter threw, ignoring: ${err.message}`);
+  }
+};
+
 const systemPrompt = (language) =>
   [
     'You are ReanMate, a study tutor for Cambodian secondary and university students.',
@@ -173,7 +209,7 @@ export const createOpenAIProvider = ({
   const client = new OpenAI({ apiKey, maxRetries: 0 });
 
   /** One strict structured-output call, returning the parsed object. */
-  const structured = async ({ label, schemaName, schema, language, prompt, material, serviceTier = 'default', reasoningEffort }) => {
+  const structured = async ({ label, schemaName, schema, language, prompt, material, serviceTier = 'default', reasoningEffort, onUsage }) => {
     const completion = await withRetry(label, () =>
       client.chat.completions.create({
         model,
@@ -194,6 +230,10 @@ export const createOpenAIProvider = ({
         },
       }),
     );
+
+    // Reported before the response is validated: those tokens were spent and
+    // billed even when the JSON comes back truncated or refused.
+    reportUsage(onUsage, completion.usage, model);
 
     const choice = completion.choices[0];
     if (choice?.finish_reason === 'length') {
@@ -216,7 +256,7 @@ export const createOpenAIProvider = ({
   return {
     name: 'openai',
 
-    async summarize({ text, title, language = 'km', serviceTier = 'default' } = {}) {
+    async summarize({ text, title, language = 'km', serviceTier = 'default', onUsage } = {}) {
       return structured({
         label: 'summarize',
         schemaName: 'summary',
@@ -224,6 +264,7 @@ export const createOpenAIProvider = ({
         language,
         material: text,
         serviceTier,
+        onUsage,
         prompt: [
           `Summarise this study material${title ? ` titled "${title}"` : ''} for a student`,
           'seeing it for the first time. Use at most two headings and give 3-5 key points.',
@@ -245,6 +286,7 @@ export const createOpenAIProvider = ({
       outline = null,
       only = undefined,
       serviceTier = 'default',
+      onUsage,
     } = {}) {
       const material = requireFittingText(text);
 
@@ -258,6 +300,7 @@ export const createOpenAIProvider = ({
             language,
             material,
             serviceTier,
+            onUsage,
             prompt: [
               `Split this study material${title ? ` titled "${title}"` : ''} into about`,
               `${chapterCount} sequential chapters.`,
@@ -276,7 +319,7 @@ export const createOpenAIProvider = ({
 
       const overview =
         wanted.length === fullOutline.length || only === undefined
-          ? await this.summarize({ text: material, title, language, serviceTier })
+          ? await this.summarize({ text: material, title, language, serviceTier, onUsage })
           : null;
 
       const chapters = await Promise.all(
@@ -290,6 +333,7 @@ export const createOpenAIProvider = ({
               language,
               material,
               serviceTier,
+              onUsage,
               prompt: [
                 `Write the summary for chapter ${c.chapterIndex}, "${c.title}",`,
                 `covering ${c.startSeconds}s to ${c.endSeconds}s of the material.`,
@@ -308,7 +352,7 @@ export const createOpenAIProvider = ({
       };
     },
 
-    async generateQuiz({ text, title, language = 'km', count = 10, difficulty = 'mixed', reasoningEffort } = {}) {
+    async generateQuiz({ text, title, language = 'km', count = 10, difficulty = 'mixed', reasoningEffort, onUsage } = {}) {
       const result = await structured({
         label: 'generateQuiz',
         schemaName: 'quiz',
@@ -316,6 +360,7 @@ export const createOpenAIProvider = ({
         language,
         material: text,
         reasoningEffort,
+        onUsage,
         prompt: [
           `Write ${count} ${difficulty} quiz questions about this material.`,
           'multiple_choice needs exactly 4 options, true_false exactly 2, and for both set',
@@ -355,7 +400,7 @@ export const createOpenAIProvider = ({
       };
     },
 
-    async generateFlashcards({ text, language = 'km', count = 12, reasoningEffort = 'none' } = {}) {
+    async generateFlashcards({ text, language = 'km', count = 12, reasoningEffort = 'none', onUsage } = {}) {
       const result = await structured({
         label: 'generateFlashcards',
         schemaName: 'flashcards',
@@ -363,6 +408,7 @@ export const createOpenAIProvider = ({
         language,
         material: text,
         reasoningEffort,
+        onUsage,
         prompt: [
           `Create ${count} flashcards from this material. term is a single concept;`,
           'definition is one or two sentences a student could recall from memory.',
@@ -379,12 +425,14 @@ export const createOpenAIProvider = ({
       totalQuestions = 1,
       missedTopics = [],
       quizTitle,
+      onUsage,
     } = {}) {
       const result = await structured({
         label: 'summarizeAttempt',
         schemaName: 'attempt_summary',
         schema: ATTEMPT_SCHEMA,
         language,
+        onUsage,
         material: JSON.stringify({ quizTitle, correctCount, totalQuestions, missedTopics }),
         prompt: [
           'A student just finished a quiz. From this result, write up to 3 short takeaways',
@@ -403,7 +451,7 @@ export const createOpenAIProvider = ({
      * delta has been yielded, a retry would duplicate text the client already
      * rendered, so a mid-stream failure surfaces as a terminal `error` chunk.
      */
-    async *tutorReply({ messages = [], language = 'km', sources = [], maxOutputTokens = 400 } = {}) {
+    async *tutorReply({ messages = [], language = 'km', sources = [], maxOutputTokens = 400, onUsage } = {}) {
       const grounding = requireFittingText(
         sources.map((s) => `[${s.title}]\n${s.content}`).join('\n\n'),
       );
@@ -414,6 +462,10 @@ export const createOpenAIProvider = ({
           client.chat.completions.create({
             model,
             stream: true,
+            // Without this the stream reports no usage at all and every tutor
+            // turn would log as zero tokens — the most-used AI path costing
+            // nothing on paper.
+            stream_options: { include_usage: true },
             max_completion_tokens: maxOutputTokens,
             messages: [
               { role: 'system', content: `${systemPrompt(language)} ${TUTOR_CITATION_HINT}` },
@@ -429,6 +481,10 @@ export const createOpenAIProvider = ({
 
       try {
         for await (const part of stream) {
+          // The usage-bearing chunk arrives last and carries an empty choices
+          // array, so it is reported rather than yielded as a delta.
+          if (part.usage) reportUsage(onUsage, part.usage, model);
+
           const text = part.choices[0]?.delta?.content;
           if (text) yield { type: 'delta', text };
         }
@@ -451,7 +507,7 @@ export const createOpenAIProvider = ({
       };
     },
 
-    async embed({ texts = [] } = {}) {
+    async embed({ texts = [], onUsage } = {}) {
       const list = Array.isArray(texts) ? texts : [texts];
       if (list.length === 0) return { embeddings: [], dimensions: EMBEDDING_DIMENSIONS };
 
@@ -467,6 +523,10 @@ export const createOpenAIProvider = ({
             dimensions: EMBEDDING_DIMENSIONS,
           }),
         );
+
+        // One report per batch, so a 300-chunk document logs the calls it
+        // actually made rather than one.
+        reportUsage(onUsage, response.usage, embeddingModel);
 
         // The API may return items out of order; `index` is authoritative.
         const ordered = [...response.data].sort((a, b) => a.index - b.index);

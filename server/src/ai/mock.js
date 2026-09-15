@@ -11,6 +11,9 @@ import { EMBEDDING_DIMENSIONS, assertEmbeddingWidth } from './types.js';
  * and screenshots stay stable between runs.
  */
 
+/** Mirrors EMBED_BATCH_SIZE in ./openai.js so mock api_calls stay comparable. */
+const MOCK_EMBED_BATCH_SIZE = 96;
+
 const seedFrom = (input) =>
   Number.parseInt(createHash('sha256').update(String(input)).digest('hex').slice(0, 8), 16);
 
@@ -219,16 +222,62 @@ const buildOutline = (language, chapterCount, durationSeconds) => {
   }));
 };
 
+/**
+ * Synthetic token counts, so the ai_generations pipeline can be exercised and
+ * tested before a real key exists.
+ *
+ * These are ESTIMATES, not measurements. The ratio below states the hypothesis
+ * CLAUDE.md wants tested rather than answering it: a byte-pair tokenizer has no
+ * Khmer vocabulary, so Khmer characters cost far more tokens than Latin ones.
+ * Real numbers replace these the day a key lands, which is why the
+ * ai_token_ratios view excludes provider = 'mock' — averaging these in would
+ * quietly corrupt the very measurement they stand in for.
+ */
+const CHARS_PER_TOKEN = { en: 4, km: 1 };
+
+const estimateTokens = (text, language) => {
+  const length = String(text ?? '').length;
+  if (length === 0) return 0;
+  return Math.max(1, Math.ceil(length / (CHARS_PER_TOKEN[language] ?? CHARS_PER_TOKEN.km)));
+};
+
+const mockUsage = ({ input = '', output = '', language = 'km', apiCalls = 1 }) => {
+  const promptTokens = estimateTokens(input, language);
+  const completionTokens = estimateTokens(output, language);
+  return {
+    promptTokens,
+    completionTokens,
+    reasoningTokens: 0,
+    cachedPromptTokens: 0,
+    totalTokens: promptTokens + completionTokens,
+    apiCalls,
+    model: 'mock',
+  };
+};
+
+/** Same best-effort contract as the real provider (types.js, UsageReporter). */
+const reportUsage = (onUsage, usage) => {
+  if (typeof onUsage !== 'function') return;
+  try {
+    onUsage(usage);
+  } catch (err) {
+    console.warn(`[ai] usage reporter threw, ignoring: ${err.message}`);
+  }
+};
+
 export const createMockProvider = () => ({
   name: 'mock',
 
-  async summarize({ title, language = 'km' } = {}) {
+  async summarize({ text, title, language = 'km', onUsage } = {}) {
     const d = dict(language);
-    return {
+    const result = {
       title: title ? `${d.summaryTitle}: ${title}` : d.summaryTitle,
       bodyMd: d.summaryBody,
       keyPoints: d.keyPoints,
     };
+
+    reportUsage(onUsage, mockUsage({ input: text, output: result.bodyMd, language }));
+    return result;
   },
 
   /**
@@ -236,28 +285,49 @@ export const createMockProvider = () => ({
    * between runs; `only` narrows which bodies get written.
    */
   async summarizeChapters({
+    text,
     title,
     language = 'km',
     durationSeconds,
     chapterCount = 12,
     outline = null,
     only = undefined,
+    onUsage,
   } = {}) {
     const d = dict(language);
     const fullOutline = outline ?? buildOutline(language, chapterCount, durationSeconds);
+
+    // Only a derived outline costs a call. A supplied one is free, which is
+    // exactly why a resumed run is cheaper than the first.
+    if (!outline) {
+      reportUsage(
+        onUsage,
+        mockUsage({
+          input: text,
+          output: fullOutline.map((c) => c.title).join(' '),
+          language,
+        }),
+      );
+    }
 
     const wanted =
       only === undefined
         ? fullOutline.map((c) => c.chapterIndex)
         : [...new Set(only)].filter((i) => fullOutline.some((c) => c.chapterIndex === i));
 
+    // One report per body, mirroring the real provider's fan-out, so api_calls
+    // reflects the requests a chaptered summary actually costs.
     const chapters = fullOutline
       .filter((c) => wanted.includes(c.chapterIndex))
-      .map((c) => ({
-        ...c,
-        bodyMd: `### ${c.title}\n\n${d.summaryBody.split('\n\n')[2] ?? d.keyPoints[0]}`,
-        keyPoints: d.keyPoints.slice(0, 3),
-      }));
+      .map((c) => {
+        const chapter = {
+          ...c,
+          bodyMd: `### ${c.title}\n\n${d.summaryBody.split('\n\n')[2] ?? d.keyPoints[0]}`,
+          keyPoints: d.keyPoints.slice(0, 3),
+        };
+        reportUsage(onUsage, mockUsage({ input: text, output: chapter.bodyMd, language }));
+        return chapter;
+      });
 
     return {
       title: title ? `${d.summaryTitle}: ${title}` : d.summaryTitle,
@@ -267,7 +337,7 @@ export const createMockProvider = () => ({
     };
   },
 
-  async generateQuiz({ title, language = 'km', count = 10 } = {}) {
+  async generateQuiz({ text, title, language = 'km', count = 10, onUsage } = {}) {
     const d = dict(language);
     const questions = Array.from({ length: Math.max(1, count) }, (_, i) => {
       const q = d.questions[i % d.questions.length];
@@ -281,12 +351,13 @@ export const createMockProvider = () => ({
       };
     });
 
+    reportUsage(onUsage, mockUsage({ input: text, output: JSON.stringify(questions), language }));
     return { title: title ?? d.summaryTitle, questions };
   },
 
-  async generateFlashcards({ language = 'km', count = 12 } = {}) {
+  async generateFlashcards({ text, language = 'km', count = 12, onUsage } = {}) {
     const d = dict(language);
-    return Array.from({ length: Math.max(1, count) }, (_, i) => {
+    const cards = Array.from({ length: Math.max(1, count) }, (_, i) => {
       const [term, definition] = d.terms[i % d.terms.length];
       const cycle = Math.floor(i / d.terms.length);
       return {
@@ -296,10 +367,13 @@ export const createMockProvider = () => ({
         topic: d.topics[i % d.topics.length],
       };
     });
+
+    reportUsage(onUsage, mockUsage({ input: text, output: JSON.stringify(cards), language }));
+    return cards;
   },
 
   /** Yields word-sized deltas, then exactly one terminal chunk. */
-  async *tutorReply({ messages = [], language = 'km', sources = [] } = {}) {
+  async *tutorReply({ messages = [], language = 'km', sources = [], onUsage } = {}) {
     const d = dict(language);
     const lastUser = [...messages].reverse().find((m) => m.role === 'user');
     const random = makeRandom(seedFrom(lastUser?.content ?? 'greeting'));
@@ -309,6 +383,17 @@ export const createMockProvider = () => ({
       for (const token of content.split(/(\s+)/)) {
         if (token) yield { type: 'delta', text: token };
       }
+
+      // Reported after the last delta, where the real provider's usage chunk
+      // arrives, so a caller sees the same ordering from both.
+      reportUsage(
+        onUsage,
+        mockUsage({
+          input: [...sources.map((s) => s.content), ...messages.map((m) => m.content)].join('\n'),
+          output: content,
+          language,
+        }),
+      );
 
       const cited = sources[0];
       yield {
@@ -329,8 +414,25 @@ export const createMockProvider = () => ({
     }
   },
 
-  async summarizeAttempt({ language = 'km', correctCount = 0, totalQuestions = 1, missedTopics = [] } = {}) {
+  async summarizeAttempt({
+    language = 'km',
+    correctCount = 0,
+    totalQuestions = 1,
+    missedTopics = [],
+    quizTitle,
+    onUsage,
+  } = {}) {
     const d = dict(language);
+
+    reportUsage(
+      onUsage,
+      mockUsage({
+        input: JSON.stringify({ quizTitle, correctCount, totalQuestions, missedTopics }),
+        output: d.takeaways.join(' '),
+        language,
+      }),
+    );
+
     return {
       takeaways: d.takeaways,
     };
@@ -342,7 +444,7 @@ export const createMockProvider = () => ({
    * pgvector column and the retrieval plumbing end to end — but NOT semantic,
    * so nearest-neighbour relevance can only be judged against a real provider.
    */
-  async embed({ texts = [] } = {}) {
+  async embed({ texts = [], onUsage } = {}) {
     const list = Array.isArray(texts) ? texts : [texts];
     const embeddings = list.map((text, i) => {
       const random = makeRandom(seedFrom(text));
@@ -353,6 +455,18 @@ export const createMockProvider = () => ({
         `mock embedding[${i}]`,
       );
     });
+
+    // Embeddings bill input only. apiCalls mirrors the real provider's batch
+    // size so a 300-chunk document does not look like a single request.
+    reportUsage(
+      onUsage,
+      mockUsage({
+        input: list.join(''),
+        output: '',
+        language: 'en',
+        apiCalls: Math.max(1, Math.ceil(list.length / MOCK_EMBED_BATCH_SIZE)),
+      }),
+    );
 
     return { embeddings, dimensions: EMBEDDING_DIMENSIONS };
   },

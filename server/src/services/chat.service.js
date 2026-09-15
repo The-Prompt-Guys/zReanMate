@@ -3,6 +3,12 @@ import { chatDb } from '../db/chat.db.js';
 import { chunksDb } from '../db/chunks.db.js';
 import { ApiError } from '../middleware/errors.js';
 import { plansService } from './plans.service.js';
+import {
+  detectCostLanguage,
+  recordStreamedGeneration,
+  trackGeneration,
+} from './aiUsage.service.js';
+import { createUsageCollector } from '../ai/types.js';
 
 const active = new Map();
 const nextTick = () => new Promise((resolve) => setImmediate(resolve));
@@ -27,12 +33,56 @@ const publish = (entry, event, data) => {
 const runProducer = async (session, entry) => {
   const ai = getAI();
   let answer = '';
+
+  // A tutor turn is the most-used AI path, so its cost is recorded even when
+  // the stream dies partway: the tokens were still spent. History and sources
+  // are hoisted so the failure path can describe the call it was making.
+  const usage = createUsageCollector();
+  const startedAt = Date.now();
+  let history = [];
+  let sources = [];
+  let logged = false;
+
+  const logTurn = async (status, errorMessage = null) => {
+    if (logged) return;
+    logged = true;
+    await recordStreamedGeneration({
+      kind: 'tutor',
+      userId: session.user_id,
+      studyKitId: session.study_kit_id,
+      language: session.language,
+      sourceText: sources.map((item) => item.content).join('\n'),
+      request: { retrievedSources: sources.length, historyTurns: history.length, maxOutputTokens: 400 },
+      response: { answerChars: answer.length },
+      status,
+      errorMessage,
+      usageTotal: usage.total(),
+      startedAt,
+    });
+  };
+
   try {
-    const history = await chatDb.recentHistory(session.conversation_id, 4);
+    history = await chatDb.recentHistory(session.conversation_id, 4);
     const queryText = [...history].reverse().find((message) => message.role === 'user')?.content ?? '';
-    const embedded = await ai.embed({ texts: [queryText] });
+
+    // Logged as its own 'embedding' row rather than folded into the tutor
+    // total: it runs on a different model, and mixing the two would attribute
+    // the turn's tokens to whichever model reported first.
+    const embedded = await trackGeneration(
+      {
+        kind: 'embedding',
+        userId: session.user_id,
+        studyKitId: session.study_kit_id,
+        language: detectCostLanguage(queryText) ?? session.language,
+        sourceText: queryText,
+        request: { purpose: 'tutor_retrieval', chunks: 1 },
+        describe: (value) => ({ vectors: value.embeddings?.length ?? 0 }),
+      },
+      ({ onUsage }) => ai.embed({ texts: [queryText], onUsage }),
+    );
+
     const matches = await chunksDb.cosineSearchForKit({ kitId: session.study_kit_id, embedding: embedded.embeddings[0], limit: 3 });
-    const sources = matches.map((row) => ({
+    sources = matches.map((row) => ({
       title: row.title,
       content: row.content,
       pageNumber: row.page_number,
@@ -40,7 +90,8 @@ const runProducer = async (session, entry) => {
     }));
 
     let terminalSeen = false;
-    for await (const chunk of ai.tutorReply({ messages: history, language: session.language, sources, maxOutputTokens: 400 })) {
+    let streamError = null;
+    for await (const chunk of ai.tutorReply({ messages: history, language: session.language, sources, maxOutputTokens: 400, onUsage: usage.record })) {
       if (terminalSeen) continue;
       if (chunk.type === 'delta') {
         answer += chunk.text;
@@ -61,12 +112,18 @@ const runProducer = async (session, entry) => {
         });
       } else if (chunk.type === 'error') {
         terminalSeen = true;
+        streamError = chunk.message;
         await chatDb.fail(session.id);
         publish(entry, 'error', { code: 'generation_failed', message: chunk.message, retryable: true });
       }
     }
+    // Ordered so a stream that ended without a terminal chunk falls through to
+    // the catch and is recorded as failed, rather than logged 'ok' on its way
+    // out. An 'error' chunk still sets terminalSeen, so it logs failed here.
     if (!terminalSeen) throw new Error('The AI stream ended without a terminal event');
+    await logTurn(streamError ? 'failed' : 'ok', streamError);
   } catch (error) {
+    await logTurn('failed', error.message);
     await chatDb.fail(session.id).catch(() => {});
     publish(entry, 'error', { code: 'generation_failed', message: error.message, retryable: true });
   } finally {

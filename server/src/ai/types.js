@@ -242,6 +242,85 @@
  */
 
 // ---------------------------------------------------------------------------
+// Token usage
+// ---------------------------------------------------------------------------
+
+/**
+ * What one API call cost, normalised across providers.
+ *
+ * Providers translate their own usage block into this shape inside
+ * server/src/ai/, so callers never learn a vendor's field names and adding a
+ * provider still changes nothing outside this directory.
+ *
+ * @typedef  {Object} TokenUsage
+ * @property {number} promptTokens        Input tokens, including cached ones.
+ * @property {number} completionTokens    Output tokens.
+ * @property {number} reasoningTokens     0 on models that do not reason.
+ * @property {number} cachedPromptTokens  Subset of promptTokens, billed cheaper.
+ * @property {number} totalTokens
+ * @property {number} apiCalls            Calls this total covers.
+ * @property {string|null} model          Model that reported it.
+ */
+
+/**
+ * Every method input accepts an optional `onUsage(usage)`. Providers call it
+ * once per underlying API request, so a method that fans out — summarizeChapters
+ * makes one request per chapter — reports several times.
+ *
+ * It is a callback rather than a return value on purpose: the methods return
+ * domain shapes (Summary, Quiz, Flashcard[]) that callers destructure, and
+ * wrapping those in an envelope would have rippled through every service for
+ * telemetry's sake. Streaming needs it too — tutorReply cannot return a total
+ * before its last chunk.
+ *
+ * Reporting is best-effort. A provider that cannot get usage (a stream with
+ * usage disabled, a mid-stream failure) simply does not call it, and callers
+ * must treat a zero total as "unknown", never as "free".
+ *
+ * @typedef {(usage: TokenUsage) => void} UsageReporter
+ */
+
+/** A zero total — the starting point for a collector, and what "unknown" looks like. */
+export const emptyUsage = () => ({
+  promptTokens: 0,
+  completionTokens: 0,
+  reasoningTokens: 0,
+  cachedPromptTokens: 0,
+  totalTokens: 0,
+  apiCalls: 0,
+  model: null,
+});
+
+/**
+ * Accumulates the reports from one logical generation into a single total.
+ *
+ *   const usage = createUsageCollector();
+ *   const quiz = await ai.generateQuiz({ text, onUsage: usage.record });
+ *   usage.total(); // -> TokenUsage, apiCalls counting the requests made
+ *
+ * `record` is bound, so it can be passed directly as `onUsage`.
+ */
+export const createUsageCollector = () => {
+  const total = emptyUsage();
+
+  const record = (usage) => {
+    if (!usage) return;
+    total.promptTokens += usage.promptTokens ?? 0;
+    total.completionTokens += usage.completionTokens ?? 0;
+    total.reasoningTokens += usage.reasoningTokens ?? 0;
+    total.cachedPromptTokens += usage.cachedPromptTokens ?? 0;
+    // Trust a provider's own total when it sends one; some bill for tokens that
+    // are in neither the prompt nor the completion bucket.
+    total.totalTokens +=
+      usage.totalTokens ?? (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0);
+    total.apiCalls += usage.apiCalls ?? 1;
+    total.model ??= usage.model ?? null;
+  };
+
+  return { record, total: () => ({ ...total }) };
+};
+
+// ---------------------------------------------------------------------------
 // Provider interface
 // ---------------------------------------------------------------------------
 
