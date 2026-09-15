@@ -219,7 +219,11 @@ export const createOpenAIProvider = ({
         // OpenAI calls the batch-priced asynchronous tier "flex" on live
         // generation requests. The provider-neutral contract calls it batch.
         ...(serviceTier === 'batch' && { service_tier: 'flex' }),
-        ...(reasoningEffort && { reasoning_effort: reasoningEffort }),
+        // 'none' is the contract's way of saying "do not reason" (types.js,
+        // FlashcardInput), so it must omit the parameter rather than send it as a
+        // value. It is a truthy string, so a plain truthiness check sent
+        // reasoning_effort: 'none' on every flashcard call.
+        ...(reasoningEffort && reasoningEffort !== 'none' && { reasoning_effort: reasoningEffort }),
         messages: [
           { role: 'system', content: systemPrompt(language) },
           {
