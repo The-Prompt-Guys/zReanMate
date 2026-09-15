@@ -13,7 +13,8 @@
     "test": "node test/sm2.test.js && node test/assignment-state-machine.test.js && node test/quota.test.js",
     "verify:sse": "node scripts/verify-sse.mjs",
     "verify:ai-usage": "node scripts/verify-ai-usage.mjs",
-    "check:provider": "node scripts/check-provider.mjs"
+    "check:provider": "node scripts/check-provider.mjs",
+    "measure:khmer-ratio": "node scripts/measure-khmer-ratio.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -22,6 +22,29 @@ const RETRY_BASE_MS = 500;
 
 const LANGUAGE_NAMES = { km: 'Khmer (ភាសាខ្មែរ)', en: 'English' };
 
+/**
+ * Request parameters that are optimisations rather than requirements, and that
+ * plenty of models and endpoints reject outright with a 400.
+ *
+ * gpt-4o-mini refuses both service_tier and reasoning_effort; an
+ * OpenAI-compatible gateway may refuse any of the three. None of them is worth
+ * failing a generation over — a student's summary should not disappear because
+ * the model has no opinion about pricing tiers — so a refused parameter is
+ * dropped and the call retried without it.
+ *
+ * Losing stream_options costs token accounting on tutor turns, not the reply
+ * itself, which is the right thing to sacrifice of the two.
+ */
+const OPTIONAL_PARAMS = ['service_tier', 'reasoning_effort', 'stream_options'];
+
+/** True when a 400 names this particular parameter as the problem. */
+const rejectsParam = (err, param) => {
+  const status = err?.status ?? err?.response?.status;
+  if (status !== 400) return false;
+  const message = `${err?.error?.message ?? ''} ${err?.message ?? ''}`.toLowerCase();
+  return message.includes(param);
+};
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -211,32 +234,61 @@ export const createOpenAIProvider = ({
   // default; an OpenAI-compatible endpoint overrides it.
   const client = new OpenAI({ apiKey, maxRetries: 0, ...(baseURL && { baseURL }) });
 
+  // Optional parameters this endpoint has already refused. Scoped to the
+  // provider instance, so the cost of discovering an incompatibility is one
+  // wasted request per parameter for the life of the process — not one per
+  // call, and not a config flag someone has to remember to flip when the
+  // model changes.
+  const unsupported = new Set();
+
+  /**
+   * Sends a chat completion, retrying without any optional parameter the
+   * endpoint rejects. `build` receives the set of already-known-unsupported
+   * parameters so it can leave them out of the request up front.
+   */
+  const chatCompletion = async (label, build) => {
+    for (;;) {
+      const params = build(unsupported);
+      try {
+        return await withRetry(label, () => client.chat.completions.create(params));
+      } catch (err) {
+        const rejected = OPTIONAL_PARAMS.find((param) => param in params && rejectsParam(err, param));
+        if (!rejected) throw err;
+
+        unsupported.add(rejected);
+        console.warn(
+          `[ai] ${label}: endpoint rejected ${rejected} — dropping it for this process and retrying`,
+        );
+      }
+    }
+  };
+
   /** One strict structured-output call, returning the parsed object. */
   const structured = async ({ label, schemaName, schema, language, prompt, material, serviceTier = 'default', reasoningEffort, onUsage }) => {
-    const completion = await withRetry(label, () =>
-      client.chat.completions.create({
-        model,
-        // OpenAI calls the batch-priced asynchronous tier "flex" on live
-        // generation requests. The provider-neutral contract calls it batch.
-        ...(serviceTier === 'batch' && { service_tier: 'flex' }),
-        // 'none' is the contract's way of saying "do not reason" (types.js,
-        // FlashcardInput), so it must omit the parameter rather than send it as a
-        // value. It is a truthy string, so a plain truthiness check sent
-        // reasoning_effort: 'none' on every flashcard call.
-        ...(reasoningEffort && reasoningEffort !== 'none' && { reasoning_effort: reasoningEffort }),
-        messages: [
-          { role: 'system', content: systemPrompt(language) },
-          {
-            role: 'user',
-            content: `${prompt}\n\n--- STUDY MATERIAL ---\n${requireFittingText(material)}`,
-          },
-        ],
-        response_format: {
-          type: 'json_schema',
-          json_schema: { name: schemaName, strict: true, schema },
+    const completion = await chatCompletion(label, (skip) => ({
+      model,
+      // OpenAI calls the batch-priced asynchronous tier "flex" on live
+      // generation requests. The provider-neutral contract calls it batch.
+      ...(serviceTier === 'batch' && !skip.has('service_tier') && { service_tier: 'flex' }),
+      // 'none' is the contract's way of saying "do not reason" (types.js,
+      // FlashcardInput), so it must omit the parameter rather than send it as a
+      // value. It is a truthy string, so a plain truthiness check sent
+      // reasoning_effort: 'none' on every flashcard call.
+      ...(reasoningEffort &&
+        reasoningEffort !== 'none' &&
+        !skip.has('reasoning_effort') && { reasoning_effort: reasoningEffort }),
+      messages: [
+        { role: 'system', content: systemPrompt(language) },
+        {
+          role: 'user',
+          content: `${prompt}\n\n--- STUDY MATERIAL ---\n${requireFittingText(material)}`,
         },
-      }),
-    );
+      ],
+      response_format: {
+        type: 'json_schema',
+        json_schema: { name: schemaName, strict: true, schema },
+      },
+    }));
 
     // Reported before the response is validated: those tokens were spent and
     // billed even when the JSON comes back truncated or refused.
@@ -465,22 +517,20 @@ export const createOpenAIProvider = ({
 
       let stream;
       try {
-        stream = await withRetry('tutorReply', () =>
-          client.chat.completions.create({
-            model,
-            stream: true,
-            // Without this the stream reports no usage at all and every tutor
-            // turn would log as zero tokens — the most-used AI path costing
-            // nothing on paper.
-            stream_options: { include_usage: true },
-            max_completion_tokens: maxOutputTokens,
-            messages: [
-              { role: 'system', content: `${systemPrompt(language)} ${TUTOR_CITATION_HINT}` },
-              { role: 'system', content: `--- STUDY MATERIAL ---\n${grounding}` },
-              ...messages.map((m) => ({ role: m.role, content: m.content })),
-            ],
-          }),
-        );
+        stream = await chatCompletion('tutorReply', (skip) => ({
+          model,
+          stream: true,
+          // Without this the stream reports no usage at all and every tutor
+          // turn would log as zero tokens — the most-used AI path costing
+          // nothing on paper.
+          ...(!skip.has('stream_options') && { stream_options: { include_usage: true } }),
+          max_completion_tokens: maxOutputTokens,
+          messages: [
+            { role: 'system', content: `${systemPrompt(language)} ${TUTOR_CITATION_HINT}` },
+            { role: 'system', content: `--- STUDY MATERIAL ---\n${grounding}` },
+            ...messages.map((m) => ({ role: m.role, content: m.content })),
+          ],
+        }));
       } catch (err) {
         yield { type: 'error', message: err.message };
         return;

@@ -72,9 +72,11 @@ const run = async () => {
       {
         kind: 'embedding',
         language,
-        sourceText: text,
         request: { chunks: 120, marker: MARKER },
         describe: (e) => ({ vectors: e.embeddings.length }),
+        // Must describe what is actually embedded, not one copy of it, or the
+        // per-character ratio for this row is understated 120-fold.
+        sourceText: Array.from({ length: 120 }, (_, i) => `${text} ${i}`).join(''),
       },
       ({ onUsage }) =>
         ai.embed({ texts: Array.from({ length: 120 }, (_, i) => `${text} ${i}`), onUsage }),
@@ -122,7 +124,20 @@ const run = async () => {
   const en = written.rows.find((r) => r.kind === 'summary' && r.language === 'en');
   check('both languages recorded', Boolean(km && en));
 
-  check('mock rows are hidden from the ratio view', (await aiGenerationsDb.tokenRatios({ sinceDays: 1 })).length === 0);
+  // Only meaningful on the mock. Against a real provider these rows are real
+  // traffic and belong in the view, so asserting it stays empty would fail for
+  // the right reason.
+  if (ai.name === 'mock') {
+    check(
+      'mock rows are hidden from the ratio view',
+      (await aiGenerationsDb.tokenRatios({ sinceDays: 1 })).length === 0,
+    );
+  } else {
+    check(
+      'real rows appear in the ratio view',
+      (await aiGenerationsDb.tokenRatios({ sinceDays: 1 })).length > 0,
+    );
+  }
 
   // ---------------------------------------------------------------- part B
   console.log('\nB. ai_token_ratios against simulated real traffic');
@@ -141,7 +156,10 @@ const run = async () => {
       model: 'gpt-4o-mini',
       language: row.language,
       sourceChars: row.sourceChars,
-      request: { marker: MARKER },
+      // `simulated` separates these controlled numbers from part A's real
+      // traffic, which carries the same marker and, under a real key, the same
+      // provider and kind.
+      request: { marker: MARKER, simulated: true },
       response: {},
       status: 'ok',
       latencyMs: 1200,
@@ -159,11 +177,25 @@ const run = async () => {
   const ratios = await aiGenerationsDb.tokenRatios({ sinceDays: 1 });
   console.table(ratios);
 
-  const kmRatio = Number(ratios.find((r) => r.language === 'km')?.prompt_tokens_per_char);
-  const enRatio = Number(ratios.find((r) => r.language === 'en')?.prompt_tokens_per_char);
+  // Asserted against this script's own rows, not the whole view. Under a real
+  // key, part A's traffic is also provider = 'openai' and lands in the same
+  // (language, kind, model) groups, so a view-wide assertion would be checking
+  // numbers this script does not control.
+  const { rows: controlled } = await pool.query(
+    `SELECT language,
+            round(sum(prompt_tokens)::numeric / NULLIF(sum(source_chars), 0), 4) AS ratio
+       FROM ai_generations
+      WHERE request->>'marker' = $1 AND request->>'simulated' = 'true'
+      GROUP BY language`,
+    [MARKER],
+  );
 
-  check('both languages appear in the view', Boolean(kmRatio && enRatio));
-  check('ratios are per-character', enRatio > 0 && enRatio < 1, `en = ${enRatio}`);
+  const kmRatio = Number(controlled.find((r) => r.language === 'km')?.ratio);
+  const enRatio = Number(controlled.find((r) => r.language === 'en')?.ratio);
+
+  check('both languages appear in the view', ratios.some((r) => r.language === 'km') && ratios.some((r) => r.language === 'en'));
+  check('the view computes tokens per character', enRatio === 0.25, `en = ${enRatio}, expected 0.25`);
+  check('the multiplier is recoverable', kmRatio / enRatio === 3, `${kmRatio / enRatio}x, expected 3x`);
   if (kmRatio && enRatio) {
     console.log(`\n  Khmer costs ${(kmRatio / enRatio).toFixed(2)}x the prompt tokens per character.`);
     console.log('  (simulated numbers — this is the shape of the answer, not the answer)');
@@ -184,8 +216,12 @@ const run = async () => {
   );
   check('no test rows left behind', leftover.rows[0].n === 0);
 
+  // Scoped to this script's marker. A blanket provider = 'openai' count would
+  // also catch genuine traffic from a real key and report it as leftover.
   const fakeReal = await pool.query(
-    `SELECT count(*)::int AS n FROM ai_generations WHERE provider = 'openai'`,
+    `SELECT count(*)::int AS n FROM ai_generations
+      WHERE provider = 'openai' AND request->>'marker' = $1`,
+    [MARKER],
   );
   check('no simulated openai rows survive', fakeReal.rows[0].n === 0, `${fakeReal.rows[0].n} found`);
 };

@@ -30,6 +30,19 @@ What is left before real users:
    it excludes mock rows, so it stays empty until a real key is in use.
    `npm run verify:ai-usage` from `server/` exercises the whole path.
    A week of real data beats every cost estimate.
+
+   Measured on gpt-4o-mini + text-embedding-3-small, same paragraph in both
+   languages (`npm run measure:khmer-ratio`): Khmer costs **7.2x** the tokens
+   in embeddings and **2.9x** in chat. The models do not share a tokenizer, so
+   there is no single Khmer multiplier — re-run the script after any change of
+   model or endpoint. Ingest is the bulk-volume operation, so the embedding
+   figure is what drives total spend.
+
+   Before pointing `OPENAI_BASE_URL` at a new endpoint, run
+   `npm run check:provider`: it reports whether strict json_schema output,
+   streamed usage and 1536-wide embeddings are actually supported. Embedding
+   width is the expensive one — `document_chunks.embedding` is a fixed
+   `vector(1536)`, so a mismatch means a migration and a full re-embed.
 2. **SMS/email provider** — wire `notify`, add `requireVerified`, build the two
    skipped screens in `docs/screens/01-auth-onboarding/`.
 3. **Storage** — off local disk to S3 or equivalent.
