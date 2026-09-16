@@ -136,6 +136,53 @@ export const chunkPdfPages = (pages = []) => {
 };
 
 /**
+ * Chunks the numbered parts of an Office document or text file.
+ *
+ * The same job chunkPdfPages does, over slides, sheets or sections instead of
+ * pages — so a citation into a deck carries its slide number the way a citation
+ * into a PDF carries its page. The number is written to `pageNumber` rather
+ * than a new column because that column already means "the numbered part of
+ * this source", and splitting it would mean teaching every reader of a chunk
+ * about a second one.
+ *
+ * `unit` rides along in metadata so the label can say "slide 12" rather than
+ * "page 12" for a file that has no pages.
+ *
+ * @param {Array<{ number: number, title: string|null, text: string }>} sections
+ * @param {{ unit?: string, format?: string }} [options]
+ */
+export const chunkDocumentSections = (sections = [], { unit = 'section', format = 'document' } = {}) => {
+  const result = [];
+  let chunkIndex = 0;
+
+  for (const section of sections) {
+    if (!section.text || !section.text.trim()) continue;
+
+    const sentences = splitSentences(section.text);
+    if (sentences.length === 0) continue;
+
+    for (const chunk of chunkSentenceList(sentences)) {
+      result.push({
+        chunkIndex: chunkIndex++,
+        content: chunk.text,
+        tokenCount: chunk.tokens,
+        pageNumber: section.number,
+        startSeconds: null,
+        endSeconds: null,
+        metadata: {
+          kind: format,
+          unit,
+          pageNumber: section.number,
+          ...(section.title && { sectionTitle: section.title }),
+        },
+      });
+    }
+  }
+
+  return result;
+};
+
+/**
  * Chunks YouTube transcript cues while preserving startSeconds and endSeconds.
  * @param {Array<{ text: string, startSeconds: number, durationSeconds: number }>} cues
  * @returns {Array<{ chunkIndex: number, content: string, tokenCount: number, pageNumber: null, startSeconds: number, endSeconds: number, metadata: Object }>}

@@ -4,8 +4,14 @@ import { chunksDb } from '../db/chunks.db.js';
 import { withTransaction } from '../db/pool.js';
 import { sourcesDb } from '../db/sources.db.js';
 import { usersDb } from '../db/users.db.js';
-import { chunkPdfPages, chunkText, chunkYouTubeTranscript } from '../ingest/chunker.js';
+import {
+  chunkDocumentSections,
+  chunkPdfPages,
+  chunkText,
+  chunkYouTubeTranscript,
+} from '../ingest/chunker.js';
 import { INGEST_ERROR_CODES, IngestError } from '../ingest/errors.js';
+import { extractDocument } from '../ingest/office.js';
 import { extractPdf } from '../ingest/pdf.js';
 import { ingestYouTube } from '../ingest/youtube.js';
 import { jobQueue } from '../jobs/queue.js';
@@ -17,9 +23,11 @@ import { summariesService } from './summaries.service.js';
 
 /**
  * Ingest pipeline service:
- * 1. Text extraction with citation preservation (PDF pageNumber / YouTube
- *    timestamps), including a vision OCR pass for photographed material
- * 2. Pre-token plan limits enforcement (50-page PDF / 30-min YouTube for Free plan)
+ * 1. Text extraction with citation preservation (PDF page, document slide or
+ *    sheet, YouTube timestamp), including a vision OCR pass for photographed
+ *    material and an OOXML reader for Word, Excel and PowerPoint
+ * 2. Pre-token plan limits enforcement (50 pages, slides or sheets per
+ *    document; 30-min YouTube, for the Free plan)
  * 3. Token-aware chunking (~500 tokens with overlap)
  * 4. Batched embeddings via the AI layer, recorded in ai_generations
  * 5. Vector persistence in document_chunks
@@ -142,6 +150,27 @@ export const ingestService = {
           title: source.name === 'YouTube study kit' || !source.name ? title : source.name,
           durationSeconds,
           thumbnailUrl,
+          extractedText: fullText.slice(0, 5000),
+        };
+      } else if (source.kind === 'document') {
+        if (!source.storage_path) {
+          throw new IngestError(
+            INGEST_ERROR_CODES.EXTRACT_FAILED,
+            'File path is missing for document',
+          );
+        }
+
+        const { format, unit, sectionCount, sections, fullText } = await extractDocument(
+          absoluteUploadPath(source.storage_path),
+          { mimeType: source.mime_type, planTier },
+        );
+
+        chunks = chunkDocumentSections(sections, { unit, format });
+        metrics = {
+          // Recorded under pageCount because that is the column the schema
+          // already has for "how many numbered parts" — a slide count and a
+          // page count answer the same question. `unit` says which word to use.
+          pageCount: sectionCount,
           extractedText: fullText.slice(0, 5000),
         };
       } else if (source.kind === 'topic' || source.kind === 'text') {

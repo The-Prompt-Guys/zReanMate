@@ -1,6 +1,7 @@
 # ReanMate
 
-Bilingual (Khmer/English) study app. Students upload PDFs or YouTube links and get
+Bilingual (Khmer/English) study app. Students upload documents — PDF, Word, Excel,
+PowerPoint, plain text — photograph their notes, or paste a YouTube link, and get
 summaries, quizzes, flashcards, and an AI tutor. Teachers create classes, lessons,
 and assignments.
 
@@ -74,6 +75,7 @@ through `server/` endpoints under `/api`.
 - Node 20+, Express 5, PostgreSQL 16 via `pg` (raw SQL, no ORM)
 - JWT in httpOnly cookies, bcrypt for passwords, zod for validation
 - multer + local disk for uploads in dev
+- fflate for reading OOXML (.docx/.xlsx/.pptx are ZIP+XML containers)
 - Anthropic API (not configured yet — see AI layer)
 
 ## Hard rules
@@ -167,6 +169,48 @@ The OpenAI API key is NOT set up yet. The mock provider serves every AI feature.
 - Streaming: `stream: true`, relayed to the client over SSE from Express.
 - The provider interface in `server/src/ai/types.js` stays provider-agnostic. Adding
   an Anthropic provider later must require no changes outside `server/src/ai/`.
+
+## Ingest and file formats
+
+All extraction lives in `server/src/ingest/`, one module per family, each
+returning numbered parts so a citation can point at something the student can
+find.
+
+- `pdf.js` — pages.
+- `office.js` — Word, Excel, PowerPoint and plain text. All three Office
+  formats are ZIP+XML (OOXML), so they share one reader rather than three
+  libraries; PowerPoint has no mature extractor on npm anyway.
+- `youtube.js` — transcript cues, via the InnerTube player. Do NOT go back to
+  scraping the watch page: it still lists caption tracks, but their URLs now
+  return an empty 200 without a proof-of-origin token, so the failure looks
+  exactly like a video with no captions. `npm run check:youtube` tells the two
+  apart.
+- Photographs go through the AI layer's `extractImageText` (vision OCR), not
+  through a module here.
+
+Rules that are easy to break quietly:
+
+- **Number parts by their real position**, never by how many survived
+  extraction. A picture-only slide yields no text and is dropped; numbering by
+  the surviving count shifts every slide after it, and a citation reading
+  "slide 5" opens slide 6.
+- **Order comes from the relationship list**, not from file names.
+  `slide12.xml` is a name, not a position — reordering a deck rewrites the
+  relationships and leaves the names alone. Same for workbook sheets.
+- **Units are per format.** "Page 4" of a spreadsheet means nothing, so each
+  extractor names its own (`slide`, `sheet`, `section`) and it rides in chunk
+  metadata. Word genuinely has no pages — pagination depends on the reader's
+  font and paper — so it is divided into sections rather than claiming a
+  precision the format cannot support.
+- **Reject unreadable formats at upload**, with the conversion step. A `.doc`
+  is not a renamed `.docx`; `LEGACY_FORMAT_ADVICE` in
+  `server/src/middleware/upload.js` names the Save As for each one.
+- Magic bytes cannot tell OOXML formats apart — all three are ZIPs. The real
+  format is read from the package contents (`detectOoxmlFormat`), so a
+  mislabelled file is read correctly instead of refused.
+
+`npm run verify:document-ingest [file ...]` runs the whole pipeline against the
+database; pass real documents to check your own.
 
 ## OTP and email delivery
 

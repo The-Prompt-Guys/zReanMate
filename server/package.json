@@ -14,6 +14,7 @@
     "verify:sse": "node scripts/verify-sse.mjs",
     "verify:ai-usage": "node scripts/verify-ai-usage.mjs",
     "verify:photo-ingest": "node scripts/verify-photo-ingest.mjs",
+    "verify:document-ingest": "node scripts/verify-document-ingest.mjs",
     "check:provider": "node scripts/check-provider.mjs",
     "check:youtube": "node scripts/check-youtube.mjs",
     "measure:khmer-ratio": "node scripts/measure-khmer-ratio.mjs"
@@ -27,6 +28,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "fflate": "^0.8.3",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.3.0",
     "openai": "^7.15.0",

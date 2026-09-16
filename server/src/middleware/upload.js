@@ -11,8 +11,8 @@ import { ApiError } from './errors.js';
 /**
  * File uploads: multer to local disk, path in the database (CLAUDE.md, Stack).
  *
- * PDFs and images only. Three checks, because the first two are cheap and the
- * third is the only honest one:
+ * PDFs, images, Office documents and plain text. Three checks, because the
+ * first two are cheap and the third is the only honest one:
  *
  *   1. mimetype   — the browser's Content-Type. Client-supplied, so advisory.
  *   2. extension  — also client-supplied, but catches the ordinary mistake.
@@ -22,6 +22,9 @@ import { ApiError } from './errors.js';
  * Multer streams to disk before any handler runs, so a rejected file has
  * already been written. Every rejection path below unlinks it.
  */
+
+/** The local file header every ZIP, and so every OOXML file, starts with. */
+const ZIP_MAGIC = [0x50, 0x4b, 0x03, 0x04];
 
 /** Extensions and signatures we accept, keyed by the mime type we store. */
 const ACCEPTED = {
@@ -47,6 +50,62 @@ const ACCEPTED = {
     extensions: ['.webp'],
     magic: [[0x52, 0x49, 0x46, 0x46]],
   },
+
+  // Word, Excel and PowerPoint are ZIP containers, so all three carry the same
+  // signature and magic bytes can only prove "this is a zip". That is still
+  // worth checking — it catches a renamed .exe — but it cannot tell a .docx
+  // from a .xlsx. Nothing here tries to: the extractor identifies the package
+  // by its contents (detectOoxmlFormat), so a mislabelled Office file is read
+  // correctly instead of being rejected on a technicality.
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': {
+    kind: 'document',
+    extensions: ['.docx'],
+    magic: [ZIP_MAGIC],
+  },
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+    kind: 'document',
+    extensions: ['.xlsx'],
+    magic: [ZIP_MAGIC],
+  },
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': {
+    kind: 'document',
+    extensions: ['.pptx'],
+    magic: [ZIP_MAGIC],
+  },
+
+  // Plain text has no signature to check — any byte sequence is a legal text
+  // file — so these rely on the extension and on the extractor refusing
+  // anything that does not decode. `magic: []` says that explicitly rather
+  // than leaving the field off and having the check read as an oversight.
+  'text/plain': { kind: 'document', extensions: ['.txt', '.text'], magic: [] },
+  'text/markdown': { kind: 'document', extensions: ['.md', '.markdown'], magic: [] },
+  'text/csv': { kind: 'document', extensions: ['.csv'], magic: [] },
+};
+
+/**
+ * Formats a student is likely to try, that this app cannot read, and what to
+ * tell them instead.
+ *
+ * The pre-2007 binary formats share nothing with their modern namesakes — a
+ * .doc is not a renamed .docx — so accepting one and failing later would cost
+ * the student an upload and a wait to be told the same thing. Rejecting it at
+ * the door with the actual fix is faster and kinder, and Save As is a step
+ * every one of these programs has.
+ *
+ * Keyed by extension because that is what a student recognises, and because
+ * browsers disagree about the mime type of a .doc.
+ */
+export const LEGACY_FORMAT_ADVICE = {
+  '.doc': { convertTo: '.docx', advice: 'Open it in Word and choose File → Save As → Word Document (.docx).' },
+  '.xls': { convertTo: '.xlsx', advice: 'Open it in Excel and choose File → Save As → Excel Workbook (.xlsx).' },
+  '.ppt': { convertTo: '.pptx', advice: 'Open it in PowerPoint and choose File → Save As → PowerPoint Presentation (.pptx).' },
+  '.pages': { convertTo: '.docx', advice: 'Open it in Pages and choose File → Export To → Word (.docx).' },
+  '.numbers': { convertTo: '.xlsx', advice: 'Open it in Numbers and choose File → Export To → Excel (.xlsx).' },
+  '.key': { convertTo: '.pptx', advice: 'Open it in Keynote and choose File → Export To → PowerPoint (.pptx).' },
+  '.odt': { convertTo: '.docx', advice: 'Open it and choose File → Save As → Word Document (.docx).' },
+  '.ods': { convertTo: '.xlsx', advice: 'Open it and choose File → Save As → Excel Workbook (.xlsx).' },
+  '.odp': { convertTo: '.pptx', advice: 'Open it and choose File → Save As → PowerPoint Presentation (.pptx).' },
+  '.rtf': { convertTo: '.docx', advice: 'Open it in Word and choose File → Save As → Word Document (.docx).' },
 };
 
 export const ACCEPTED_MIME_TYPES = Object.keys(ACCEPTED);
@@ -97,20 +156,39 @@ const storage = multer.diskStorage({
   },
 });
 
-const fileFilter = (_req, file, cb) => {
+/**
+ * Exported for tests: this is the only place a student learns that their .doc
+ * needs converting, and the advice is easy to break silently.
+ */
+export const fileFilter = (_req, file, cb) => {
+  const ext = extname(file.originalname).toLowerCase();
   const accepted = ACCEPTED[file.mimetype];
+
   if (!accepted) {
+    // A format we know about and cannot read gets the conversion step rather
+    // than a list of mime types, which tells a student nothing they can act on.
+    const legacy = LEGACY_FORMAT_ADVICE[ext];
+    if (legacy) {
+      return cb(
+        new ApiError(
+          415,
+          'unsupported_file_type',
+          `ReanMate cannot read ${ext} files. ${legacy.advice}`,
+          { received: ext, convertTo: legacy.convertTo },
+        ),
+      );
+    }
+
     return cb(
       new ApiError(
         415,
         'unsupported_file_type',
-        'Only PDF and image files can be uploaded',
+        'You can upload a PDF, a photo, a Word, Excel or PowerPoint file, or a text file',
         { received: file.mimetype, accepted: ACCEPTED_MIME_TYPES },
       ),
     );
   }
 
-  const ext = extname(file.originalname).toLowerCase();
   if (!accepted.extensions.includes(ext)) {
     return cb(
       new ApiError(
@@ -184,14 +262,24 @@ export const verifyUploadedFile = async (file) => {
   }
 
   const header = await readHeader(file.path, 12);
-  const matches = accepted.magic.some((signature) =>
-    signature.every((byte, i) => header[i] === byte),
-  );
+  // An empty signature list is "this format has no signature" (plain text),
+  // not "nothing matched" — `some` on an empty array is false, which would
+  // reject every .txt ever uploaded.
+  const matches =
+    accepted.magic.length === 0 ||
+    accepted.magic.some((signature) => signature.every((byte, i) => header[i] === byte));
   // WEBP is RIFF with the format tag at bytes 8-11; RIFF alone is also WAV/AVI.
   const webpOk =
     file.mimetype !== 'image/webp' || header.subarray(8, 12).toString('ascii') === 'WEBP';
 
-  if (!matches || !webpOk) {
+  // The one check a signature-less format can still make. A NUL byte in the
+  // first block means this is not text, whatever it was named — and without
+  // it a renamed binary would extract into mojibake and be summarised as
+  // though it were notes.
+  const isSignatureless = accepted.magic.length === 0;
+  const textOk = !isSignatureless || !header.includes(0x00);
+
+  if (!matches || !webpOk || !textOk) {
     await removeUploadedFile(file.path);
     throw new ApiError(
       415,
