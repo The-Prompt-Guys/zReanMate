@@ -95,7 +95,24 @@ const snapshot = async (cache, userId) => {
   };
 };
 
+/**
+ * `prewarm` runs a generation inline and waits for it, where `generate` creates
+ * the cache row and hands the work to the queue for a polling screen to collect.
+ *
+ * Ingest uses it so that a source only reaches `ready` once its materials
+ * actually exist — opening the Study Guide after that is a cache read, not a
+ * fresh call to the model. It reuses a ready cache and relies on `claimCache`
+ * to step aside if a screen happened to ask for the same thing first.
+ */
 export const flashcardsService = {
+  async prewarm(userId, sourceId, { language }) {
+    const params = { count: await plansService.generationCount(userId, 'flashcards'), language };
+    const key = summaryCacheKey({ sourceId, method: 'generateFlashcards', params });
+    const cache = await summariesDb.getOrCreateCache(key);
+    if (cache.status === 'ready') return;
+    await runGeneration({ cacheId: cache.id, sourceId, params });
+  },
+
   async generate(userId, _plan, sourceId, input) {
     await requireSource(userId, sourceId);
     const params = { count: await plansService.generationCount(userId, 'flashcards'), language: input.language };

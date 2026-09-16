@@ -13,6 +13,7 @@
     "test": "node --test test/*.test.js",
     "verify:sse": "node scripts/verify-sse.mjs",
     "verify:ai-usage": "node scripts/verify-ai-usage.mjs",
+    "verify:photo-ingest": "node scripts/verify-photo-ingest.mjs",
     "check:provider": "node scripts/check-provider.mjs",
     "check:youtube": "node scripts/check-youtube.mjs",
     "measure:khmer-ratio": "node scripts/measure-khmer-ratio.mjs"

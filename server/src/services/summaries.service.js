@@ -161,7 +161,23 @@ const runChapters = async ({ cacheId, sourceId, language, chapterCount }) => {
 jobQueue.register('summary.generate', runSummary);
 jobQueue.register('chapters.generate', runChapters);
 
+/**
+ * `prewarm` runs a generation inline and waits for it, where `generate` creates
+ * the cache row and hands the work to the queue for a polling screen to collect.
+ *
+ * Ingest uses it so that a source only reaches `ready` once its materials
+ * actually exist — opening the Study Guide after that is a cache read, not a
+ * fresh call to the model. It reuses a ready cache and relies on `claimCache`
+ * to step aside if a screen happened to ask for the same thing first.
+ */
 export const summariesService = {
+  async prewarm(sourceId, { language }) {
+    const key = summaryCacheKey({ sourceId, method: 'summarize', params: { language } });
+    const cache = await summariesDb.getOrCreateCache(key);
+    if (cache.status === 'ready') return;
+    await runSummary({ cacheId: cache.id, sourceId, language });
+  },
+
   async summarize(userId, sourceId, input) {
     const source = await requireSource(userId, sourceId);
     const key = summaryCacheKey({ sourceId, method: 'summarize', params: { language: input.language } });

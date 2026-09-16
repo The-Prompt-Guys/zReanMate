@@ -71,6 +71,18 @@ const copy = {
       'សំណួរ SELECT ប្រើដើម្បីអានទិន្នន័យ។ អ្នកអាចបន្ថែម WHERE ដើម្បីត្រងលទ្ធផលតាមលក្ខខណ្ឌ។',
     ],
     followups: ['ពន្យល់ពី SQL JOIN', 'សង្ខេបសប្តាហ៍ទី ២', 'ផ្តល់ឧទាហរណ៍មួយ'],
+    imageDescription: 'ទំព័រកត់ត្រាសរសេរដោយដៃអំពីមូលដ្ឋានទិន្នន័យ មានប្លង់តារាងមួយនៅផ្នែកខាងក្រោម។',
+    imageLines: [
+      'មេរៀនទី ៣ — មូលដ្ឋានទិន្នន័យទំនាក់ទំនង',
+      '',
+      'តារាង = ជួរដេក + ជួរឈរ',
+      'គន្លឹះចម្បង (Primary Key) — តម្លៃមិនស្ទួន មិនទទេ',
+      'គន្លឹះបរទេស (Foreign Key) — ចង្អុលទៅតារាងមួយទៀត',
+      '',
+      'ឧទាហរណ៍៖ SELECT * FROM students WHERE grade = 12;',
+      '',
+      'កិច្ចការផ្ទះ៖ អនុវត្តលំហាត់ទំព័រ ៤៥',
+    ],
     takeaways: [
       'អ្នកយល់ពីគោលបំណងនៃមូលដ្ឋានទិន្នន័យ',
       'ត្រូវពិនិត្យឡើងវិញនូវគំនិតទំនាក់ទំនង',
@@ -159,6 +171,18 @@ const copy = {
       'A SELECT query reads data. Add a WHERE clause to filter the results down to the rows that match a condition.',
     ],
     followups: ['Explain SQL JOINs', 'Summarize Week 2', 'Give me an example'],
+    imageDescription: 'A page of handwritten database notes, with a small table diagram near the bottom.',
+    imageLines: [
+      'Lesson 3 - Relational Databases',
+      '',
+      'table = rows + columns',
+      'Primary Key - unique, never null',
+      'Foreign Key - points at another table',
+      '',
+      'Example: SELECT * FROM students WHERE grade = 12;',
+      '',
+      'Homework: exercises on page 45',
+    ],
     takeaways: [
       'You understand what a database is for',
       'Review the relational concepts',
@@ -436,6 +460,50 @@ export const createMockProvider = () => ({
     return {
       takeaways: d.takeaways,
     };
+  },
+
+  /**
+   * Canned OCR. Returns a page of study notes in the requested language, so the
+   * whole photo path — chunking, embedding, summary, quiz, flashcards — runs on
+   * text that looks like what a student would actually photograph.
+   *
+   * One behaviour here is real rather than canned: an image of zero bytes comes
+   * back `hasText: false`. That is the branch the ingest service has to handle
+   * and the one a canned success would hide, so it stays reachable without a
+   * key. Everything else is fixed copy.
+   */
+  async extractImageText({ images = [], language = 'km', onUsage } = {}) {
+    const d = dict(language);
+    const list = Array.isArray(images) ? images : [images];
+    const readable = list.filter((image) => (image?.data?.length ?? 0) > 0);
+
+    if (readable.length === 0) {
+      reportUsage(onUsage, mockUsage({ input: '', output: '', language, apiCalls: 1 }));
+      // Empty, not the canned note description — the caller splices this into
+      // a message, and describing a page that was never read would be a lie
+      // the mock has no business telling.
+      return { text: '', hasText: false, description: '' };
+    }
+
+    // Each image is a page, joined the way the real provider is told to join
+    // them, so a multi-page note chunks identically either way.
+    const text = readable.map(() => d.imageLines.join('\n')).join('\n\n');
+
+    reportUsage(
+      onUsage,
+      mockUsage({
+        // Image tokens are not text tokens; the real provider reports what the
+        // API charged. The mock has no basis for a number, so it counts only
+        // what it produced and leaves the input at zero rather than inventing
+        // a figure that would land in ai_generations looking measured.
+        input: '',
+        output: text,
+        language,
+        apiCalls: readable.length,
+      }),
+    );
+
+    return { text, hasText: true, description: d.imageDescription };
   },
 
   /**

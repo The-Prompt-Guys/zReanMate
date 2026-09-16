@@ -228,6 +228,56 @@
  * @property {number}         [maxOutputTokens=400]
  */
 
+// ---------------------------------------------------------------------------
+// Image text extraction
+// ---------------------------------------------------------------------------
+
+/**
+ * One image to read text out of.
+ *
+ * `data` is the raw bytes. Providers encode it however their API wants — the
+ * caller reads a file and passes what it read, and never has to know that one
+ * provider wants a base64 data URL and another wants something else.
+ *
+ * @typedef  {Object} SourceImage
+ * @property {Buffer} data
+ * @property {string} mimeType  e.g. 'image/jpeg'. Sent as-is; upload validation
+ *                              has already checked it against the magic bytes.
+ * @property {string} [name]    Original filename, used only to label failures.
+ */
+
+/**
+ * @typedef  {Object}        ImageTextInput
+ * @property {SourceImage[]} images         Read in order, as pages of one
+ *                                          material. One photo is the common
+ *                                          case; several is a multi-page note.
+ * @property {Language}      [language='km'] The language the text is EXPECTED
+ *                                          to be in. A hint, not a filter —
+ *                                          Khmer study notes routinely carry
+ *                                          English terms, and dropping those
+ *                                          would quietly gut the material.
+ */
+
+/**
+ * Text read off an image.
+ *
+ * `hasText` is deliberately separate from an empty `text`. A photo of a cat and
+ * a photo of notes too blurred to read both yield no text, but the first is a
+ * student who picked the wrong file and the second is a student who should try
+ * a steadier shot. Only the provider can tell them apart, so it says which, and
+ * the caller turns that into the right message rather than guessing from a
+ * length check.
+ *
+ * @typedef  {Object}  ImageText
+ * @property {string}  text         Transcribed text in reading order, pages
+ *                                  separated by a blank line. '' when none.
+ * @property {boolean} hasText      false when the image carries no legible text.
+ * @property {string}  description  One line on what the image shows. Always
+ *                                  present — for a diagram or a chart it is the
+ *                                  only usable content, so it is grounding
+ *                                  material rather than a caption.
+ */
+
 /**
  * @typedef  {Object}   EmbedInput
  * @property {string[]} texts  One vector back per entry, in the same order.
@@ -344,6 +394,10 @@ export const createUsageCollector = () => {
  *
  * @property {(input: EmbedInput) => Promise<EmbedResult>} embed
  *   Batched. Must preserve input order.
+ *
+ * @property {(input: ImageTextInput) => Promise<ImageText>} extractImageText
+ *   Reads the text off photographed study material. Returns what it could read
+ *   rather than throwing on an unreadable image — see ImageText.hasText.
  */
 
 /**
@@ -369,6 +423,7 @@ export const AI_METHODS = /** @type {const} */ ([
   'tutorReply',
   'summarizeAttempt',
   'embed',
+  'extractImageText',
 ]);
 
 /**

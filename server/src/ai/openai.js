@@ -181,6 +181,28 @@ const SUMMARY_SCHEMA = obj({
   keyPoints: stringArray('Three to five one-line takeaways.'),
 });
 
+/**
+ * Note `hasText` is asked for explicitly rather than inferred from an empty
+ * `text`. The model can tell a photo of a cat from notes too blurred to read;
+ * a length check downstream cannot, and those two need different advice.
+ */
+const IMAGE_TEXT_SCHEMA = obj({
+  text: {
+    type: 'string',
+    description:
+      'Every word visible in the images, in reading order, pages separated by a blank line. ' +
+      'Empty string if there is no legible text.',
+  },
+  hasText: {
+    type: 'boolean',
+    description: 'True only if at least some legible text was transcribed.',
+  },
+  description: {
+    type: 'string',
+    description: 'One sentence on what the images show, including any diagram or chart.',
+  },
+});
+
 const CHAPTER_OUTLINE_SCHEMA = obj({
   chapters: {
     type: 'array',
@@ -587,6 +609,124 @@ export const createOpenAIProvider = ({
           startSeconds: s.startSeconds ?? null,
         })),
         suggestedFollowups: [],
+      };
+    },
+
+    /**
+     * Reads the text off photographed study material.
+     *
+     * Not routed through `structured`, because that helper puts one text blob
+     * in the user turn and the material here is images. Same strict json_schema
+     * contract and the same usage reporting; only the message parts differ.
+     *
+     * Two prompt decisions worth keeping:
+     *
+     * A photo of Khmer notes is normally peppered with English technical terms,
+     * so the model is told to transcribe what is on the page and NOT to
+     * translate into the requested language. This is the one method whose job
+     * is transcription rather than writing for the student, so the system
+     * prompt's "write everything in Khmer" instruction is actively wrong here —
+     * following it would rewrite the source material before it was ever chunked,
+     * and every summary, quiz and flashcard downstream would be built on a
+     * paraphrase nobody could check against the photo.
+     *
+     * And it is asked to describe a diagram it cannot transcribe, because a
+     * photographed graph or labelled diagram is often the whole point of the
+     * page. Without that, the material is silently empty.
+     */
+    async extractImageText({ images = [], language = 'km', onUsage } = {}) {
+      const list = (Array.isArray(images) ? images : [images]).filter(
+        (image) => (image?.data?.length ?? 0) > 0,
+      );
+
+      if (list.length === 0) {
+        // An empty description rather than a sentence about the absence: the
+        // caller splices this into a message for the student, and "it looks
+        // like No image was provided" is how that goes wrong.
+        return { text: '', hasText: false, description: '' };
+      }
+
+      const completion = await chatCompletion('extractImageText', (skip) => ({
+        model,
+        ...(!skip.has('reasoning_effort') && { reasoning_effort: 'low' }),
+        messages: [
+          {
+            role: 'system',
+            content: [
+              'You transcribe photographed study material for Cambodian students.',
+              'Transcribe exactly what is written, preserving the original language of',
+              'every word — Khmer notes often contain English technical terms, and those',
+              'stay in English. Do not translate, correct or summarise the page.',
+              'Keep the reading order, and keep headings, numbered lists and equations',
+              'on their own lines.',
+            ].join(' '),
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: [
+                  list.length === 1
+                    ? 'Read this photograph of study material.'
+                    : `Read these ${list.length} photographs as consecutive pages of one document.`,
+                  `The text is expected to be mostly ${LANGUAGE_NAMES[language] ?? LANGUAGE_NAMES.km},`,
+                  'but transcribe any other language exactly as it appears.',
+                  'If a diagram, chart or figure cannot be transcribed, describe it in the',
+                  'description field so it is not lost.',
+                ].join(' '),
+              },
+              // A data URL rather than a hosted link: these are a student's own
+              // uploads sitting on the app's disk, and putting them behind a
+              // public URL for the model to fetch would be a way of publishing
+              // them. Base64 costs request size and nothing else.
+              ...list.map((image) => ({
+                type: 'image_url',
+                image_url: {
+                  url: `data:${image.mimeType};base64,${image.data.toString('base64')}`,
+                  // Full resolution: handwriting and Khmer diacritics are the
+                  // first thing lost when an image is downsampled, and a
+                  // misread word becomes a wrong flashcard nobody can trace
+                  // back to the photo.
+                  detail: 'high',
+                },
+              })),
+            ],
+          },
+        ],
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: 'image_text', strict: true, schema: IMAGE_TEXT_SCHEMA },
+        },
+      }));
+
+      reportUsage(onUsage, completion.usage, model);
+
+      const choice = completion.choices[0];
+      if (choice?.finish_reason === 'length') {
+        throw new Error('extractImageText: model hit the output limit before completing the JSON');
+      }
+      if (choice?.message?.refusal) {
+        throw new Error(`extractImageText: model refused — ${choice.message.refusal}`);
+      }
+
+      const raw = choice?.message?.content;
+      if (!raw) throw new Error('extractImageText: model returned no content');
+
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (err) {
+        throw new Error(`extractImageText: model returned unparseable JSON (${err.message})`);
+      }
+
+      const text = (parsed.text ?? '').trim();
+      return {
+        text,
+        // The schema cannot express "hasText implies text is non-empty", so the
+        // two are reconciled here rather than left to disagree downstream.
+        hasText: Boolean(parsed.hasText) && text.length > 0,
+        description: (parsed.description ?? '').trim(),
       };
     },
 
