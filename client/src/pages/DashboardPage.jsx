@@ -3,8 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext.jsx';
 import { NavyHeader } from '../layouts/AppLayout.jsx';
-import { BrandLogo, Owl } from '../layouts/AuthLayout.jsx';
-import { KitCard } from '../components/KitCard.jsx';
+import { BrandLockup, Owl } from '../layouts/AuthLayout.jsx';
+import { KitRow } from './kits/KitsPage.jsx';
 import { ArrowRightIcon } from '../components/ui.jsx';
 import { api } from '../lib/api.js';
 import { isDemo, loadDemoFixtures } from '../mock/mode.js';
@@ -41,6 +41,55 @@ const currentMonthCalendar = (language = 'en', marked = []) => {
     today: now.getDate(),
     marked,
   };
+};
+
+/** How far the hero travels before it is fully collapsed. */
+const HEADER_TRAVEL = 150;
+
+/**
+ * Holds the page still when there is not enough of it to scroll.
+ *
+ * A short dashboard still scrolls a handful of pixels, which is enough to
+ * rubber-band on a phone and to half-collapse the header for no gain. Below
+ * `travel` the collapse could not finish anyway, so scrolling is locked until
+ * real content arrives — the observer re-measures when kits land or the window
+ * resizes.
+ *
+ * The lock is a class on <html> rather than an inline style on <body>, because
+ * BottomSheet sets and restores that inline style and the two would fight.
+ */
+const useScrollLock = (travel, signal) => {
+  useEffect(() => {
+    const root = document.documentElement;
+
+    const measure = () => {
+      const locked = root.scrollHeight - root.clientHeight < travel;
+      // Locking a page that is already scrolled would strand it mid-scroll with
+      // no way back, so it is returned to the top first.
+      if (locked && window.scrollY > 0) window.scrollTo(0, 0);
+      root.classList.toggle('scroll-locked', locked);
+    };
+
+    // `signal` re-runs this whenever what is on the page changes — the kits
+    // arriving is a React state change, which is a far more dependable trigger
+    // than waiting for a layout observer to notice the body grew. The rAF lets
+    // that render reach layout before anything is measured.
+    const frame = window.requestAnimationFrame(measure);
+
+    // Belt and braces for everything React cannot see: a rotate, a desktop
+    // resize, an image finally decoding.
+    const observer = new ResizeObserver(() => window.requestAnimationFrame(measure));
+    observer.observe(document.body);
+    observer.observe(root);
+    window.addEventListener('resize', measure);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+      root.classList.remove('scroll-locked');
+    };
+  }, [travel, signal]);
 };
 
 /**
@@ -105,11 +154,26 @@ export const DashboardPage = () => {
     return () => { active = false; };
   }, [language, withCalendar]);
 
+  // Below the header's own travel there is nothing worth scrolling for, so the
+  // page is held still rather than rubber-banding over a few stray pixels. The
+  // signal re-measures once the kits have actually rendered.
+  useScrollLock(HEADER_TRAVEL, `${kitsStatus}:${kits.length}:${isEmpty}:${withCalendar}`);
+
+  /**
+   * The hero lifts and fades as the page scrolls under it.
+   *
+   * Someone who has asked for reduced motion gets none of it — a parallax
+   * header is exactly the kind of movement that setting is for — so the
+   * progress is pinned at 0 and the panel simply scrolls with the page.
+   */
   useEffect(() => {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (reduced.matches) return undefined;
+
     let frame;
     const updateHeader = () => {
       frame = undefined;
-      setHeaderProgress(Math.min(window.scrollY / 180, 1));
+      setHeaderProgress(Math.min(window.scrollY / HEADER_TRAVEL, 1));
     };
     const onScroll = () => {
       if (!frame) frame = window.requestAnimationFrame(updateHeader);
@@ -125,53 +189,67 @@ export const DashboardPage = () => {
 
   return (
     <main>
+      {/*
+        Pinned rather than scrolled away, so the content below rides up over it
+        instead of dragging a gap behind — the panel reads as sliding under the
+        list. No CSS transition: the value is already driven frame-by-frame off
+        the scroll position, and easing it would only add lag.
+      */}
       <NavyHeader
-        className="will-change-transform transition-[transform,opacity] duration-150 ease-out"
+        className="sticky top-0 z-0 will-change-transform"
         style={{
-          transform: `translateY(-${Math.round(headerProgress * 32)}px)`,
-          opacity: 1 - headerProgress * 0.2,
+          transform: `translateY(-${Math.round(headerProgress * 52)}px)`,
+          opacity: 1 - headerProgress * 0.55,
         }}
       >
-        <div className="flex items-start justify-between">
-          <BrandLogo />
+        <div className="flex items-start justify-between gap-3">
+          <BrandLockup />
+          {/*
+            The reference draws an unread badge on this bell. There is no
+            notifications endpoint (docs/API-CONTRACT.md lists none), so the
+            badge is left off rather than shipped with a hardcoded count.
+          */}
           <button
             type="button"
             aria-label={t('profile.notifications')}
-            className="grid size-10 place-items-center rounded-full bg-white/20 text-white transition-colors hover:bg-white/30"
+            className="grid size-10 shrink-0 place-items-center rounded-full bg-white/20 text-white transition-colors hover:bg-white/30"
           >
             <BellIcon />
           </button>
         </div>
 
-        <div className="mt-4 flex items-end justify-between gap-3">
+        <div className="mt-5 flex items-end justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <h1 className="text-[1.7rem] font-bold leading-[1.15]">
+            <h1 className="greeting text-[1.65rem] font-extrabold tracking-tight">
               {t('dashboard.welcome', { name: user?.full_name ?? '' })}
             </h1>
             <Link
               to="/kits"
-              className="mt-5 inline-flex rounded-full bg-white px-7 py-3.5 text-base font-bold text-navy-900"
+              className="mt-5 inline-flex rounded-full bg-white px-7 py-3 text-base font-extrabold text-brand-600"
             >
               {t('dashboard.startStudying')}
             </Link>
           </div>
-          <Owl variant="waving" className="-mb-2 size-28 shrink-0" />
+          <Owl variant="waving" className="-mb-3 size-32 shrink-0" />
         </div>
       </NavyHeader>
 
-      <div className="space-y-6 px-5 pt-5">
+      <div className="relative z-10 space-y-6 bg-canvas px-5 pt-5">
+        {/* /kits/add asks which kit first; with no kits to choose between it
+            forwards to /kits/new, which is where the empty state below points
+            directly. */}
         <Link
-          to="/kits/new"
-          className="flex items-center gap-4 rounded-card bg-white p-4 shadow-sm ring-1 ring-tint-200/70"
+          to="/kits/add"
+          className="flex items-center gap-3.5 rounded-card bg-white p-3 shadow-sm ring-1 ring-tint-200/70"
         >
-          <span className="grid size-12 shrink-0 place-items-center rounded-full bg-navy-800 text-white">
+          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-600 text-white">
             <PlusIcon />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-lg font-bold text-navy-900">{t('dashboard.addMaterial')}</span>
-            <span className="block text-sm text-navy-600">{t('dashboard.addMaterialHint')}</span>
+            <span className="block text-lg font-extrabold text-ink-900">{t('dashboard.addMaterial')}</span>
+            <span className="block text-base font-medium text-ink-600">{t('dashboard.addMaterialHint')}</span>
           </span>
-          <ArrowRightIcon className="size-5 shrink-0 text-navy-800" />
+          <ArrowRightIcon className="size-5 shrink-0 text-ink-900" />
         </Link>
 
         {withCalendar && (
@@ -179,19 +257,19 @@ export const DashboardPage = () => {
             <section className="grid grid-cols-2 gap-4 rounded-card bg-white p-4 shadow-sm ring-1 ring-tint-200/70">
               <MonthCalendar data={calendarData} />
               <div className="min-w-0 border-s border-tint-200 ps-4">
-                <h2 className="font-bold text-navy-900">{t('dashboard.assignmentDates')}</h2>
+                <h2 className="font-extrabold text-ink-900">{t('dashboard.assignmentDates')}</h2>
                 <ul className="mt-3 space-y-3">
                   {assignmentDates.map((item) => (
                     <li key={item.title} className="flex items-start gap-2.5">
                       <span className="grid shrink-0 rounded-lg bg-gold-400/30 px-2.5 py-1.5 text-center">
-                        <span className="text-[0.65rem] font-semibold text-navy-700">{item.month}</span>
-                        <span className="text-lg font-bold leading-none text-navy-900">{item.day}</span>
+                        <span className="text-[0.65rem] font-bold text-ink-600">{item.month}</span>
+                        <span className="text-lg font-extrabold leading-none text-ink-900">{item.day}</span>
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-sm font-bold leading-snug text-navy-900">
+                        <span className="block text-sm font-bold leading-snug text-ink-900">
                           {item.title}
                         </span>
-                        <span className="block text-xs text-navy-600">{item.course}</span>
+                        <span className="block text-xs font-medium text-ink-600">{item.course}</span>
                       </span>
                     </li>
                   ))}
@@ -200,7 +278,7 @@ export const DashboardPage = () => {
             </section>
 
             <section>
-              <h2 className="text-xl font-bold text-navy-900">{t('classes.yourClasses')}</h2>
+              <h2 className="text-xl font-extrabold text-ink-900">{t('classes.yourClasses')}</h2>
               <div className="mt-3 grid grid-cols-2 gap-3">
                 {dashboardClasses.map((klass, index) => (
                   <Link
@@ -208,14 +286,14 @@ export const DashboardPage = () => {
                     to={`/classes/${klass.id}`}
                     className="rounded-card bg-white p-3.5 shadow-sm ring-1 ring-tint-200/70"
                   >
-                    <span className="grid size-11 place-items-center rounded-xl bg-tint-100 text-navy-800">
+                    <span className="grid size-11 place-items-center rounded-xl bg-tint-100 text-brand-600">
                       {index % 2 === 0 ? <LaptopIcon /> : <BookIcon />}
                     </span>
-                    <span className="mt-2.5 block font-bold leading-snug text-navy-900">
+                    <span className="mt-2.5 block font-bold leading-snug text-ink-900">
                       {language === 'km' ? klass.titleKm ?? klass.title : klass.title}
                     </span>
-                    <span className="mt-1.5 block text-sm text-navy-600">{klass.teacher}</span>
-                    <span className="mt-2 flex items-center gap-1.5 text-sm text-navy-700">
+                    <span className="mt-1.5 block text-sm font-medium text-ink-600">{klass.teacher}</span>
+                    <span className="mt-2 flex items-center gap-1.5 text-sm font-medium text-ink-600">
                       <span className="size-2 rounded-full bg-gold-400" aria-hidden="true" />
                       {t('classes.lessonsCompleted', { done: klass.lessonsDone ?? 0, total: klass.lessonCount ?? 0 })}
                     </span>
@@ -229,36 +307,38 @@ export const DashboardPage = () => {
         <section>
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold text-navy-900">{t('dashboard.studyKits')}</h2>
+              <h2 className="text-xl font-extrabold text-ink-900">{t('dashboard.studyKits')}</h2>
               {isEmpty && (
-                <p className="text-sm text-navy-600">{t('dashboard.studyKitsReady')}</p>
+                <p className="text-base font-medium text-ink-600">{t('dashboard.studyKitsReady')}</p>
               )}
             </div>
             {!isEmpty && (
-              <Link to="/kits" className="flex items-center gap-1 text-sm font-semibold text-navy-700">
+              <Link to="/kits" className="flex items-center gap-1 text-sm font-bold text-brand-600">
                 {t('common.seeAll')}
-                <ArrowRightIcon className="size-4" />
+                <ChevronRightIcon className="size-4" />
               </Link>
             )}
           </div>
 
           {isEmpty ? (
-            <div className="mt-3 rounded-card bg-white px-6 py-8 text-center shadow-sm ring-1 ring-tint-200/70">
+            <div className="mt-3 rounded-card bg-white px-5 py-5 text-center shadow-sm ring-1 ring-tint-200/70">
               <EmptyKitArt />
-              <h3 className="mt-4 text-xl font-bold text-navy-900">{t('dashboard.emptyTitle')}</h3>
-              <p className="mt-1.5 text-base text-navy-600">{t('dashboard.emptyBody')}</p>
+              <h3 className="mt-3 text-lg font-extrabold tracking-tight text-ink-900">
+                {t('dashboard.emptyTitle')}
+              </h3>
+              <p className="mt-1 text-sm font-medium text-ink-600">{t('dashboard.emptyBody')}</p>
               <Link
                 to="/kits/new"
-                className="mt-5 inline-flex items-center gap-2 rounded-full bg-navy-800 px-6 py-3.5 text-base font-bold text-white"
+                className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-5 py-2 text-sm font-extrabold text-white"
               >
                 {t('dashboard.emptyAction')}
-                <ArrowRightIcon className="size-4" />
+                <ChevronRightIcon className="size-4" />
               </Link>
             </div>
           ) : (
-            <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="mt-3 space-y-3">
               {kits.slice(0, 4).map((kit) => (
-                <KitCard key={kit.id} kit={kit} compact />
+                <KitRow key={kit.id} kit={kit} />
               ))}
             </div>
           )}
@@ -277,13 +357,13 @@ const MonthCalendar = ({ data }) => {
   return (
     <div className="min-w-0">
       <div className="flex items-center justify-between">
-        <button type="button" aria-label={t('common.previous')} className="text-navy-800">
+        <button type="button" aria-label={t('common.previous')} className="text-brand-600">
           <svg viewBox="0 0 24 24" className="size-4" fill="none" aria-hidden="true">
             <path d="m15 6-6 6 6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        <p className="text-sm font-bold text-navy-900">{label}</p>
-        <button type="button" aria-label={t('common.next')} className="text-navy-800">
+        <p className="text-sm font-extrabold text-ink-900">{label}</p>
+        <button type="button" aria-label={t('common.next')} className="text-brand-600">
           <svg viewBox="0 0 24 24" className="size-4" fill="none" aria-hidden="true">
             <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -292,7 +372,7 @@ const MonthCalendar = ({ data }) => {
 
       <div className="mt-2 grid grid-cols-7 gap-y-1 text-center">
         {DAY_INITIALS.map((key, i) => (
-          <span key={i} className="text-[0.6rem] font-semibold text-navy-600">
+          <span key={i} className="text-[0.6rem] font-bold text-ink-600">
             {t(`dashboard.dayInitial_${key}`)}
           </span>
         ))}
@@ -303,7 +383,7 @@ const MonthCalendar = ({ data }) => {
             <span key={day} className="relative grid place-items-center py-0.5">
               <span
                 className={`grid size-6 place-items-center rounded-full text-xs ${
-                  day === today ? 'bg-navy-800 font-bold text-white' : 'font-semibold text-navy-800'
+                  day === today ? 'bg-brand-600 font-bold text-white' : 'font-semibold text-ink-900'
                 }`}
               >
                 {day}
@@ -322,6 +402,13 @@ const MonthCalendar = ({ data }) => {
 const PlusIcon = () => (
   <svg viewBox="0 0 24 24" className="size-6" fill="none" aria-hidden="true">
     <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+  </svg>
+);
+
+/** The reference ends its buttons with a chevron, not the full-shaft arrow. */
+const ChevronRightIcon = ({ className = 'size-4' }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
+    <path d="m9.5 5 7 7-7 7" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -346,15 +433,29 @@ const LaptopIcon = () => (
   </svg>
 );
 
-/** The document-with-plus illustration on the empty state. */
+/**
+ * The document-with-plus illustration on the empty state.
+ *
+ * Inked in `currentColor` rather than navy — the reference draws this line art
+ * in the same near-black as the headings. The badge takes a gradient because
+ * the reference lights it from the top-left, and the motion marks to the left
+ * and the burst top-right are part of the drawing, not decoration to drop.
+ */
 const EmptyKitArt = () => (
-  <svg viewBox="0 0 96 88" className="mx-auto size-24" fill="none" aria-hidden="true">
-    <path d="M32 12h22l14 14v42a4 4 0 0 1-4 4H32a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4Z" fill="#fff" stroke="#0C3C85" strokeWidth="2.6" strokeLinejoin="round" />
-    <path d="M54 12v14h14" stroke="#0C3C85" strokeWidth="2.6" strokeLinejoin="round" />
-    <path d="M37 36h20M37 44h20M37 52h12" stroke="#0C3C85" strokeWidth="2.6" strokeLinecap="round" />
-    <circle cx="70" cy="60" r="11" fill="#FDC96A" />
-    <path d="M70 55v10M65 60h10" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" />
-    <path d="M18 30h8M16 40h6M20 50h6" stroke="#0C3C85" strokeWidth="2.4" strokeLinecap="round" />
-    <path d="M76 20l3 5M84 28h-5" stroke="#0C3C85" strokeWidth="2.4" strokeLinecap="round" />
+  <svg viewBox="0 0 84 50" className="mx-auto h-12 w-auto text-ink-900" fill="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="kit-badge-fill" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="var(--color-gold-300)" />
+        <stop offset="100%" stopColor="var(--color-gold-500)" />
+      </linearGradient>
+    </defs>
+    <path d="M31 2.5h20l13 13v30.5a2.5 2.5 0 0 1-2.5 2.5H31a2.5 2.5 0 0 1-2.5-2.5V5a2.5 2.5 0 0 1 2.5-2.5Z" fill="#fff" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+    <path d="M51 2.5v13h13" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+    <path d="M35 21h11M48.5 24.5h5M35 28h13M35 35h7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <circle cx="60" cy="38" r="10" fill="url(#kit-badge-fill)" />
+    <path d="M60 33.5v9M55.5 38h9" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+    <path d="M3 21h11m-4-4 4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="m6 31 4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="m70 6-2 6m9-3-5 3.5m7 4.5h-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
   </svg>
 );

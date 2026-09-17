@@ -34,6 +34,37 @@ export const formatBytes = (bytes, language = 'en') => {
   return `${formatNumber(rounded, language)} ${UNITS[unit]}`;
 };
 
+/**
+ * A timestamp as "just now" / "5 minutes ago" / "3 days ago".
+ *
+ * Returns null under a minute so the caller can use its own "just now" wording
+ * rather than Intl's, which renders as "in 0 seconds" for a fresh row.
+ * Intl.RelativeTimeFormat localises Khmer itself, digits included, so this one
+ * does not route through formatNumber.
+ */
+const STEPS = [
+  ['year', 31536000],
+  ['month', 2592000],
+  ['week', 604800],
+  ['day', 86400],
+  ['hour', 3600],
+  ['minute', 60],
+];
+
+export const formatRelativeTime = (iso, language = 'en') => {
+  if (!iso) return null;
+  const at = new Date(iso).getTime();
+  if (Number.isNaN(at)) return null;
+
+  const seconds = Math.round((at - Date.now()) / 1000);
+  const magnitude = Math.abs(seconds);
+  if (magnitude < 60) return null;
+
+  const rtf = new Intl.RelativeTimeFormat(language === 'km' ? 'km-KH' : 'en', { numeric: 'auto' });
+  const [unit, size] = STEPS.find(([, s]) => magnitude >= s) ?? ['minute', 60];
+  return rtf.format(Math.round(seconds / size), unit);
+};
+
 /** Seconds as h/m, matching the "5h 02m" in the summary header. */
 export const formatDuration = (seconds, language = 'en') => {
   if (seconds === null || seconds === undefined) return '—';

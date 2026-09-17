@@ -52,7 +52,7 @@ export const flashcardsDb = {
     return rows;
   },
 
-  async due({ userId, limit, kitId }) {
+  async due({ userId, limit, kitId, sourceId = null }) {
     const { rows } = await query(
       `${CARD_SELECT}
          FROM flashcards f
@@ -63,10 +63,11 @@ export const flashcardsDb = {
              WHERE ce.class_id = k.class_id AND ce.user_id = $1 AND ce.status = 'active'
           ))
           AND ($3::uuid IS NULL OR f.study_kit_id = $3)
+          AND ($4::uuid IS NULL OR f.source_id = $4)
           AND COALESCE(r.due_at, f.created_at) <= now()
         ORDER BY COALESCE(r.due_at, f.created_at), f.position
         LIMIT $2`,
-      [userId, limit, kitId ?? null],
+      [userId, limit, kitId ?? null, sourceId],
     );
     return rows;
   },

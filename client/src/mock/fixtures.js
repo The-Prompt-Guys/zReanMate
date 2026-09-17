@@ -94,13 +94,20 @@ export const kitFiles = [
 ];
 
 /** docs/screens/03-study-kits/03-study-kit-file-list. */
+/**
+ * Statuses are set here because the screens key off them: a material that is
+ * not 'ready' has nothing to study yet, and with the status left off every
+ * demo file read as "waiting to be processed" — which made the study options
+ * permanently unreachable in design review. One file is left processing on
+ * purpose, so that state can be reviewed too.
+ */
 export const kitDetailFiles = [
-  { id: 'd1', name: 'Database Week 1.pdf', kind: 'pdf', size: '2.4 MB' },
-  { id: 'd2', name: 'Database Week 2.pdf', kind: 'pdf', size: '3.1 MB' },
-  { id: 'd3', name: 'Normalization notes.jpg', kind: 'image', size: '1.8 MB' },
-  { id: 'd4', name: 'Introduction to SQL', kind: 'youtube', size: '5h 02m' },
-  { id: 'd5', name: 'ER diagrams and keys.pdf', kind: 'pdf', size: '890 KB' },
-  { id: 'd6', name: 'Practice questions.docx', kind: 'document', size: '420 KB' },
+  { id: 'd1', name: 'Database Week 1.pdf', kind: 'pdf', size: '2.4 MB', status: 'ready' },
+  { id: 'd2', name: 'Database Week 2.pdf', kind: 'pdf', size: '3.1 MB', status: 'ready' },
+  { id: 'd3', name: 'Normalization notes.jpg', kind: 'image', size: '1.8 MB', status: 'ready' },
+  { id: 'd4', name: 'Introduction to SQL', kind: 'youtube', size: '5h 02m', status: 'ready' },
+  { id: 'd5', name: 'ER diagrams and keys.pdf', kind: 'pdf', size: '890 KB', status: 'processing' },
+  { id: 'd6', name: 'Practice questions.docx', kind: 'document', size: '420 KB', status: 'ready' },
 ];
 
 /** docs/screens/04-study-mode-summaries/02 — 12 chapters, 5 ready. */
@@ -146,15 +153,15 @@ export const summary = {
  */
 export const otherKitFiles = {
   'kit-academic': [
-    { id: 'a1', name: 'Paragraph structure.pdf', kind: 'pdf', size: '1.6 MB' },
-    { id: 'a2', name: 'Topic sentences.docx', kind: 'document', size: '310 KB' },
+    { id: 'a1', name: 'Paragraph structure.pdf', kind: 'pdf', size: '1.6 MB', status: 'ready' },
+    { id: 'a2', name: 'Topic sentences.docx', kind: 'document', size: '310 KB', status: 'ready' },
   ],
   'kit-networks': [
-    { id: 'n1', name: 'OSI model overview.pdf', kind: 'pdf', size: '2.1 MB' },
-    { id: 'n2', name: 'Subnetting worksheet.jpg', kind: 'image', size: '940 KB' },
+    { id: 'n1', name: 'OSI model overview.pdf', kind: 'pdf', size: '2.1 MB', status: 'ready' },
+    { id: 'n2', name: 'Subnetting worksheet.jpg', kind: 'image', size: '940 KB', status: 'ready' },
   ],
   'kit-literacy': [
-    { id: 'l1', name: 'Staying safe online.pdf', kind: 'pdf', size: '1.2 MB' },
+    { id: 'l1', name: 'Staying safe online.pdf', kind: 'pdf', size: '1.2 MB', status: 'ready' },
   ],
 };
 

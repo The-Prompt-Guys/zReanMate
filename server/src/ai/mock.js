@@ -50,6 +50,62 @@ const copy = {
       'សំណួរ SQL ប្រើដើម្បីទាញយក និងកែប្រែទិន្នន័យ',
       'សន្ទស្សន៍ជួយឱ្យការស្វែងរកលឿនជាងមុន',
     ],
+    guideModules: [
+      {
+        title: 'គន្លឹះចម្បង (Primary key)',
+        explanationMd: [
+          '- **គន្លឹះចម្បង** កំណត់អត្តសញ្ញាណកំណត់ត្រានីមួយៗដោយឯកឯង។',
+          '- តម្លៃរបស់វា **មិនស្ទួន** និង **មិនទទេ** — នេះជាមូលហេតុដែលវាដំណើរការ។',
+          '- បើគ្មានវាទេ កំណត់ត្រាដូចគ្នាពីរមិនអាចបែងចែកបានឡើយ។',
+        ].join('\n'),
+        applicationMd: [
+          '```sql',
+          'CREATE TABLE students (',
+          '  student_id integer PRIMARY KEY,',
+          '  full_name  text NOT NULL',
+          ');',
+          '```',
+        ].join('\n'),
+        pitfallsMd: [
+          '- ប្រើឈ្មោះជាគន្លឹះចម្បង — សិស្សពីរនាក់អាចមានឈ្មោះដូចគ្នា។',
+          '- ភ្លេចថាគន្លឹះសមាសភាគអាចត្រូវការជួរឈរច្រើន។',
+          '- **គន្លឹះប្រឡង៖** តារាងមួយមានគន្លឹះចម្បងតែមួយ តែអាចមានគន្លឹះបរទេសច្រើន។',
+        ].join('\n'),
+        recall: [
+          {
+            question: 'ហេតុអ្វីលេខទូរស័ព្ទមិនសមជាគន្លឹះចម្បងសម្រាប់តារាងសិស្ស?',
+            answer: 'ព្រោះវាអាចផ្លាស់ប្តូរ អាចទទេ និងអាចប្រើរួមគ្នាក្នុងគ្រួសារ។ គន្លឹះចម្បងត្រូវតែថេរ មិនទទេ និងមិនស្ទួន។',
+          },
+        ],
+      },
+      {
+        title: 'ការធ្វើឱ្យធម្មតា (Normalization)',
+        explanationMd: [
+          '- **ការធ្វើឱ្យធម្មតា** បំបែកតារាងធំជាតារាងតូចៗគ្មានទិន្នន័យស្ទួន។',
+          '- ទិន្នន័យនីមួយៗរក្សាទុក **តែម្តងគត់** នៅកន្លែងតែមួយ។',
+          '- ដូច្នេះការកែម្តងគឺគ្រប់គ្រាន់ — នេះជាគោលបំណងទាំងមូល។',
+        ].join('\n'),
+        applicationMd: [
+          '| course | teacher |',
+          '| --- | --- |',
+          '| Math 1 | Sokha |',
+          '| Math 2 | Sokha |',
+          '',
+          'បំបែកជា `teachers` និង `courses` ភ្ជាប់ដោយ `teacher_id`។',
+        ].join('\n'),
+        pitfallsMd: [
+          '- បំបែកច្រើនពេក រហូតសំណួរត្រូវការ JOIN ដប់ដង។',
+          '- ភ្លេចថារបាយការណ៍ខ្លះទុកទិន្នន័យស្ទួនដោយចេតនា ដើម្បីល្បឿន។',
+          '- **គន្លឹះប្រឡង៖** 3NF — ជួរឈរនីមួយៗអាស្រ័យលើគន្លឹះ តែលើគន្លឹះប៉ុណ្ណោះ។',
+        ].join('\n'),
+        recall: [
+          {
+            question: 'តើទិន្នន័យស្ទួនបង្កបញ្ហាអ្វីនៅពេលកែប្រែ?',
+            answer: 'បើឈ្មោះមួយស្ថិតនៅដប់ជួរដេក ការកែម្តងនឹងទុកជួរដេកប្រាំបួនទៀតខុស — នេះហៅថា update anomaly។',
+          },
+        ],
+      },
+    ],
     chapterTitles: [
       'មូលដ្ឋានគ្រឹះនៃមូលដ្ឋានទិន្នន័យ',
       'គំរូទិន្នន័យ និងគ្រោងការណ៍',
@@ -130,6 +186,64 @@ const copy = {
   },
 
   en: {
+    guideModules: [
+      {
+        title: 'Primary keys',
+        explanationMd: [
+          '- A **primary key** identifies each row uniquely.',
+          '- Its values are **unique** and **never null** — that is what makes it work.',
+          '- Without one, two identical rows cannot be told apart.',
+        ].join('\n'),
+        applicationMd: [
+          '```sql',
+          'CREATE TABLE students (',
+          '  student_id integer PRIMARY KEY,',
+          '  full_name  text NOT NULL',
+          ');',
+          '```',
+        ].join('\n'),
+        pitfallsMd: [
+          '- Using a name as the key — two students can share one.',
+          '- Forgetting that a composite key may need several columns.',
+          '- **Exam tip:** one primary key per table, but many foreign keys.',
+        ].join('\n'),
+        recall: [
+          {
+            question: 'Why is a phone number a poor primary key for a students table?',
+            answer:
+              'It changes, it can be blank, and a family may share one. A primary key has to be stable, never null and unique.',
+          },
+        ],
+      },
+      {
+        title: 'Normalization',
+        explanationMd: [
+          '- **Normalization** splits a wide table into smaller ones with no repeated data.',
+          '- Each fact is then stored **exactly once**, in one place.',
+          '- So correcting it once is enough — that is the whole point.',
+        ].join('\n'),
+        applicationMd: [
+          '| course | teacher |',
+          '| --- | --- |',
+          '| Math 1 | Sokha |',
+          '| Math 2 | Sokha |',
+          '',
+          'Split into `teachers` and `courses`, joined by `teacher_id`.',
+        ].join('\n'),
+        pitfallsMd: [
+          '- Splitting so far that ordinary queries need ten joins.',
+          '- Forgetting that reporting tables duplicate data on purpose, for speed.',
+          '- **Exam tip:** 3NF — every column depends on the key, the whole key, nothing but the key.',
+        ].join('\n'),
+        recall: [
+          {
+            question: 'What goes wrong when the same fact is stored in ten rows?',
+            answer:
+              'Correcting it once leaves the other nine wrong. That is an update anomaly, and it is what normalization removes.',
+          },
+        ],
+      },
+    ],
     summaryTitle: 'Course overview',
     summaryBody: [
       '## The main idea',
@@ -359,6 +473,73 @@ export const createMockProvider = () => ({
       outline: fullOutline,
       chapters,
     };
+  },
+
+  /**
+   * Resumable in the same two phases as the real provider: a derived outline
+   * costs one call, a supplied one is free, and each module body reports its
+   * own usage so `api_calls` matches what a real guide would have cost.
+   *
+   * The fixture modules are cycled rather than repeated verbatim, so a guide
+   * with eight modules reads as eight different concepts on screen instead of
+   * the same card eight times.
+   */
+  async generateStudyGuide({
+    text,
+    title,
+    language = 'km',
+    moduleCount = 8,
+    outline = null,
+    only = undefined,
+    onUsage,
+  } = {}) {
+    const d = dict(language);
+    const random = makeRandom(seedFrom(`${title ?? ''}:${moduleCount}`));
+
+    const fullOutline =
+      outline ??
+      Array.from({ length: Math.max(1, moduleCount) }, (_, i) => ({
+        moduleIndex: i + 1,
+        title: `${d.guideModules[i % d.guideModules.length].title}${i >= d.guideModules.length ? ` (${i + 1})` : ''}`,
+        focus: pick(d.topics, random),
+      }));
+
+    if (!outline) {
+      reportUsage(
+        onUsage,
+        mockUsage({ input: text, output: fullOutline.map((m) => m.title).join(' '), language }),
+      );
+    }
+
+    const wanted =
+      only === undefined
+        ? fullOutline.map((m) => m.moduleIndex)
+        : [...new Set(only)].filter((i) => fullOutline.some((m) => m.moduleIndex === i));
+
+    const modules = fullOutline
+      .filter((m) => wanted.includes(m.moduleIndex))
+      .map((m) => {
+        const fixture = d.guideModules[(m.moduleIndex - 1) % d.guideModules.length];
+        const module = {
+          moduleIndex: m.moduleIndex,
+          title: m.title,
+          explanationMd: fixture.explanationMd,
+          applicationMd: fixture.applicationMd,
+          pitfallsMd: fixture.pitfallsMd,
+          recall: fixture.recall,
+        };
+        reportUsage(
+          onUsage,
+          mockUsage({
+            input: text,
+            output: `${module.explanationMd}${module.applicationMd}${module.pitfallsMd}`,
+            language,
+          }),
+        );
+        return module;
+      });
+
+    return { outline: fullOutline, modules };
   },
 
   async generateQuiz({ text, title, language = 'km', count = 10, onUsage } = {}) {

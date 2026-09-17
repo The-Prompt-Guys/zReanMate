@@ -50,3 +50,32 @@ export const BrandLogo = ({ className = 'h-12 max-w-[12rem]' }) => {
     />
   );
 };
+
+/**
+ * The header lockup: open-book mark, wordmark, tagline stacked under it.
+ *
+ * The wordmark and tagline are live text rather than part of the artwork so the
+ * tagline can translate — the supplied lockup PNG bakes in English. The mark
+ * ships alpha-keyed off its white studio background so it sits on the navy hero.
+ */
+export const BrandLockup = ({ className = '' }) => {
+  const t = useT();
+  return (
+    <div className={`flex items-center gap-2.5 ${className}`}>
+      <img
+        src="/brand/reanmate-logo-open-book.png"
+        alt=""
+        aria-hidden="true"
+        className="size-10 shrink-0 object-contain"
+      />
+      <div className="min-w-0">
+        <p className="text-xl font-extrabold leading-none tracking-tight text-white">
+          Rean<span className="text-gold-300">Mate</span>
+        </p>
+        <p className="mt-1 text-xs font-medium leading-tight text-white/80">
+          {t('common.brandTagline')}
+        </p>
+      </div>
+    </div>
+  );
+};

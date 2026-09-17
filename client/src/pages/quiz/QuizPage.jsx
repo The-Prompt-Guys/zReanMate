@@ -15,15 +15,33 @@ export const QuizPage = () => {
   const navigate = useNavigate();
   const { kitId } = useParams();
   const [params] = useSearchParams();
-  const { kit, source } = useStudySource(kitId);
-  const { questions, status, answer, submit } = useQuizAttempt({ kitId, source, language });
+  const forceNew = params.get('generateNew') === '1';
+  const { kit, source, sourceId } = useStudySource(kitId);
+  const { questions, status, answer, submit } = useQuizAttempt({ kitId, source, language, forceNew });
   const [index, setIndex] = useState(0);
   const [choice, setChoice] = useState(params.get('explain') === '1' ? 0 : null);
   const [checking, setChecking] = useState(false);
   const question = questions[index];
   const checked = question?.isCorrect !== null && question?.isCorrect !== undefined;
   const total = questions.length;
-  const title = language === 'km' ? (kit?.titleKm || kit?.title) : kit?.title;
+  const kitTitle = language === 'km' ? (kit?.titleKm || kit?.title) : kit?.title;
+  // The subtitle under "Quiz me" names the material the questions came from,
+  // so a quiz built from one file is never mistaken for the kit's.
+  const title = sourceId ? (source?.name ?? t('common.loading')) : kitTitle;
+  const sourceStillProcessing = !!source && source.status !== 'ready';
+
+  if (sourceStillProcessing) {
+    return <main className="flex min-h-dvh flex-col">
+      <NavyHeader className="shrink-0"><div className="flex items-start gap-3"><Link to={`/kits/${kitId}`} aria-label={t('common.back')} className="mt-1 shrink-0"><svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></Link><div className="min-w-0"><h1 className="text-2xl font-bold leading-tight">{t('study.quizMe')}</h1><p className="mt-0.5 truncate text-base text-white/75">{title}</p></div></div></NavyHeader>
+      <div className="flex flex-1 items-center justify-center px-5 text-center text-navy-600">
+        <div>
+          <p className="text-base font-bold text-navy-900">{t('quiz.generating')}</p>
+          <p className="mt-2 text-sm text-navy-600">{source?.name ?? t('summary.heading')}</p>
+        </div>
+      </div>
+      <StudyTabBar kitId={kitId} sourceId={sourceId} active="practice" />
+    </main>;
+  }
 
   const check = async (response = choice) => {
     if (!question || response === null) return;
@@ -33,7 +51,7 @@ export const QuizPage = () => {
   const next = async () => {
     if (index + 1 >= total) {
       const result = await submit();
-      navigate(`/quiz/${kitId}/results?attemptId=${result.id}`);
+      navigate(`/quiz/${kitId}/results?attemptId=${result.id}${sourceId ? `&sourceId=${encodeURIComponent(sourceId)}` : ''}`);
     } else {
       setIndex((value) => value + 1);
       setChoice(null);
@@ -50,6 +68,6 @@ export const QuizPage = () => {
       {!checked && <div className="mt-5 flex items-center justify-between"><button type="button" onClick={() => setIndex((value) => Math.max(0, value - 1))} disabled={index === 0} className="font-semibold text-navy-800 disabled:opacity-40">{t('common.back')}</button><button type="button" onClick={next} className="font-semibold text-navy-800">{t('common.skip')}</button></div>}
       <div className="mt-4 space-y-3 pb-4">{checked ? <Button onClick={next}>{t('quiz.nextQuestion')}</Button> : <><Button onClick={() => check()} disabled={choice === null || choice === '' || checking}>{t('quiz.checkAnswer')}</Button>{question.options.length > 0 && <div className="text-center"><button type="button" onClick={() => check(0)} className="font-semibold text-navy-800">{t('quiz.showAnswer')}</button></div>}</>}</div>
     </div>}
-    <StudyTabBar kitId={kitId} active="practice" />
+    <StudyTabBar kitId={kitId} sourceId={sourceId} active="practice" />
   </main>;
 };

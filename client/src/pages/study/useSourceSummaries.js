@@ -1,9 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { useKits } from '../../kits/KitsContext.jsx';
 import { api, toFormError } from '../../lib/api.js';
+import { resolveStudySource } from './sourceSelection.js';
 
+/**
+ * The material a study screen is about, plus the kit it belongs to.
+ *
+ * `?sourceId=…` in the URL is the selection, and it is exclusive — see
+ * resolveStudySource. The id is handed back as `sourceId` so screens can keep
+ * it on every link they draw; losing it mid-flow would quietly widen the
+ * session back out to the whole kit. `missing` is the case worth naming: an id
+ * was asked for and no such file is in this kit.
+ */
 export const useStudySource = (kitId) => {
+  const location = useLocation();
   const { kits, getKit, getFiles, loadFiles } = useKits();
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
@@ -18,7 +30,8 @@ export const useStudySource = (kitId) => {
   }, [kitId, loadFiles]);
 
   const files = getFiles(kitId);
-  const source = files.find((item) => item.status === 'ready') ?? files[0];
+  const selectedSourceId = new URLSearchParams(location.search).get('sourceId');
+  const source = resolveStudySource(files, selectedSourceId);
 
   // Ingest runs asynchronously, so this page can open while the file is still
   // processing. Without this the source stayed 'processing' for the life of the
@@ -35,7 +48,14 @@ export const useStudySource = (kitId) => {
     return () => window.clearInterval(timer);
   }, [settled, kitId, loadFiles]);
 
-  return { kit: getKit(kitId) ?? kits[0], source, status, error };
+  return {
+    kit: getKit(kitId) ?? kits[0],
+    source,
+    sourceId: selectedSourceId,
+    missing: Boolean(selectedSourceId) && status === 'ready' && !source,
+    status,
+    error,
+  };
 };
 
 export const useSourceSummaries = (source, language) => {

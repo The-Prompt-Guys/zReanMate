@@ -48,7 +48,7 @@ export const PdfViewerPage = () => {
             <p className="mt-0.5 text-base text-white/75">{source?.kind?.toUpperCase()} · {formatBytes(source?.byteSize ?? 0)}</p>
           </div>
           <Link
-            to={`/study/${kitId}/pdf?actions=1`}
+            to={`/study/${kitId}/pdf?actions=1&sourceId=${encodeURIComponent(source?.id ?? '')}`}
             className="flex shrink-0 items-center gap-2 rounded-full bg-white/15 px-4 py-2.5 text-sm font-bold"
           >
             <OwlMark />
@@ -124,21 +124,21 @@ export const PdfViewerPage = () => {
         </form>
       </section>
 
-      {showActions && <StudyActionsSheet kitId={kitId} sourceName={documentName} />}
+      {showActions && <StudyActionsSheet kitId={kitId} sourceName={documentName} sourceId={source?.id} sourceReady={source?.status === 'ready'} />}
     </main>
   );
 };
 
 /** docs/screens/04-study-mode-summaries/05-pdf-study-actions. */
-const StudyActionsSheet = ({ kitId, sourceName }) => {
+const StudyActionsSheet = ({ kitId, sourceName, sourceId, sourceReady = false }) => {
   const t = useT();
-
+  const sourceQuery = sourceId ? `?sourceId=${encodeURIComponent(sourceId)}` : '';
   const rows = [
-    { to: `/study/${kitId}/summary`, tone: 'bg-tint-100', tile: 'bg-tint-200 text-navy-800', Icon: DocIcon, title: t('study.summarize'), hint: t('study.summarizeRead') },
-    { to: `/quiz/${kitId}`, tone: 'bg-violet-50', tile: 'bg-violet-100 text-violet-700', Icon: QuizIcon, title: t('study.quizMe'), hint: t('study.quizMeHint') },
+    { to: `/study/${kitId}/summary${sourceQuery}`, tone: 'bg-tint-100', tile: 'bg-tint-200 text-navy-800', Icon: DocIcon, title: t('study.summarize'), hint: t('study.summarizeRead') },
+    { to: `/quiz/${kitId}${sourceQuery}`, tone: 'bg-violet-50', tile: 'bg-violet-100 text-violet-700', Icon: QuizIcon, title: t('study.quizMe'), hint: t('study.quizMeHint') },
     { to: '/practice', tone: 'bg-amber-50', tile: 'bg-amber-100 text-amber-700', Icon: TargetIcon, title: t('study.practice'), hint: t('study.practiceApply') },
-    { to: `/flashcards/${kitId}`, tone: 'bg-emerald-50', tile: 'bg-emerald-100 text-emerald-700', Icon: CardsIcon, title: t('study.flashcards'), hint: t('study.flashcardsReview') },
-    { to: '/tutor', tone: 'bg-tint-100', tile: 'bg-tint-200 text-navy-800', Icon: OwlMark, title: t('study.chatAboutPdf'), hint: t('study.chatHint') },
+    { to: `/flashcards/${kitId}${sourceQuery}`, tone: 'bg-emerald-50', tile: 'bg-emerald-100 text-emerald-700', Icon: CardsIcon, title: t('study.flashcards'), hint: t('study.flashcardsReview') },
+    { to: `/tutor?kitId=${encodeURIComponent(kitId)}${sourceId ? `&sourceId=${encodeURIComponent(sourceId)}` : ''}`, tone: 'bg-tint-100', tile: 'bg-tint-200 text-navy-800', Icon: OwlMark, title: t('study.chatAboutPdf'), hint: t('study.chatHint') },
   ];
 
   return (
@@ -151,20 +151,31 @@ const StudyActionsSheet = ({ kitId, sourceName }) => {
       </p>
 
       <div className="mt-5 space-y-3">
-        {rows.map(({ to, tone, tile, Icon, title, hint }) => (
-          <Link key={title} to={to} className={`flex items-center gap-4 rounded-card p-3.5 ${tone}`}>
-            <span className={`grid size-14 shrink-0 place-items-center rounded-2xl ${tile}`}>
-              <Icon />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-lg font-bold text-navy-900">{title}</span>
-              <span className="block text-sm text-navy-600">{hint}</span>
-            </span>
-            <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-navy-700" fill="none" aria-hidden="true">
-              <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </Link>
-        ))}
+        {rows.map(({ to, tone, tile, Icon, title, hint }) => {
+          const disabled = !!sourceId && !sourceReady;
+          return (
+            <Link
+              key={title}
+              to={disabled ? '#' : to}
+              onClick={(event) => {
+                if (disabled) event.preventDefault();
+              }}
+              aria-disabled={disabled}
+              className={`flex items-center gap-4 rounded-card p-3.5 ${tone} ${disabled ? 'pointer-events-none opacity-45' : ''}`}
+            >
+              <span className={`grid size-14 shrink-0 place-items-center rounded-2xl ${tile}`}>
+                <Icon />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-lg font-bold text-navy-900">{title}</span>
+                <span className="block text-sm text-navy-600">{hint}</span>
+              </span>
+              <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-navy-700" fill="none" aria-hidden="true">
+                <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
+          );
+        })}
       </div>
 
       <p className="mt-5 flex items-start gap-2 text-sm text-navy-600">

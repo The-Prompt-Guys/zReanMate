@@ -1,12 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 
-import { BottomSheet, SheetOption } from '../../components/BottomSheet.jsx';
-import { ArrowRightIcon, Button, TextField } from '../../components/ui.jsx';
+import {
+  BottomSheet,
+  SheetButton,
+  SheetField,
+  SheetFootnote,
+  SheetHeading,
+  SheetOption,
+  SheetSubtitle,
+  SheetTile,
+  SheetTitle,
+} from '../../components/BottomSheet.jsx';
 import { useKits } from '../../kits/KitsContext.jsx';
+import { KitRow } from './KitsPage.jsx';
 import { api, toFormError } from '../../lib/api.js';
 import { formatBytes } from '../../lib/format.js';
 import { useLanguage, useT } from '../../i18n/index.js';
+import { buildProcessingNavigation, isSourceReadyForStudy } from './processingFlow.js';
 
 /**
  * What the server's fileFilter accepts (server/src/middleware/upload.js). Kept
@@ -15,7 +26,30 @@ import { useLanguage, useT } from '../../i18n/index.js';
  * magic bytes on every upload.
  */
 const ACCEPT_IMAGE = 'image/jpeg,image/png,image/webp';
-const ACCEPT_PDF = 'application/pdf';
+
+/**
+ * Extensions are listed alongside the mime types on purpose. Windows reports
+ * an Office file's Content-Type from its own registry, which a machine without
+ * Office installed often gets wrong or leaves blank — a mime-only accept list
+ * then greys out the very .docx the student is trying to pick. The extension
+ * entries keep it selectable, and the server re-checks the bytes either way.
+ */
+const ACCEPT_DOCUMENT = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'text/markdown',
+  'text/csv',
+  '.pdf',
+  '.docx',
+  '.xlsx',
+  '.pptx',
+  '.txt',
+  '.md',
+  '.csv',
+].join(',');
 
 /**
  * The four "add material" sheets, from docs/screens/03-study-kits/02, 04, 05
@@ -30,11 +64,62 @@ const useAddMaterialPaths = () => {
   return { kitId, root, closeTo };
 };
 
+/**
+ * Which kit the material lands in — the step before the chooser.
+ *
+ * Reached from the dashboard's "Add your material" card, where no kit is in
+ * hand yet. Picking one hands the whole flow over to `/kits/:kitId/add`, so
+ * everything downstream is the kit-scoped path that already exists; "New study
+ * kit" falls through to `/kits/new`, which still creates the kit only once a
+ * file, link or topic has actually been chosen.
+ *
+ * An account with no kits never sees this: there is nothing to choose between,
+ * so it goes straight to the chooser rather than showing a list of one option.
+ */
+export const ChooseKitSheet = () => {
+  const t = useT();
+  const { kits, status } = useKits();
+
+  if (status === 'ready' && kits.length === 0) return <Navigate to="/kits/new" replace />;
+
+  return (
+    <BottomSheet closeTo="/kits" labelledBy="choose-kit-title">
+      <SheetTitle id="choose-kit-title">{t('dashboard.addMaterial')}</SheetTitle>
+      <SheetSubtitle>{t('kits.chooseKitSubtitle')}</SheetSubtitle>
+
+      <div className="mt-5 space-y-3">
+        <SheetOption
+          to="/kits/new"
+          tone="blue"
+          icon={<PlusMark />}
+          title={t('kits.newKitOption')}
+          description={t('kits.newKitOptionHint')}
+        />
+
+        {status === 'loading' && (
+          <p className="py-2 text-base font-medium text-ink-600">{t('kits.chooseKitLoading')}</p>
+        )}
+        {status === 'error' && <SheetError>{t('kits.loadFailed')}</SheetError>}
+
+        {/* The same row the Kits tab and the dashboard draw, pointed at the
+            add flow instead of the kit itself. */}
+        {kits.map((kit) => (
+          <KitRow key={kit.id} kit={kit} to={`/kits/${kit.id}/add`} />
+        ))}
+      </div>
+    </BottomSheet>
+  );
+};
+
 /** 04-add-youtube-url-popup — the chooser. */
 export const AddMaterialSheet = () => {
   const t = useT();
   const navigate = useNavigate();
-  const { root, closeTo } = useAddMaterialPaths();
+  const { kitId, root, closeTo } = useAddMaterialPaths();
+  const { getKit } = useKits();
+  const { language } = useLanguage();
+  const kit = kitId ? getKit(kitId) : null;
+  const kitName = kit ? (language === 'km' ? (kit.titleKm ?? kit.title) : kit.title) : null;
   const [leaving, setLeaving] = useState(null);
   const leaveTimer = useRef();
 
@@ -59,10 +144,17 @@ export const AddMaterialSheet = () => {
 
   return (
     <BottomSheet closeTo={closeTo} labelledBy="add-material-title" transition={leaving ? 'to-left' : 'up'}>
-      <h2 id="add-material-title" className="text-2xl font-bold text-navy-900">
-        {t('dashboard.addMaterial')}
-      </h2>
-      <p className="mt-1 text-base text-navy-600">{t('kits.addMaterialSubtitle')}</p>
+      <SheetTitle id="add-material-title">{t('dashboard.addMaterial')}</SheetTitle>
+      {/* Which kit the material lands in, named under the title as the
+          reference does — this sheet also opens from the Kits tab, where no
+          kit exists yet, so the line only appears when there is one. */}
+      {kitName && (
+        <p className="mt-1.5 flex items-center gap-2 text-lg font-bold text-ink-900">
+          <FolderMark />
+          <span className="truncate">{kitName}</span>
+        </p>
+      )}
+      <SheetSubtitle>{t('kits.addMaterialSubtitle')}</SheetSubtitle>
 
       <div className="mt-5 space-y-3">
         <SheetOption
@@ -99,6 +191,120 @@ export const AddMaterialSheet = () => {
 };
 
 /**
+ * Deleting a kit, and deleting one material out of a kit.
+ *
+ * Both are the same shape — name the thing, say what goes with it, then one
+ * red button — so they share a body. What they do not share is the warning:
+ * a kit takes every material in it down with it, which is a much bigger
+ * action than removing one file and worth spelling out separately.
+ *
+ * Deletion cascades on the server (kit_sources, summaries, quizzes,
+ * flashcards) and unlinks the uploaded file from disk, so there is nothing
+ * left to undo. That is why both sheets confirm rather than acting on the tap
+ * that opened them.
+ */
+const ConfirmDeleteSheet = ({ labelledBy, closeTo, title, body, confirmLabel, onConfirm }) => {
+  const t = useT();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const confirm = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onConfirm();
+    } catch (err) {
+      setError(toFormError(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <BottomSheet closeTo={closeTo} labelledBy={labelledBy}>
+      <SheetTitle id={labelledBy}>{title}</SheetTitle>
+      <SheetSubtitle>{body}</SheetSubtitle>
+
+      <div className="mt-5 space-y-3">
+        {error && <SheetError>{error.message ?? t('kits.deleteFailed')}</SheetError>}
+        <SheetButton
+          onClick={confirm}
+          disabled={busy}
+          className="!bg-danger-600 hover:!bg-danger-600/90"
+        >
+          {busy ? t('kits.deleting') : confirmLabel}
+        </SheetButton>
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={() => navigate(closeTo)}
+            disabled={busy}
+            className="text-base font-bold text-ink-600"
+          >
+            {t('common.cancel')}
+          </button>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+};
+
+/** Delete a whole study kit, from the ⋮ on its header. */
+export const DeleteKitSheet = () => {
+  const t = useT();
+  const navigate = useNavigate();
+  const { language } = useLanguage();
+  const { kitId } = useParams();
+  const { getKit, getFiles, removeKit } = useKits();
+
+  const kit = getKit(kitId);
+  const name = kit ? (language === 'km' ? (kit.titleKm ?? kit.title) : kit.title) : '';
+  // The kit row carries fileCount, so the warning is right on first paint even
+  // when the file list has not been fetched on this screen.
+  const count = kit?.fileCount ?? getFiles(kitId).length;
+
+  return (
+    <ConfirmDeleteSheet
+      labelledBy="delete-kit-title"
+      closeTo={`/kits/${kitId}`}
+      title={t('kits.deleteKitConfirm', { name })}
+      body={t('kits.deleteKitBody', { count })}
+      confirmLabel={t('kits.deleteKit')}
+      onConfirm={async () => {
+        await removeKit(kitId);
+        // Back to the list rather than the kit that no longer exists.
+        navigate('/kits', { replace: true });
+      }}
+    />
+  );
+};
+
+/** Delete one material out of a kit, from the ⋮ on its row. */
+export const DeleteFileSheet = () => {
+  const t = useT();
+  const navigate = useNavigate();
+  const { kitId, fileId } = useParams();
+  const { getFiles, removeFile } = useKits();
+
+  const file = getFiles(kitId).find((item) => item.id === fileId);
+
+  return (
+    <ConfirmDeleteSheet
+      labelledBy="delete-file-title"
+      closeTo={`/kits/${kitId}`}
+      title={t('kits.deleteFileConfirm', { name: file?.name ?? t('kits.thisFile') })}
+      body={t('kits.deleteFileBody')}
+      confirmLabel={t('kits.deleteFile')}
+      onConfirm={async () => {
+        await removeFile(kitId, fileId);
+        navigate(`/kits/${kitId}`, { replace: true });
+      }}
+    />
+  );
+};
+
+/**
  * Upload progress for a real request.
  *
  * The bar is driven by axios's onUploadProgress, so it advances with bytes on
@@ -116,6 +322,10 @@ export const UploadingSheet = () => {
   const { kitId, root, closeTo } = useAddMaterialPaths();
 
   const file = location.state?.file ?? null;
+  // Asked as "is this a photo?" rather than "is this a PDF?": the picker now
+  // also returns Word, Excel, PowerPoint and text files, and every one of
+  // those would have been labelled "Analyzing your photo" by the old test.
+  const isPhoto = file?.type?.startsWith('image/') ?? false;
   const [percent, setPercent] = useState(0);
   const [error, setError] = useState(null);
   const started = useRef(false);
@@ -131,9 +341,26 @@ export const UploadingSheet = () => {
     started.current = true;
 
     uploadFile(kitId, file, { onProgress: setPercent })
-      .then(() => navigate(closeTo, { replace: true }))
+      .then((source) => {
+        if (!source?.id) return navigate(closeTo, { replace: true });
+        // The state has to ride in the options, not in the `to` object —
+        // React Router's To is only { pathname, search, hash }, so a `state`
+        // key inside it is dropped without a word. That is what left the
+        // processing sheet with no source id to poll for.
+        const next = buildProcessingNavigation(kitId, source.id, { uploaded: true, photo: isPhoto });
+        return navigate(next.pathname, { replace: true, state: next.state });
+      })
       .catch(setError);
-  }, [file, kitId, navigate, root, closeTo, uploadFile]);
+    // `isPhoto` is derived from `file`, so it cannot change without it.
+  }, [file, isPhoto, kitId, navigate, root, closeTo, uploadFile]);
+
+  /**
+   * The upload is the first of the three steps, so it fills the first third of
+   * the bar — the processing sheet picks up from 33% rather than starting a
+   * second bar at zero. `percent` is axios's byte count, so this segment moves
+   * with what is actually on the wire.
+   */
+  const overallPercent = Math.round(percent / 3);
 
   const message = () => {
     if (!error) return null;
@@ -146,59 +373,54 @@ export const UploadingSheet = () => {
 
   return (
     <BottomSheet closeTo={closeTo} labelledBy="uploading-title">
-      <div className="flex flex-col items-center text-center">
-        <span className="grid size-20 place-items-center rounded-2xl bg-tint-100 text-navy-800">
-          <PdfIcon />
-        </span>
-        <h2 id="uploading-title" className="mt-5 text-2xl font-bold text-navy-900">
-          {error ? t('kits.uploadFailed') : t('kits.processingTitle')}
-        </h2>
-        {file && (
-          <p className="mt-2 max-w-full truncate text-base text-navy-600">
-            {file.name} · {formatBytes(file.size, language)}
-          </p>
-        )}
-      </div>
-
       {error ? (
-        <div className="mt-6">
-          <p className="rounded-card bg-danger-50 px-4 py-3 text-center text-base text-danger-600">
-            {message()}
-          </p>
+        <>
+          <SheetTitle id="uploading-title">{t('kits.uploadFailed')}</SheetTitle>
+          {file && (
+            <SheetSubtitle>
+              {file.name} · {formatBytes(file.size, language)}
+            </SheetSubtitle>
+          )}
           <div className="mt-5 space-y-3">
-            <Button onClick={() => navigate(root, { replace: true })}>
+            <SheetError>{message()}</SheetError>
+            <SheetButton onClick={() => navigate(root, { replace: true })}>
               {t('kits.uploadAnother')}
-            </Button>
+            </SheetButton>
             <div className="text-center">
               <button
                 type="button"
                 onClick={() => navigate(closeTo, { replace: true })}
-                className="font-semibold text-navy-700"
+                className="text-base font-bold text-ink-600"
               >
                 {t('common.cancel')}
               </button>
             </div>
           </div>
-        </div>
+        </>
       ) : (
-        <div className="mt-7">
-          <div
-            className="h-2.5 overflow-hidden rounded-full bg-tint-100"
-            role="progressbar"
-            aria-valuenow={percent}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label={t('kits.uploading', { percent })}
-          >
-            <span
-              className="block h-full rounded-full bg-navy-800 transition-[width] duration-150"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-          <p className="mt-3 text-center text-base text-navy-600">
-            {t('kits.uploading', { percent })}
-          </p>
-        </div>
+        <AnalyzingBody
+          id="uploading-title"
+          title={t(isPhoto ? 'kits.analyzingPhoto' : 'kits.analyzingPdf')}
+          subtitle={t(isPhoto ? 'kits.analyzingSubtitle' : 'kits.analyzingSubtitleDocument')}
+          percent={overallPercent}
+          steps={[
+            // A camera and the word "photo" on a .docx upload is just wrong —
+            // both follow what was actually picked.
+            {
+              key: isPhoto ? 'kits.stageUploading' : 'kits.stageUploadingDocument',
+              tone: 'green',
+              icon: isPhoto ? <CameraMark /> : <PdfIcon />,
+              state: 'active',
+            },
+            {
+              key: isPhoto ? 'kits.stageReadingNotes' : 'kits.stageReadingFile',
+              tone: 'blue',
+              icon: <PdfIcon />,
+              state: 'pending',
+            },
+            { key: 'kits.stageCreatingMaterials', tone: 'blue', icon: <CapMark />, state: 'pending' },
+          ]}
+        />
       )}
     </BottomSheet>
   );
@@ -253,21 +475,19 @@ export const YouTubeUrlSheet = () => {
 
   return (
     <BottomSheet closeTo={root} labelledBy="youtube-title" transition="from-right">
-      <div className="flex items-start gap-4">
-        <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-700">
-          <PlayIcon />
-        </span>
-        <div className="min-w-0">
-          <h2 id="youtube-title" className="text-2xl font-bold text-navy-900">
-            {t('kits.youtubeTitle')}
-          </h2>
-          <p className="mt-1 text-base text-navy-600">{t('kits.youtubeSubtitle')}</p>
-        </div>
-      </div>
+      <SheetHeading
+        id="youtube-title"
+        tone="amber"
+        icon={<YouTubeMark />}
+        title={t('kits.addYoutubeUrl')}
+        subtitle={t('kits.addYoutubeUrlHint')}
+      />
 
-      <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
-        <TextField
-          label={t('kits.youtubeTitle')}
+      <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+        <SheetField
+          id="youtube-url"
+          label={t('kits.addYoutubeUrl')}
+          icon={<LinkMark />}
           placeholder={t('kits.youtubePlaceholder')}
           value={url}
           onChange={(event) => setUrl(event.target.value)}
@@ -276,17 +496,12 @@ export const YouTubeUrlSheet = () => {
           required
         />
 
-        {error && (
-          <p className="rounded-card bg-danger-50 px-4 py-3 text-center text-base text-danger-600">
-            {error.message ?? t('kits.createFailed')}
-          </p>
-        )}
+        {error && <SheetError>{error.message ?? t('kits.createFailed')}</SheetError>}
 
-        <Button type="submit" disabled={submitting || !url.trim()}>
-          {submitting ? t('kits.creating') : t('kits.createStudyKit')}
-          {!submitting && <ArrowRightIcon />}
-        </Button>
-        <p className="text-center text-sm text-ink-500">{t('kits.youtubeFootnote')}</p>
+        <SheetButton type="submit" disabled={submitting || !url.trim()}>
+          {submitting ? t('kits.creating') : t('common.continue')}
+        </SheetButton>
+        <SheetFootnote className="mt-3">{t('kits.youtubeFootnote')}</SheetFootnote>
       </form>
     </BottomSheet>
   );
@@ -311,7 +526,7 @@ const PickFileSheet = ({ kind }) => {
   const [error, setError] = useState(null);
 
   const isPhoto = kind === 'photo';
-  const accept = isPhoto ? ACCEPT_IMAGE : ACCEPT_PDF;
+  const accept = isPhoto ? ACCEPT_IMAGE : ACCEPT_DOCUMENT;
 
   const onFileChosen = async (event) => {
     const file = event.target.files?.[0];
@@ -324,7 +539,10 @@ const PickFileSheet = ({ kind }) => {
       if (!targetKitId) {
         const created = await addKit({
           title: file.name.replace(/\.[^.]+$/, '') || t('kits.uploadPdf'),
-          sourceKind: isPhoto ? 'image' : 'pdf',
+          // The server decides the real kind from the bytes; this only
+          // picks the tile icon, and 'document' covers every format the
+          // picker now accepts rather than claiming everything is a PDF.
+          sourceKind: isPhoto ? 'image' : 'document',
         });
         targetKitId = created.id;
       }
@@ -337,25 +555,29 @@ const PickFileSheet = ({ kind }) => {
     }
   };
 
+  /**
+   * Opens the OS file picker — the gallery route, and the only route for PDFs.
+   *
+   * "Take a photo" no longer comes through here. It used to open this same
+   * input with `capture` set, which asks a PHONE for its camera and is ignored
+   * by every desktop browser: the option named "Take a photo" opened a file
+   * browser, which is not taking a photo. It now goes to the camera sheet,
+   * which opens a real camera wherever the browser can and falls back to this
+   * picker where it cannot.
+   */
+  const openPicker = () => {
+    if (busy) return;
+    const input = inputRef.current;
+    input.value = '';
+    input.click();
+  };
+
   return (
     <BottomSheet closeTo={root} labelledBy="pick-file-title" transition="from-right">
-      <div className="flex items-start gap-4">
-        <span
-          className={`grid size-14 shrink-0 place-items-center rounded-2xl ${
-            isPhoto ? 'bg-blue-100 text-blue-700' : 'bg-violet-100 text-violet-700'
-          }`}
-        >
-          {isPhoto ? <PhotoIcon /> : <PdfIcon />}
-        </span>
-        <div className="min-w-0">
-          <h2 id="pick-file-title" className="text-2xl font-bold text-navy-900">
-            {t(isPhoto ? 'kits.photoTitle' : 'kits.pdfTitle')}
-          </h2>
-          <p className="mt-1 text-base text-navy-600">
-            {t(isPhoto ? 'kits.photoSubtitle' : 'kits.pdfSubtitle')}
-          </p>
-        </div>
-      </div>
+      <SheetTitle id="pick-file-title">
+        {t(isPhoto ? 'kits.uploadPhoto' : 'kits.uploadPdf')}
+      </SheetTitle>
+      <SheetSubtitle>{t(isPhoto ? 'kits.photoSubtitle' : 'kits.pdfSubtitle')}</SheetSubtitle>
 
       <input
         ref={inputRef}
@@ -367,28 +589,44 @@ const PickFileSheet = ({ kind }) => {
         aria-hidden="true"
       />
 
-      <div className="mt-6 space-y-5">
-        {error && (
-          <p className="rounded-card bg-danger-50 px-4 py-3 text-center text-base text-danger-600">
-            {error.message ?? t('kits.createFailed')}
-          </p>
-        )}
-        <Button
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            if (busy) return;
-            inputRef.current.value = '';
-            inputRef.current.click();
-          }}
-        >
-          {busy ? t('kits.creating') : t(isPhoto ? 'kits.choosePhoto' : 'kits.choosePdf')}
-          {!busy && <ArrowRightIcon />}
-        </Button>
-        <p className="text-center text-sm text-ink-500">
-          {t(isPhoto ? 'kits.photoFootnote' : 'kits.pdfFootnote')}
-        </p>
-      </div>
+      {error && (
+        <div className="mt-5">
+          <SheetError>{error.message ?? t('kits.createFailed')}</SheetError>
+        </div>
+      )}
+
+      {isPhoto ? (
+        <div className="mt-5 space-y-3">
+          <SheetOption
+            tone="blue"
+            icon={<CameraMark />}
+            title={t('kits.takePhoto')}
+            onClick={() => navigate(`${root}/photo/camera`)}
+          />
+          <SheetOption
+            tone="amber"
+            icon={<GalleryMark />}
+            title={t('kits.chooseFromGallery')}
+            onClick={() => openPicker()}
+          />
+          <SheetFootnote>{t('kits.photoMoreLater')}</SheetFootnote>
+        </div>
+      ) : (
+        <div className="mt-5 rounded-2xl border-2 border-dashed border-tint-200 bg-canvas px-5 py-7 text-center">
+          <SheetTile tone="violet" className="mx-auto !size-16">
+            <PdfMark />
+          </SheetTile>
+          <SheetButton className="mt-5" disabled={busy} onClick={() => openPicker()}>
+            {busy ? t('kits.creating') : t('kits.choosePdf')}
+          </SheetButton>
+          {/* Named rather than left to the picker's own filter, which on
+              Windows silently greys out files whose Content-Type the machine
+              reports wrongly — the student sees a disabled .docx and no
+              reason why. */}
+          <p className="mt-3 text-base font-medium text-ink-600">{t('kits.documentFormats')}</p>
+          <p className="mt-1 text-base font-medium text-ink-600">{t('kits.pdfMaxSize')}</p>
+        </div>
+      )}
     </BottomSheet>
   );
 };
@@ -403,6 +641,7 @@ export const TopicSheet = () => {
   const { addKit } = useKits();
   const { kitId, root } = useAddMaterialPaths();
   const [topic, setTopic] = useState('');
+  const [difficulty, setDifficulty] = useState('beginner');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -421,7 +660,15 @@ export const TopicSheet = () => {
         targetKitId = created.id;
       }
 
-      const { data } = await api.post(`/kits/${targetKitId}/sources`, { kind: 'topic', title });
+      // `difficulty` is sent but not yet honoured: createSourceSchema
+      // (server/src/validation/kits.schemas.js) does not declare it, and zod
+      // strips unknown keys, so the server drops it. Teaching the topic
+      // generator to read it is a server change, not a styling one.
+      const { data } = await api.post(`/kits/${targetKitId}/sources`, {
+        kind: 'topic',
+        title,
+        difficulty,
+      });
 
       navigate(`/kits/${targetKitId}/add/processing`, {
         state: { kitId: targetKitId, sourceId: data.source.id },
@@ -434,45 +681,71 @@ export const TopicSheet = () => {
 
   return (
     <BottomSheet closeTo={root} labelledBy="topic-title" transition="from-right">
-      <div className="flex items-start gap-4">
-        <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-green-100 text-green-700">
-          <SparkIcon />
-        </span>
-        <div className="min-w-0">
-          <h2 id="topic-title" className="text-2xl font-bold text-navy-900">
-            {t('kits.topicTitle')}
-          </h2>
-          <p className="mt-1 text-base text-navy-600">{t('kits.topicSubtitle')}</p>
-        </div>
-      </div>
+      <SheetHeading
+        id="topic-title"
+        tone="green"
+        icon={<SparkIcon />}
+        title={t('kits.enterTopic')}
+        subtitle={t('kits.enterTopicHint')}
+        trailing={<SparkleMark className="size-8 shrink-0 text-sky-600" />}
+      />
 
-      <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
-        <TextField
-          label={t('kits.topicTitle')}
+      <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+        <SheetField
+          id="topic-name"
+          label={t('kits.enterTopic')}
           placeholder={t('kits.topicPlaceholder')}
           value={topic}
           onChange={(event) => setTopic(event.target.value)}
           required
         />
 
-        {error && (
-          <p className="rounded-card bg-danger-50 px-4 py-3 text-center text-base text-danger-600">
-            {error.message ?? t('kits.createFailed')}
-          </p>
-        )}
+        <fieldset>
+          <legend className="text-lg font-extrabold text-ink-900">
+            {t('kits.chooseDifficulty')}
+          </legend>
+          <div className="mt-2.5 flex gap-2.5">
+            {DIFFICULTIES.map(({ level, labelKey }) => (
+              <button
+                key={level}
+                type="button"
+                aria-pressed={difficulty === level}
+                onClick={() => setDifficulty(level)}
+                className={`flex-1 rounded-full px-3 py-3 text-base font-bold transition-colors ${
+                  difficulty === level
+                    ? 'bg-brand-600 text-white'
+                    : 'bg-canvas text-ink-600 ring-1 ring-tint-200 hover:bg-tint-100'
+                }`}
+              >
+                {t(labelKey)}
+              </button>
+            ))}
+          </div>
+        </fieldset>
 
-        <Button type="submit" disabled={submitting || !topic.trim()}>
-          {submitting ? t('kits.creating') : t('kits.createStudyKit')}
-          {!submitting && <ArrowRightIcon />}
-        </Button>
-        <p className="text-center text-sm text-ink-500">{t('kits.topicFootnote')}</p>
+        {error && <SheetError>{error.message ?? t('kits.createFailed')}</SheetError>}
+
+        <SheetButton type="submit" disabled={submitting || !topic.trim()}>
+          {submitting ? t('kits.creating') : t('kits.generateStudyKit')}
+        </SheetButton>
       </form>
     </BottomSheet>
   );
 };
 
-/** 06-youtube-processing — three staged bars. */
-const STAGES = ['kits.stageReading', 'kits.stageFlashcards', 'kits.stagePreparing'];
+/**
+ * The stages the server reports, in order: reading, extracting and embedding
+ * are the ingest of the text itself; `generating` is the model building the
+ * study guide, quiz and flashcards; then `ready`
+ * (server/src/services/ingest.service.js).
+ *
+ * `ready` now means the materials exist, not merely that the text was chunked —
+ * which is why the last step can honestly say it is creating them.
+ */
+const READING_STAGES = ['reading', 'extracting', 'embedding'];
+
+/** Which of the two processing steps a reported stage belongs to. */
+const stepOfStage = (stage) => (READING_STAGES.includes(stage) ? 0 : 1);
 
 export const ProcessingSheet = () => {
   const t = useT();
@@ -484,18 +757,45 @@ export const ProcessingSheet = () => {
   const stateKitId = location.state?.kitId || kitId;
   const stateSourceId = location.state?.sourceId;
 
-  const [progress, setProgress] = useState(0);
-  const [_source, setSource] = useState(null);
+  /**
+   * The step list adapts to how this sheet was reached. After a file upload the
+   * reference shows the upload already ticked off; the YouTube and topic paths
+   * never uploaded anything, so they show what the server actually reports
+   * instead of a step that did not happen.
+   */
+  const cameFromUpload = Boolean(location.state?.uploaded);
+
+  /**
+   * Which wording the steps use. Seeded from the handoff so the first paint is
+   * already right, then confirmed against the kind the server reports — the
+   * server reads the real format from the bytes, so a photo saved with a .pdf
+   * name is corrected here rather than mislabelled for the whole run.
+   */
+  const [isPhoto, setIsPhoto] = useState(Boolean(location.state?.photo));
+
+  // Exactly what the server last said, kept unscaled. Everything drawn below is
+  // derived from these two values, so the bar and the ticks cannot disagree
+  // with the job they are describing.
+  const [stage, setStage] = useState('reading');
+  const [serverPercent, setServerPercent] = useState(0);
   const [pollError, setPollError] = useState(null);
   const finished = useRef(false);
 
-  // Prototype fallback (timer-driven)
+  /**
+   * Demo mode only. It drives the same two values the poller does, so the sheet
+   * has one code path to render; it must never run against a real account,
+   * which is why the guard is `isDemo` alone. A live visit that arrives without
+   * a source id has nothing to report on and is sent back to choose again,
+   * rather than being shown a timer pretending to be progress.
+   */
   useEffect(() => {
-    if (!isDemo && stateSourceId && stateKitId) return;
+    if (!isDemo) return undefined;
 
     const timer = setInterval(() => {
-      setProgress((p) => {
-        if (p >= 300) {
+      setServerPercent((p) => {
+        const next = Math.min(100, p + 4);
+        setStage(next >= 100 ? 'ready' : next >= 55 ? 'generating' : 'reading');
+        if (next >= 100) {
           clearInterval(timer);
           if (!finished.current) {
             finished.current = true;
@@ -517,13 +817,18 @@ export const ProcessingSheet = () => {
               navigate(`/kits/${created.id}`);
             }
           }
-          return p;
         }
-        return p + 4;
+        return next;
       });
     }, 60);
     return () => clearInterval(timer);
-  }, [addFile, addKit, closeTo, isDemo, kitId, navigate, stateKitId, stateSourceId]);
+  }, [addFile, addKit, closeTo, isDemo, kitId, navigate]);
+
+  // Nothing to poll and not a demo: go back rather than invent progress.
+  useEffect(() => {
+    if (isDemo || (stateSourceId && stateKitId)) return;
+    navigate(root, { replace: true });
+  }, [isDemo, navigate, root, stateKitId, stateSourceId]);
 
   // Live polling mode
   useEffect(() => {
@@ -537,28 +842,23 @@ export const ProcessingSheet = () => {
         const { data } = await api.get(`/kits/${stateKitId}/sources/${stateSourceId}`);
         if (!isMounted) return;
         const currentSource = data.source;
-        setSource(currentSource);
 
-        const stage = currentSource.stage || 'reading';
-        const pct = currentSource.progressPercent ?? 0;
+        // Taken as reported. No multiplier and no floor: a floor would show
+        // progress the server has not claimed, and a multiplier would mean the
+        // number on screen is not the one it sent.
+        setStage(currentSource.stage || 'reading');
+        if (currentSource.kind) setIsPhoto(currentSource.kind === 'image');
+        setServerPercent(Math.max(0, Math.min(100, currentSource.progressPercent ?? 0)));
 
-        if (currentSource.status === 'ready' || stage === 'ready') {
-          setProgress(300);
+        if (isSourceReadyForStudy(currentSource)) {
+          setStage('ready');
+          setServerPercent(100);
           await refresh();
           await loadFiles(stateKitId).catch(() => {});
           navigate(`/kits/${stateKitId}`, { replace: true });
         } else if (currentSource.status === 'failed') {
           setPollError(currentSource.errorMessage || t('kits.processingFailed'));
         } else {
-          // Progress bar mapping based on real backend progress
-          if (stage === 'extracting' || stage === 'reading') {
-            setProgress(Math.max(10, Math.min(100, Math.round(pct * 2))));
-          } else if (stage === 'embedding' || stage === 'generating') {
-            setProgress(100 + Math.max(10, Math.min(100, Math.round((pct - 30) * 1.5))));
-          } else if (stage === 'preparing') {
-            setProgress(200 + Math.max(10, Math.min(100, pct)));
-          }
-
           pollTimer = setTimeout(poll, 1500);
         }
       } catch (err) {
@@ -575,68 +875,77 @@ export const ProcessingSheet = () => {
     };
   }, [isDemo, loadFiles, navigate, refresh, stateKitId, stateSourceId, t]);
 
+  // A step is ticked because the server has moved past it, not because a
+  // counter crossed a threshold.
+  const ready = stage === 'ready';
+  const current = stepOfStage(stage);
+  const stepState = (index) =>
+    ready || index < current ? 'done' : index === current ? 'active' : 'pending';
+
+  const processingSteps = [
+    {
+      key: cameFromUpload ? (isPhoto ? 'kits.stageReadingNotes' : 'kits.stageReadingFile') : 'kits.stageReading',
+      tone: 'blue',
+      icon: cameFromUpload ? <PdfIcon /> : <VideoIcon className="size-8" />,
+      state: stepState(0),
+    },
+    { key: 'kits.stageCreatingMaterials', tone: 'blue', icon: <CapMark />, state: stepState(1) },
+  ];
+
+  /**
+   * The upload is a real step that really finished, so it is shown ticked and
+   * counts toward the total. That makes it one of three, which is the only
+   * modelling here: the server's own 0–100 for the work that remains fills the
+   * last two thirds, so the bar carries on from where the upload sheet left it
+   * instead of dropping back to zero.
+   */
+  const stages = cameFromUpload
+    ? [
+        {
+          key: isPhoto ? 'kits.stageUploading' : 'kits.stageUploadingDocument',
+          tone: 'green',
+          icon: isPhoto ? <CameraMark /> : <PdfIcon />,
+          state: 'done',
+        },
+        ...processingSteps,
+      ]
+    : processingSteps;
+
+  const percent = cameFromUpload
+    ? Math.round(100 / 3 + serverPercent * (2 / 3))
+    : serverPercent;
+
   return (
-    <BottomSheet closeTo={closeTo} labelledBy="processing-title">
-      <div className="flex flex-col items-center text-center">
-        <span className="grid size-24 place-items-center rounded-full bg-tint-100">
-          <VideoIcon />
-        </span>
-        <h2 id="processing-title" className="mt-5 text-2xl font-bold text-navy-900">
-          {pollError ? t('kits.processingFailed') : t('kits.processingTitle')}
-        </h2>
-        <p className="mt-2 text-base text-navy-600">
-          {pollError ? pollError : t('kits.processingSubtitle')}
-        </p>
-      </div>
-
+    <BottomSheet closeTo={closeTo} labelledBy="processing-title" dismissible={Boolean(pollError)}>
       {pollError ? (
-        <div className="mt-6 space-y-3">
-          <Button onClick={() => navigate(`${root}/youtube`, { replace: true })}>
-            {t('kits.uploadAnother')}
-          </Button>
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={() => navigate(closeTo, { replace: true })}
-              className="font-semibold text-navy-700"
-            >
-              {t('common.cancel')}
-            </button>
+        <>
+          <SheetTitle id="processing-title">{t('kits.processingFailed')}</SheetTitle>
+          <div className="mt-5 space-y-3">
+            <SheetError>{pollError}</SheetError>
+            <SheetButton onClick={() => navigate(`${root}/youtube`, { replace: true })}>
+              {t('kits.uploadAnother')}
+            </SheetButton>
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => navigate(closeTo, { replace: true })}
+                className="text-base font-bold text-ink-600"
+              >
+                {t('common.cancel')}
+              </button>
+            </div>
           </div>
-        </div>
+        </>
       ) : (
-        <ol className="mt-7 space-y-5">
-          {STAGES.map((key, i) => {
-            const stageProgress = Math.max(0, Math.min(100, progress - i * 100));
-            const active = stageProgress > 0;
-            return (
-              <li key={key}>
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold ${
-                      active ? 'bg-navy-800 text-white' : 'bg-tint-200 text-white'
-                    }`}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className={`font-bold ${active ? 'text-navy-900' : 'text-navy-600/70'}`}>
-                    {t(key)}
-                  </span>
-                </div>
-                <div className="ms-11 mt-2 h-2 overflow-hidden rounded-full bg-tint-100">
-                  <span
-                    className="block h-full rounded-full bg-navy-800 transition-[width] duration-100"
-                    style={{ width: `${stageProgress}%` }}
-                  />
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-      )}
-
-      {!pollError && (
-        <p className="mt-6 text-center text-sm text-ink-500">{t('kits.processingFootnote')}</p>
+        <AnalyzingBody
+          id="processing-title"
+          title={t('kits.processingTitle')}
+          subtitle={t(
+            cameFromUpload && !isPhoto ? 'kits.analyzingSubtitleDocument' : 'kits.analyzingSubtitle',
+          )}
+          percent={percent}
+          steps={stages}
+        />
       )}
     </BottomSheet>
   );
@@ -653,18 +962,11 @@ export const CreateKitSheet = () => {
 
   return (
     <BottomSheet closeTo="/kits" labelledBy="create-kit-title">
-      <div className="flex flex-col items-center text-center">
-        <span className="grid size-20 place-items-center rounded-2xl bg-tint-100 text-navy-800">
-          <FolderPlusIcon />
-        </span>
-        <h2 id="create-kit-title" className="mt-5 text-2xl font-bold text-navy-900">
-          {t('kits.createKitTitle')}
-        </h2>
-        <p className="mt-2 text-base text-navy-600">{t('kits.createKitSubtitle')}</p>
-      </div>
+      <SheetTitle id="create-kit-title">{t('kits.createKitTitle')}</SheetTitle>
+      <SheetSubtitle>{t('kits.createKitSubtitle')}</SheetSubtitle>
 
       <form
-        className="mt-6 space-y-5"
+        className="mt-6 space-y-4"
         onSubmit={async (event) => {
           event.preventDefault();
           if (submitting) return;
@@ -679,13 +981,22 @@ export const CreateKitSheet = () => {
           }
         }}
       >
-        <TextField
-          label={t('kits.createKitTitle')}
-          placeholder={t('kits.kitNamePlaceholder')}
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          required
-        />
+        {/* The folder sits inside the field as its own tile, per the
+            reference, rather than as a plain leading glyph. */}
+        <div className="relative">
+          <span className="pointer-events-none absolute left-2 top-1/2 grid size-12 -translate-y-1/2 place-items-center rounded-xl bg-tile-blue text-brand-600">
+            <FolderMark className="size-7" />
+          </span>
+          <SheetField
+            id="kit-name"
+            label={t('kits.createKitTitle')}
+            placeholder={t('kits.kitNamePlaceholder')}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            className="[&>input]:pl-[4.25rem]"
+            required
+          />
+        </div>
 
         {/* The cap is the one failure with a way out, so it gets the count and
             a route to Plus rather than a bare error line. */}
@@ -713,15 +1024,204 @@ export const CreateKitSheet = () => {
           )
         )}
 
-        <Button type="submit" disabled={submitting || !name.trim()}>
-          {submitting ? t('kits.creating') : t('kits.createStudyKit')}
-          {!submitting && <ArrowRightIcon />}
-        </Button>
-        <p className="text-center text-sm text-ink-500">{t('kits.createKitFootnote')}</p>
+        <SheetButton type="submit" disabled={submitting || !name.trim()}>
+          {submitting ? t('kits.creating') : t('common.continue')}
+        </SheetButton>
+        <p className="mt-3 flex items-center justify-center gap-2 text-center text-base font-medium text-ink-600">
+          <SparkleMark />
+          {t('kits.createKitFootnote')}
+        </p>
       </form>
     </BottomSheet>
   );
 };
+
+
+/** The three levels the topic sheet offers. */
+const DIFFICULTIES = [
+  { level: 'beginner', labelKey: 'kits.difficultyBeginner' },
+  { level: 'intermediate', labelKey: 'kits.difficultyIntermediate' },
+  { level: 'advanced', labelKey: 'kits.difficultyAdvanced' },
+];
+
+/** A failure line inside a sheet. */
+const SheetError = ({ children }) => (
+  <p role="alert" className="rounded-2xl bg-danger-50 px-4 py-3 text-center text-base font-medium text-danger-600">
+    {children}
+  </p>
+);
+
+/**
+ * The analyzing screen: a percentage bar over a checklist of stages.
+ *
+ * Shared by the upload sheet and the processing sheet so the two routes read as
+ * one continuous screen — the reference draws them that way, with the upload
+ * already ticked off by the time the server is reading the file.
+ */
+const AnalyzingBody = ({ id, title, subtitle, percent, steps }) => {
+  const t = useT();
+  return (
+    <>
+      <SheetTitle id={id}>{title}</SheetTitle>
+      <SheetSubtitle>{subtitle}</SheetSubtitle>
+
+      <div className="mt-6 flex items-center gap-3">
+        <div
+          className="h-2.5 flex-1 overflow-hidden rounded-full bg-tint-100"
+          role="progressbar"
+          aria-valuenow={percent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={t('kits.uploading', { percent })}
+        >
+          <span
+            className="block h-full rounded-full bg-sky-600 transition-[width] duration-200"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+        <span className="text-lg font-extrabold text-sky-600">{percent}%</span>
+      </div>
+
+      <ol className="mt-5 space-y-3">
+        {steps.map(({ key, tone, icon, state }) => (
+          <li
+            key={key}
+            className={`flex items-center gap-3.5 rounded-2xl p-3 ${
+              state === 'pending'
+                ? 'bg-canvas'
+                : 'bg-white shadow-sm ring-1 ring-tint-200/70'
+            }`}
+          >
+            <SheetTile
+              tone={state === 'pending' ? 'grey' : tone}
+              className={state === 'pending' ? '!text-ink-400' : ''}
+            >
+              {icon}
+            </SheetTile>
+            <span
+              className={`min-w-0 flex-1 text-lg font-extrabold ${
+                state === 'pending' ? 'text-ink-400' : 'text-ink-900'
+              }`}
+            >
+              {t(key)}
+            </span>
+            <StepState state={state} />
+          </li>
+        ))}
+      </ol>
+    </>
+  );
+};
+
+/**
+ * A stage's marker: ticked, spinning, or waiting.
+ *
+ * The spinner is `motion-safe` — someone who asked for reduced motion gets a
+ * still ring, and the percentage beside the bar still tells them work is moving.
+ */
+const StepState = ({ state }) => {
+  if (state === 'done') {
+    return (
+      <span className="grid size-7 shrink-0 place-items-center rounded-full bg-success-500 text-white">
+        <svg viewBox="0 0 20 20" className="size-4" fill="none" aria-hidden="true">
+          <path d="M4 10.5 8 14.5 16 6" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+    );
+  }
+  if (state === 'active') {
+    return (
+      <span
+        className="size-7 shrink-0 rounded-full border-[3px] border-tile-blue border-t-sky-600 motion-safe:animate-spin"
+        aria-hidden="true"
+      />
+    );
+  }
+  return <span className="size-7 shrink-0 rounded-full border-[3px] border-tint-200" aria-hidden="true" />;
+};
+
+const PlusMark = () => (
+  <svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true">
+    <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+  </svg>
+);
+
+const FolderMark = ({ className = 'size-6' }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
+    <path
+      d="M3 7a2 2 0 0 1 2-2h4.6l2 2.4H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+      fill="currentColor"
+      fillOpacity="0.3"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+/** YouTube keeps its own red — it is a brand mark, not a tinted glyph. */
+const YouTubeMark = () => (
+  <svg viewBox="0 0 32 32" className="size-9" aria-hidden="true">
+    <rect x="3" y="7" width="26" height="18" rx="5" fill="#FF3D3D" />
+    <path d="m13 12 8 4-8 4z" fill="#fff" />
+  </svg>
+);
+
+const LinkMark = () => (
+  <svg viewBox="0 0 24 24" className="size-6" fill="none" aria-hidden="true">
+    <path
+      d="M10 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1.2 1.2M14 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1.2-1.2"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+const SparkleMark = ({ className = 'size-5 text-gold-400' }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
+    <path d="m12 2 2.2 5.8L20 10l-5.8 2.2L12 18l-2.2-5.8L4 10l5.8-2.2z" />
+    <path d="m19 15 .9 2.1 2.1.9-2.1.9L19 21l-.9-2.1-2.1-.9 2.1-.9z" />
+  </svg>
+);
+
+const CameraMark = () => (
+  <svg {...svg}>
+    <path d="M5 11h5l2-3h8l2 3h5a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V13a2 2 0 0 1 2-2Z" />
+    <circle cx="16" cy="18.5" r="4.5" />
+  </svg>
+);
+
+const GalleryMark = () => (
+  <svg {...svg}>
+    <rect x="4" y="5" width="24" height="22" rx="3" />
+    <circle cx="11.5" cy="12" r="2" />
+    <path d="m6 24 7-7 4.5 4.5L21 18l5 6" />
+  </svg>
+);
+
+const PdfMark = () => (
+  <svg viewBox="0 0 32 32" className="size-9" fill="none" aria-hidden="true">
+    <path
+      d="M19 4H9a2 2 0 0 0-2 2v20a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V10z"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinejoin="round"
+    />
+    <path d="M19 4v6h6" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+    <text x="16" y="23" textAnchor="middle" fontSize="7" fontWeight="700" fill="currentColor">
+      PDF
+    </text>
+  </svg>
+);
+
+/** The graduation cap on the "creating study materials" stage. */
+const CapMark = () => (
+  <svg {...svg}>
+    <path d="M16 6 3 12l13 6 13-6z" />
+    <path d="M9 15v7c0 1.7 3.1 3 7 3s7-1.3 7-3v-7" />
+  </svg>
+);
 
 const svg = {
   viewBox: '0 0 32 32',
@@ -763,18 +1263,11 @@ const SparkIcon = () => (
   </svg>
 );
 
-const VideoIcon = () => (
-  <svg viewBox="0 0 48 48" className="size-12" fill="none" aria-hidden="true">
+const VideoIcon = ({ className = 'size-12' }) => (
+  <svg viewBox="0 0 48 48" className={className} fill="none" aria-hidden="true">
     <path d="M28 6H14a3 3 0 0 0-3 3v30a3 3 0 0 0 3 3h20a3 3 0 0 0 3-3V15z" fill="#0C3C85" />
     <path d="M28 6v9h9" fill="#fff" fillOpacity="0.35" />
     <path d="m20 20 10 6-10 6z" fill="#fff" />
   </svg>
 );
 
-const FolderPlusIcon = () => (
-  <svg viewBox="0 0 40 40" className="size-10" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" aria-hidden="true">
-    <path d="M4 10a2 2 0 0 1 2-2h8l3 4h13a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
-    <circle cx="29" cy="27" r="6" fill="#0C3C85" stroke="none" />
-    <path d="M29 24v6M26 27h6" stroke="#fff" strokeLinecap="round" />
-  </svg>
-);

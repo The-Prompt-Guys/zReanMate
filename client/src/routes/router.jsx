@@ -12,6 +12,7 @@ import { KitsPage } from '../pages/kits/KitsPage.jsx';
 import { KitDetailPage } from '../pages/kits/KitDetailPage.jsx';
 import { StudyModePage } from '../pages/study/StudyModePage.jsx';
 import { SummaryPage } from '../pages/study/SummaryPage.jsx';
+import { StudyGuidePage } from '../pages/study/StudyGuidePage.jsx';
 import { ChapterSummaryPage } from '../pages/study/ChapterSummaryPage.jsx';
 import { PdfViewerPage } from '../pages/study/PdfViewerPage.jsx';
 import { TutorPage } from '../pages/tutor/TutorPage.jsx';
@@ -31,6 +32,9 @@ import { AssignmentWorkspacePage } from '../pages/classes/AssignmentWorkspacePag
 import { ProfilePage } from '../pages/ProfilePage.jsx';
 import {
   AddMaterialSheet,
+  ChooseKitSheet,
+  DeleteFileSheet,
+  DeleteKitSheet,
   PhotoPickSheet,
   PdfPickSheet,
   TopicSheet,
@@ -39,18 +43,11 @@ import {
   UploadingSheet,
   YouTubeUrlSheet,
 } from '../pages/kits/sheets.jsx';
+import { CameraSheet } from '../pages/kits/CameraSheet.jsx';
 import { ScreenIndexPage } from '../pages/ScreenIndexPage.jsx';
 import { PendingScreenPage } from '../pages/PendingScreenPage.jsx';
 import { FLOWS } from '../screens.js';
 import { NotFoundPage } from '../pages/NotFoundPage.jsx';
-
-/** The study-mode chooser is a dialog layered over the kit it belongs to. */
-const StudyOver = () => (
-  <>
-    <KitDetailPage />
-    <StudyModePage />
-  </>
-);
 
 /** Renders a sheet over the Kits tab so create/add stays in the kits section. */
 const SheetOver = ({ sheet }) => (
@@ -122,8 +119,10 @@ export const router = createBrowserRouter([
           // Study kits. Create sheets layer over the Kits tab; add-to-kit
           // sheets layer over that kit's file list so students stay put.
           { path: '/kits', element: <KitsPage /> },
+          { path: '/kits/add', element: <SheetOver sheet={<ChooseKitSheet />} /> },
           { path: '/kits/new', element: <SheetOver sheet={<AddMaterialSheet />} /> },
           { path: '/kits/new/photo', element: <SheetOver sheet={<PhotoPickSheet />} /> },
+          { path: '/kits/new/photo/camera', element: <SheetOver sheet={<CameraSheet />} /> },
           { path: '/kits/new/pdf', element: <SheetOver sheet={<PdfPickSheet />} /> },
           { path: '/kits/new/youtube', element: <SheetOver sheet={<YouTubeUrlSheet />} /> },
           { path: '/kits/new/topic', element: <SheetOver sheet={<TopicSheet />} /> },
@@ -131,17 +130,23 @@ export const router = createBrowserRouter([
           { path: '/kits/folders/new', element: <SheetOver sheet={<CreateKitSheet />} /> },
           { path: '/kits/:kitId/add', element: <KitSheetOver sheet={<AddMaterialSheet />} /> },
           { path: '/kits/:kitId/add/photo', element: <KitSheetOver sheet={<PhotoPickSheet />} /> },
+          { path: '/kits/:kitId/add/photo/camera', element: <KitSheetOver sheet={<CameraSheet />} /> },
           { path: '/kits/:kitId/add/pdf', element: <KitSheetOver sheet={<PdfPickSheet />} /> },
           { path: '/kits/:kitId/add/youtube', element: <KitSheetOver sheet={<YouTubeUrlSheet />} /> },
           { path: '/kits/:kitId/add/topic', element: <KitSheetOver sheet={<TopicSheet />} /> },
           { path: '/kits/:kitId/add/processing', element: <KitSheetOver sheet={<ProcessingSheet />} /> },
           // Real file upload, with progress driven by the request itself.
           { path: '/kits/:kitId/add/uploading', element: <KitSheetOver sheet={<UploadingSheet />} /> },
+          { path: '/kits/:kitId/delete', element: <KitSheetOver sheet={<DeleteKitSheet />} /> },
+          { path: '/kits/:kitId/files/:fileId/delete', element: <KitSheetOver sheet={<DeleteFileSheet />} /> },
           { path: '/kits/:kitId', element: <KitDetailPage /> },
 
           // Study mode. The chooser is a centered dialog over the kit, and
           // the PDF study actions are a sheet over the viewer (?actions=1).
-          { path: '/study/:kitId', element: <StudyOver /> },
+          // The chooser is its own screen now, carrying the kit's header —
+          // it used to be a dialog layered over the kit detail page.
+          { path: '/study/:kitId', element: <StudyModePage /> },
+          { path: '/study/:kitId/guide', element: <StudyGuidePage /> },
           { path: '/study/:kitId/summary', element: <SummaryPage /> },
           { path: '/study/:kitId/summary/:chapter', element: <ChapterSummaryPage /> },
           { path: '/study/:kitId/pdf', element: <PdfViewerPage /> },

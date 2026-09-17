@@ -12,7 +12,67 @@
   --color-navy-700: #0949a1;
   --color-navy-600: #1b5bb8;
 
-  /* supporting blues */
+  /**
+   * brand blue — primary actions, nav icons, filled circles.
+   *
+   * Sampled from the dashboard reference mockup, where buttons and the
+   * add-material circle sit at #0056bd and the nav icons a shade brighter.
+   * The icon pack's README quotes #1677e8 as the primary; that renders
+   * visibly lighter than anything in the mockup, so it is kept here as
+   * brand-500 for tints rather than used as the action colour.
+   */
+  --color-brand-700: #00449c;
+  --color-brand-600: #0056bd;
+  --color-brand-500: #1677e8;
+
+  /* hero — the rounded header panel on Home, Kits and Classes */
+  --color-hero-base: #1e4283;
+  --color-hero-edge: #1b3d7c;
+  --color-hero-lift: #21498e;
+
+
+  /**
+   * The kits flow — sheets, tinted tiles and progress states.
+   *
+   * This flow is set in blues rather than the near-black the dashboard uses:
+   * sheet titles and row titles are blue, secondary copy a blue-grey. The tile
+   * tints are what tell the four material types apart at a glance, so they are
+   * tokens rather than one-off classes.
+   */
+  --color-sky-600: #0077fd; /* progress fill, study-option icons */
+  --color-sky-500: #0087fe; /* the floating add button */
+  --color-link-700: #005fd6; /* sheet titles, option-row titles */
+  --color-mist-500: #7b96ce; /* sheet subtitles, empty-state copy */
+  --color-mist-400: #a7bae1; /* the sheet's grab handle */
+  --color-wash-50: #f3f9fe; /* option-row fill */
+  --color-slate-700: #2d445c; /* study-option labels */
+  --color-deep-900: #132f55; /* material titles */
+  --color-deep-950: #001a43; /* kit titles in the list */
+  --color-success-500: #00d056; /* the completed-step check */
+
+  /**
+   * Kit tiles. A kit carries an `accent` from the server (study_kits.accent_color),
+   * and these are the solid fills that accent maps to — saturated enough that two
+   * kits in a list read as different at a glance, not just different shades.
+   */
+  --color-kit-blue: #0087fe;
+  --color-kit-violet: #7b5cf5;
+  --color-kit-amber: #f5a524;
+  --color-kit-teal: #12b5a0;
+
+  --color-tile-blue: #d8edfe;
+  --color-tile-lilac: #eae4fe;
+  --color-tile-peach: #feedc9;
+  --color-tile-mint: #d7fbed;
+
+  /**
+   * text — the reference sets headings in near-black and body copy in a true
+   * grey, not the blue-greys below. ink-500/400 still carry the old blue-grey
+   * for screens this restyle has not reached yet; they migrate to neutrals as
+   * each screen lands.
+   */
+  --color-ink-900: #0a0a0a; /* headings */
+  --color-ink-600: #6f6e6f; /* body + secondary copy */
   --color-ink-500: #7286a8; /* muted body + placeholder text */
   --color-ink-400: #9aa9c0; /* disabled text, dividers */
 
@@ -22,9 +82,13 @@
 
   /* surfaces */
   --color-surface: #ffffff;
-  --color-canvas: #f6f8fc;
+  --color-canvas: #f6fbfd;
 
   /* accent — owl beak, trial badge, stars */
+  /* The gold half of a two-tone heading — "Mate" in the wordmark, "Kits" in
+     "Study Kits", "Prep" in a kit title. Sampled from the headings; the
+     wordmark's own gold measures a hair softer, close enough to share. */
+  --color-gold-300: #feda4b;
   --color-gold-400: #fdc96a;
   --color-gold-500: #f0ad3c;
 
@@ -72,11 +136,69 @@ html[lang='km'] .leading-tight {
   line-height: 1.45;
 }
 
+/**
+ * The dashboard greeting sets tighter than `leading-tight` so its two Latin
+ * lines stack as they do in the reference. Khmer needs that room back — the
+ * subscripts hanging off one line otherwise meet the diacritics stacked above
+ * the next — and negative tracking pulls Khmer clusters into each other, so
+ * both are reset here rather than inherited from the utility classes.
+ */
+.greeting {
+  line-height: 1.15;
+}
+
+html[lang='km'] .greeting {
+  line-height: 1.5;
+  letter-spacing: normal;
+}
+
+/**
+ * Set on <html> when a screen has less to scroll than its header needs to
+ * collapse — see useScrollLock in DashboardPage. Both elements are covered
+ * because either one alone still leaves the page scrollable in some browsers.
+ */
+html.scroll-locked,
+html.scroll-locked body {
+  overflow: hidden;
+}
+
 body {
   background-color: var(--color-canvas);
-  color: var(--color-navy-900);
+  color: var(--color-ink-900);
   -webkit-font-smoothing: antialiased;
 }
+
+/**
+ * The Home/Kits hero panel: a navy gradient with an angled facet cut across it.
+ *
+ * The facet is one clipped overlay at 6% white rather than artwork, so the
+ * whole panel still follows the tokens above — change the navy and the facet
+ * follows. Its polygon trims the top-left and bottom-right corners, which
+ * leaves a broad band running from the lower left up to the top right.
+ *
+ * `z-index: -1` against the header's `isolate` keeps the overlay above the
+ * gradient but under the content, so it tints the panel without washing out
+ * the heading; `pointer-events: none` keeps it off the button and the bell.
+ */
+.hero-panel {
+  background: linear-gradient(
+    158deg,
+    var(--color-hero-edge) 0%,
+    var(--color-hero-base) 52%,
+    var(--color-hero-lift) 100%
+  );
+}
+
+.hero-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: rgb(255 255 255 / 0.06);
+  clip-path: polygon(30% 0%, 100% 0%, 100% 60%, 60% 100%, 0% 100%, 0% 40%);
+}
+
 
 @keyframes sheet-slide-up {
   from {

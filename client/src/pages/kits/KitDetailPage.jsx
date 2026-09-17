@@ -1,19 +1,25 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
-import { NavyHeader } from '../../layouts/AppLayout.jsx';
-import { SearchField, PillSelect } from '../../components/listControls.jsx';
+import { KitsHeader, KitFolderTile } from '../../layouts/AppLayout.jsx';
+import { ChevronRightIcon, Fab } from '../../components/ui.jsx';
+import { materialCount } from './KitsPage.jsx';
 import { useKits } from '../../kits/KitsContext.jsx';
-import { formatBytes } from '../../lib/format.js';
+import { formatRelativeTime } from '../../lib/format.js';
 import { useLanguage, useT } from '../../i18n/index.js';
 
-/** docs/screens/03-study-kits/03-study-kit-file-list. */
+/**
+ * One study kit and the materials in it.
+ *
+ * The reference drops the search field, the All/Recent pills and the sort
+ * control this screen used to carry — a kit holds a handful of materials, and
+ * the floating button is the only action.
+ */
 export const KitDetailPage = () => {
   const t = useT();
   const { language } = useLanguage();
   const { kitId } = useParams();
   const { kits, status: kitsStatus, getKit, getFiles, loadFiles } = useKits();
-  const [query, setQuery] = useState('');
   const [filesStatus, setFilesStatus] = useState('loading');
 
   const kit = getKit(kitId) ?? kits[0];
@@ -38,16 +44,14 @@ export const KitDetailPage = () => {
   if (!kit) {
     return (
       <main>
-        <NavyHeader>
-          <div className="h-14" aria-busy="true" aria-label={t('common.loading')} />
-        </NavyHeader>
+        <KitsHeader to="/kits" title={t('kits.title')} tile={<KitFolderTile />} />
         <div className="px-5 pt-6">
           {kitsStatus === 'error' ? (
-            <p className="text-base text-navy-600">{t('kits.loadFailed')}</p>
+            <p className="text-base text-mist-500">{t('kits.loadFailed')}</p>
           ) : (
-            <div className="animate-pulse space-y-3">
-              <span className="block h-16 rounded-card bg-white" />
-              <span className="block h-16 rounded-card bg-white" />
+            <div className="animate-pulse space-y-3" aria-busy="true" aria-label={t('common.loading')}>
+              <span className="block h-20 rounded-2xl bg-white" />
+              <span className="block h-20 rounded-2xl bg-white" />
             </div>
           )}
         </div>
@@ -55,88 +59,38 @@ export const KitDetailPage = () => {
     );
   }
 
-  const title = language === 'km' ? kit.titleKm : kit.title;
-
-  const files = kitFiles.filter((file) =>
-    query.trim() ? file.name.toLowerCase().includes(query.trim().toLowerCase()) : true,
-  );
+  const title = language === 'km' ? (kit.titleKm ?? kit.title) : kit.title;
+  // fileCount rides on the kit row, so the header is right on first paint
+  // instead of reading 0 until the file list resolves.
+  const count = filesStatus === 'ready' ? kitFiles.length : (kit.fileCount ?? 0);
 
   return (
     <main>
-      <NavyHeader>
-        <div className="flex items-start gap-3">
-          <Link to="/kits" aria-label={t('common.back')} className="mt-1 shrink-0">
-            <svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true">
-              <path d="M19 12H5m6-6-6 6 6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </Link>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold leading-tight">{title}</h1>
-            <p className="mt-1 text-base text-white/75">
-              {/* fileCount rides on the kit row, so the header is right on first
-                  paint instead of showing 0 until the file list resolves. */}
-              {t('kits.fileSummary', {
-                files: filesStatus === 'ready' ? kitFiles.length : (kit.fileCount ?? 0),
-                cards: kit.cardCount ?? 0,
-              })}
-            </p>
-          </div>
-          <button type="button" aria-label={t('common.seeAll')} className="mt-1 shrink-0">
-            <svg viewBox="0 0 24 24" className="size-6" fill="currentColor" aria-hidden="true">
-              <circle cx="12" cy="5" r="1.9" />
-              <circle cx="12" cy="12" r="1.9" />
-              <circle cx="12" cy="19" r="1.9" />
-            </svg>
-          </button>
-        </div>
-      </NavyHeader>
-
-      <div className="space-y-4 px-5 pt-4">
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <SearchField
-              value={query}
-              onChange={setQuery}
-              placeholder={t('kits.searchFiles')}
-              label={t('kits.searchFiles')}
-            />
-          </div>
+      <KitsHeader
+        to="/kits"
+        title={title}
+        meta={materialCount(t, count)}
+        tile={<KitFolderTile />}
+        action={
           <Link
-            to={`/kits/${kit.id}/add`}
-            aria-label={t('kits.addMore')}
-            className="grid size-12 shrink-0 place-items-center rounded-full bg-navy-800 text-white"
+            to={`/kits/${kit.id}/delete`}
+            aria-label={t('kits.kitMenu')}
+            className="-mr-1 inline-flex rounded-lg p-1 transition-opacity hover:opacity-80"
           >
-            <svg viewBox="0 0 24 24" className="size-6" fill="none" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-            </svg>
+            <KebabIcon />
           </Link>
-        </div>
+        }
+      />
 
-        <div className="flex items-center gap-2">
-          <PillSelect label={t('kits.allFiles')} active />
-          <PillSelect label={t('kits.recentlyAdded')} />
-          <button
-            type="button"
-            aria-label={t('kits.sort')}
-            className="ms-auto grid size-11 shrink-0 place-items-center rounded-full bg-tint-100 text-navy-700"
-          >
-            <svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true">
-              <path d="M4 7h12M4 12h8M4 17h5M18 8v10m0 0 3-3m-3 3-3-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-        </div>
-
+      <div className="space-y-3 px-5 pt-4">
         {filesStatus === 'loading' && (
           <ul className="space-y-3" aria-busy="true" aria-label={t('common.loading')}>
-            {[0, 1, 2].map((i) => (
-              <li
-                key={i}
-                className="flex animate-pulse items-center gap-3.5 rounded-card bg-white p-3.5 shadow-sm ring-1 ring-tint-200/70"
-              >
-                <span className="size-12 shrink-0 rounded-xl bg-tint-200" />
+            {[0, 1].map((i) => (
+              <li key={i} className="flex animate-pulse items-center gap-3.5 rounded-2xl bg-white p-3.5 shadow-sm ring-1 ring-tint-200/70">
+                <span className="size-14 shrink-0 rounded-xl bg-tile-blue" />
                 <span className="min-w-0 flex-1">
-                  <span className="block h-4 w-3/5 rounded bg-tint-200" />
-                  <span className="mt-2 block h-3 w-1/3 rounded bg-tint-100" />
+                  <span className="block h-4 w-3/5 rounded bg-tile-blue" />
+                  <span className="mt-2 block h-3 w-1/3 rounded bg-tile-blue/70" />
                 </span>
               </li>
             ))}
@@ -144,8 +98,8 @@ export const KitDetailPage = () => {
         )}
 
         {filesStatus === 'error' && (
-          <div className="rounded-card bg-white px-6 py-8 text-center shadow-sm ring-1 ring-tint-200/70">
-            <p className="text-base font-bold text-navy-900">{t('kits.filesLoadFailed')}</p>
+          <div className="rounded-2xl bg-white px-6 py-8 text-center shadow-sm ring-1 ring-tint-200/70">
+            <p className="text-base font-bold text-deep-900">{t('kits.filesLoadFailed')}</p>
             <button
               type="button"
               onClick={() => {
@@ -154,7 +108,7 @@ export const KitDetailPage = () => {
                   .then(() => setFilesStatus('ready'))
                   .catch(() => setFilesStatus('error'));
               }}
-              className="mt-4 rounded-full bg-navy-800 px-6 py-3 text-base font-bold text-white"
+              className="mt-4 rounded-full bg-link-700 px-6 py-3 text-base font-bold text-white"
             >
               {t('common.retry')}
             </button>
@@ -163,97 +117,210 @@ export const KitDetailPage = () => {
 
         {filesStatus === 'ready' &&
           (kitFiles.length === 0 ? (
-          <div className="rounded-card border border-dashed border-navy-600/30 bg-tint-100/50 px-6 py-10 text-center">
-            <p className="text-lg font-bold text-navy-900">{t('kits.emptyFilesTitle')}</p>
-            <p className="mt-1.5 text-base text-navy-600">{t('kits.emptyFilesBody')}</p>
-            <Link
-              to={`/kits/${kit.id}/add`}
-              className="mt-5 inline-flex rounded-full bg-navy-800 px-6 py-3.5 text-base font-bold text-white"
-            >
-              {t('dashboard.emptyAction')}
-            </Link>
-          </div>
-        ) : (
-          <ul className="space-y-3">
-          {files.map((file) => (
-            <li key={file.id}>
-              <Link
-                to={`/study/${kit.id}`}
-                className="flex items-center gap-3.5 rounded-card bg-white p-3.5 shadow-sm ring-1 ring-tint-200/70"
-              >
-                <FileTile kind={file.kind} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-bold text-navy-900">{file.name}</span>
-                  <span className="block text-sm text-navy-600">
-                    {t(`kits.kind_${file.kind}`)} · {formatBytes(file.byteSize, language)}
-                    {file.status && file.status !== 'ready' && (
-                      <> · {t(`kits.fileStatus_${file.status}`)}</>
-                    )}
-                  </span>
-                </span>
-                <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-navy-600" fill="none" aria-hidden="true">
-                  <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </Link>
-            </li>
+            <EmptyKit />
+          ) : (
+            <ul className="space-y-3">
+              {kitFiles.map((file) => (
+                <li key={file.id}>
+                  <MaterialRow kitId={kit.id} file={file} />
+                </li>
+              ))}
+            </ul>
           ))}
-          </ul>
-          ))}
-
-        {kitFiles.length > 0 && (
-        <div className="text-center">
-          <Link to={`/kits/${kit.id}/add`} className="text-base font-semibold text-navy-700">
-            {t('kits.addMore')}
-          </Link>
-        </div>
-        )}
       </div>
+
+      <Fab to={`/kits/${kit.id}/add`} label={t('kits.addMore')} />
     </main>
   );
 };
 
-const TILES = {
-  pdf: 'bg-tint-200',
-  image: 'bg-violet-100',
-  youtube: 'bg-amber-100',
-  document: 'bg-tint-200',
+/** One material: thumbnail, name, when it was analyzed, and its kind. */
+const MaterialRow = ({ kitId, file }) => {
+  const t = useT();
+  const { language } = useLanguage();
+  const when = formatRelativeTime(file.createdAt, language);
+  const ready = file.status === 'ready';
+
+  // The ⋮ is a sibling of the row link, not a child: a button inside an anchor
+  // is invalid markup, and nesting one makes the whole row ambiguous to tap.
+  return (
+    <div className="relative">
+    <Link
+      to={`/study/${kitId}?sourceId=${file.id}`}
+      className="flex items-center gap-3.5 rounded-2xl bg-white p-3.5 pe-12 shadow-sm ring-1 ring-tint-200/70 transition-colors hover:bg-wash-50"
+    >
+      <Thumbnail kind={file.kind} mimeType={file.mimeType} />
+
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-lg font-extrabold text-deep-900">{file.name}</span>
+        <span className="block text-sm font-medium text-ink-600">
+          {ready
+            ? when
+              ? t('kits.analyzed', { when })
+              : t('kits.analyzedJustNow')
+            : t(`kits.fileStatus_${file.status ?? 'pending'}`)}
+        </span>
+        {ready && (
+          <span className="mt-1.5 inline-flex rounded-full bg-tile-blue px-3 py-1 text-sm font-bold text-link-700">
+            {t('kits.readyToStudy')}
+          </span>
+        )}
+      </span>
+
+      <span className="flex shrink-0 items-center gap-1.5 text-sky-600">
+        <KindMark kind={file.kind} mimeType={file.mimeType} />
+        <ChevronRightIcon className="size-5" />
+      </span>
+    </Link>
+      <Link
+        to={`/kits/${kitId}/files/${file.id}/delete`}
+        aria-label={t('kits.fileMenu')}
+        className="absolute end-1 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-ink-600 transition-colors hover:bg-tint-100"
+      >
+        <KebabIcon className="size-5" />
+      </Link>
+    </div>
+  );
 };
 
-const FileTile = ({ kind }) => (
-  <span className={`grid size-12 shrink-0 place-items-center rounded-xl ${TILES[kind] ?? TILES.pdf}`}>
-    {kind === 'pdf' && <PdfMark />}
-    {kind === 'image' && <ImageMark />}
-    {kind === 'youtube' && <PlayMark />}
-    {kind === 'document' && <DocMark />}
+/** The ⋮ from docs/screens/03-study-kits/03, on the kit header and each row. */
+const KebabIcon = ({ className = 'size-7' }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
+    <circle cx="12" cy="5" r="1.7" />
+    <circle cx="12" cy="12" r="1.7" />
+    <circle cx="12" cy="19" r="1.7" />
+  </svg>
+);
+
+/** A page-with-content thumbnail, tinted by the material's kind. */
+const Thumbnail = ({ kind, mimeType }) => (
+  <span className="grid size-14 shrink-0 place-items-center rounded-xl bg-wash-50 ring-1 ring-tint-200/70">
+    <svg viewBox="0 0 32 32" className="size-9" fill="none" aria-hidden="true">
+      <rect x="4" y="3" width="24" height="26" rx="3" fill="#fff" />
+      <path d="M8 8h11M8 12h9M8 16h5M8 20h4M8 24h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="text-ink-400" />
+      <rect x="14" y="15" width="14" height="12" rx="2.5" className={TINTS[tintKey(kind, mimeType)] ?? TINTS.document} fill="currentColor" />
+      <g className="text-white">
+        {kind === 'youtube' ? (
+          <path d="m19 18 5 3-5 3z" fill="currentColor" />
+        ) : kind === 'image' ? (
+          <>
+            <circle cx="18" cy="19.5" r="1.3" fill="currentColor" />
+            <path d="m15.5 25 3.5-4 2.5 2.5 2-2 3 3.5z" fill="currentColor" />
+          </>
+        ) : (
+          // Ruled lines, not the picture glyph: a photo icon on a spreadsheet
+          // reads as "this material is an image", which is the one thing it
+          // is not.
+          <path
+            d="M17 19h8M17 22h8M17 25h5"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+          />
+        )}
+      </g>
+    </svg>
   </span>
 );
 
-const PdfMark = () => (
+const TINTS = {
+  image: 'text-sky-500',
+  pdf: 'text-link-700',
+  youtube: 'text-danger-600',
+  document: 'text-sky-600',
+  docx: 'text-link-700',
+  xlsx: 'text-kit-teal',
+  pptx: 'text-kit-amber',
+};
+
+/**
+ * Word, Excel and PowerPoint all arrive as kind 'document' — the distinction
+ * lives in the mime type, because it changes nothing about how the file is
+ * processed and only matters here, where a student picks their lecture deck
+ * out of a list of six materials at a glance.
+ *
+ * The colours are the ones each program is known by. That is not decoration:
+ * it is the fastest way to find the right file in a list, and it costs nothing.
+ */
+const OOXML_TINT_KEYS = {
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+  'application/pdf': 'pdf',
+};
+
+const tintKey = (kind, mimeType) =>
+  kind === 'document' ? (OOXML_TINT_KEYS[mimeType] ?? 'document') : kind;
+
+/** The small kind badge at the right of a material row. */
+const KindMark = ({ kind, mimeType }) => (
   <svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true">
-    <path d="M14 3H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7z" fill="#fff" stroke="#E2574C" strokeWidth="1.6" />
-    <path d="M14 3v4h4" stroke="#E2574C" strokeWidth="1.6" />
-    <path d="M9.2 16.5c2.2-3.4 3-6.2 2.2-6.7-.9-.5-1.3 2.6 1.1 4.6 1 .8 2.2 1.2 3 1" stroke="#E2574C" strokeWidth="1.5" strokeLinecap="round" />
+    <path
+      d="M14 3H7.5A2.5 2.5 0 0 0 5 5.5v13A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V8z"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinejoin="round"
+    />
+    <path d="M14 3v5h5" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    {kind === 'youtube' ? (
+      <path d="m10 12.5 4 2-4 2z" fill="currentColor" />
+    ) : kind === 'image' ? (
+      <>
+        <circle cx="10" cy="12.5" r="1" fill="currentColor" />
+        <path d="m8.5 17 2.5-3 1.8 1.8L14.5 14l2 3z" fill="currentColor" />
+      </>
+    ) : (
+      <path d="M8.5 12.5h7M8.5 15.5h7M8.5 18.5h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    )}
   </svg>
 );
 
-const ImageMark = () => (
-  <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="#6D4AC4" strokeWidth="1.8" aria-hidden="true">
-    <rect x="3" y="5" width="18" height="14" rx="2.5" />
-    <circle cx="9" cy="10" r="1.6" />
-    <path d="m4 17 5-5 3.5 3.5L16 12l4 4" strokeLinejoin="round" />
-  </svg>
-);
+/**
+ * The empty kit: an open book with its rays and bookmark, on a soft blob.
+ *
+ * Drawn rather than imported — the brand mark is a flat logo, while the
+ * reference's empty state is a fuller illustration with page rules, a shadow
+ * and the little plus marks either side.
+ */
+const EmptyKit = () => {
+  const t = useT();
+  return (
+    <div className="px-4 pt-10 text-center">
+      <svg viewBox="0 0 220 160" className="mx-auto w-56" fill="none" aria-hidden="true">
+        <path
+          d="M36 74c-6-28 18-46 52-48s70 6 84 26 10 48-10 58-58 12-86 6-34-14-40-42Z"
+          className="text-tile-blue"
+          fill="currentColor"
+          fillOpacity="0.75"
+        />
+        <ellipse cx="112" cy="140" rx="58" ry="7" className="text-tile-blue" fill="currentColor" />
+        <path d="M110 40V22M88 46 78 30M132 46l10-16" className="text-gold-300" stroke="currentColor" strokeWidth="7" strokeLinecap="round" />
+        <path
+          d="M110 62c-12-10-28-14-44-12v62c16-2 32 2 44 12 12-10 28-14 44-12V50c-16-2-32 2-44 12Z"
+          fill="#fff"
+          className="text-link-700"
+          stroke="currentColor"
+          strokeWidth="7"
+          strokeLinejoin="round"
+        />
+        <path d="M110 62v62" className="text-link-700" stroke="currentColor" strokeWidth="7" />
+        <path
+          d="M78 68h20M78 80h20M78 92h16M122 68h20M122 80h20M122 92h16"
+          className="text-tile-blue"
+          stroke="currentColor"
+          strokeWidth="5"
+          strokeLinecap="round"
+        />
+        <path d="M138 108v26l10-8 10 8v-26z" className="text-gold-300" fill="currentColor" />
+        <path d="M30 66h14M37 59v14M186 88h12M192 82v12" className="text-sky-600" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
+      </svg>
 
-const PlayMark = () => (
-  <svg viewBox="0 0 24 24" className="size-7" aria-hidden="true">
-    <rect x="2.5" y="5.5" width="19" height="13" rx="3.5" fill="#E2574C" />
-    <path d="m10 9.5 5 2.5-5 2.5z" fill="#fff" />
-  </svg>
-);
-
-const DocMark = () => (
-  <svg viewBox="0 0 24 24" className="size-7" aria-hidden="true">
-    <rect x="4" y="3" width="16" height="18" rx="2.5" fill="#2B579A" />
-    <path d="m8 9 1.6 6L11 11l1.4 4L14 9" stroke="#fff" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
+      <h2 className="mt-6 text-2xl font-extrabold tracking-tight text-ink-900">
+        {t('kits.emptyFilesTitle')}
+      </h2>
+      <p className="mx-auto mt-2 max-w-[17rem] text-lg font-semibold leading-snug text-mist-500">
+        {t('kits.emptyFilesBody')}
+      </p>
+    </div>
+  );
+};

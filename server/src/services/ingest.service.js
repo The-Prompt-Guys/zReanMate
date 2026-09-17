@@ -20,6 +20,7 @@ import { detectCostLanguage, trackGeneration } from './aiUsage.service.js';
 import { flashcardsService } from './flashcards.service.js';
 import { quizService } from './quiz.service.js';
 import { summariesService } from './summaries.service.js';
+import { studyGuideService } from './studyGuide.service.js';
 
 /**
  * Ingest pipeline service:
@@ -50,7 +51,14 @@ import { summariesService } from './summaries.service.js';
  * rather than after it.
  */
 const STUDY_MATERIALS = [
-  { percent: 70, run: ({ sourceId, language }) => summariesService.prewarm(sourceId, { language }) },
+  { percent: 65, run: ({ sourceId, language }) => summariesService.prewarm(sourceId, { language }) },
+  // The Study Guide is the slowest of these — an outline plus one call per
+  // module — which is exactly why it is prewarmed rather than left to the
+  // screen. It is also the first thing most students open.
+  {
+    percent: 70,
+    run: ({ sourceId, language }) => studyGuideService.prewarm(sourceId, { language }),
+  },
   {
     percent: 80,
     run: ({ sourceId, userId, language }) => quizService.prewarm(userId, sourceId, { language }),

@@ -1,4 +1,4 @@
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { StudyTabBar } from '../../components/StudyTabBar.jsx';
 import { Button } from '../../components/ui.jsx';
@@ -6,6 +6,7 @@ import { useLanguage, useT } from '../../i18n/index.js';
 import { useKits } from '../../kits/KitsContext.jsx';
 import { NavyHeader } from '../../layouts/AppLayout.jsx';
 import { Owl } from '../../layouts/AuthLayout.jsx';
+import { flashcardSummaryKey } from './FlashcardsPage.jsx';
 
 /** docs/screens/08-flashcards/02-flashcards-complete. */
 export const FlashcardsCompletePage = () => {
@@ -13,23 +14,27 @@ export const FlashcardsCompletePage = () => {
   const { language } = useLanguage();
   const navigate = useNavigate();
   const { kitId } = useParams();
-  const { getKit } = useKits();
+  const [params] = useSearchParams();
+  const sourceId = params.get('sourceId');
+  const sourceQuery = sourceId ? `?sourceId=${encodeURIComponent(sourceId)}` : '';
+  const { getKit, getFiles } = useKits();
   const kit = getKit(kitId);
-  const summary = JSON.parse(sessionStorage.getItem(`flashcard-session:${kitId}`) ?? '{"reviewed":0,"needAnotherLook":0,"nextDueAt":null}');
-  const title = language === 'km' && kit?.titleKm ? kit.titleKm : kit?.title;
+  const summary = JSON.parse(sessionStorage.getItem(flashcardSummaryKey(kitId, sourceId)) ?? '{"reviewed":0,"needAnotherLook":0,"nextDueAt":null}');
+  const file = sourceId ? getFiles(kitId).find((item) => item.id === sourceId) : null;
+  const title = file?.name ?? (language === 'km' && kit?.titleKm ? kit.titleKm : kit?.title);
   const nextReview = summary.nextDueAt
     ? new Intl.DateTimeFormat(language === 'km' ? 'km-KH' : 'en', { dateStyle: 'medium' }).format(new Date(summary.nextDueAt))
     : null;
 
   const reviewAgain = () => {
-    sessionStorage.removeItem(`flashcard-session:${kitId}`);
-    navigate(`/flashcards/${kitId}`);
+    sessionStorage.removeItem(flashcardSummaryKey(kitId, sourceId));
+    navigate(`/flashcards/${kitId}${sourceQuery}`);
   };
 
   return (
     <main className="flex min-h-dvh flex-col">
       <NavyHeader className="shrink-0">
-        <Link to={`/flashcards/${kitId}`} aria-label={t('common.back')} className="inline-block"><svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></Link>
+        <Link to={`/flashcards/${kitId}${sourceQuery}`} aria-label={t('common.back')} className="inline-block"><svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></Link>
         <h1 className="mt-3 text-3xl font-bold">{t('flashcards.completeTitle')}</h1>
         <p className="mt-1 truncate text-base text-white/75">{title}</p>
       </NavyHeader>
@@ -47,7 +52,7 @@ export const FlashcardsCompletePage = () => {
         </section>
         <div className="mt-6 space-y-3 pb-4"><Button onClick={reviewAgain}>{t('flashcards.reviewAgain')}</Button><div className="text-center"><Link to={`/kits/${kitId}`} className="font-semibold text-navy-600">{t('quiz.backToKit')}</Link></div></div>
       </div>
-      <StudyTabBar kitId={kitId} active="flashcards" />
+      <StudyTabBar kitId={kitId} sourceId={sourceId} active="flashcards" />
     </main>
   );
 };

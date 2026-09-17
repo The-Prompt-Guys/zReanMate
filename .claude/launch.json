@@ -4,14 +4,38 @@
     {
       "name": "reanmate-server",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "server", "run", "dev"],
+      "runtimeArgs": [
+        "--prefix",
+        "server",
+        "run",
+        "dev"
+      ],
       "port": 4000
     },
     {
       "name": "reanmate-client",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "client", "run", "dev"],
+      "runtimeArgs": [
+        "--prefix",
+        "client",
+        "run",
+        "dev",
+        "--",
+        "--host",
+        "0.0.0.0"
+      ],
       "port": 5173
+    },
+    {
+      "name": "reanmate-client-demo",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "client",
+        "run",
+        "dev:demo"
+      ],
+      "port": 5174
     }
   ]
 }

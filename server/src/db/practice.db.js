@@ -1,7 +1,13 @@
 import { query, queryOne, withTransaction } from './pool.js';
 
 export const practiceDb = {
-  async topics({ userId, q }) {
+  /**
+   * `sourceId` narrows the list to the topics that one file produced questions
+   * for — the lesson chooser for a single material must not offer lessons that
+   * came out of the rest of the kit. Without it the whole kit is listed, which
+   * is what the Practice tab wants.
+   */
+  async topics({ userId, q, sourceId = null }) {
     const { rows } = await query(
       `SELECT t.id, t.study_kit_id, t.name,
               COALESCE(m.mastery_percent, 35)::int AS effective_mastery,
@@ -10,7 +16,11 @@ export const practiceDb = {
          FROM topics t JOIN study_kits k ON k.id = t.study_kit_id
          LEFT JOIN user_topic_mastery m ON m.topic_id = t.id AND m.user_id = $1
         WHERE k.user_id = $1 AND ($2::text IS NULL OR t.name ILIKE '%' || $2 || '%')
-        ORDER BY COALESCE(m.mastery_percent, 35), t.name`, [userId, q ?? null],
+          AND ($3::uuid IS NULL OR EXISTS (
+                SELECT 1 FROM quiz_questions qq
+                  JOIN quizzes qz ON qz.id = qq.quiz_id
+                 WHERE qq.topic_id = t.id AND qz.source_id = $3::uuid))
+        ORDER BY COALESCE(m.mastery_percent, 35), t.name`, [userId, q ?? null, sourceId],
     );
     return rows;
   },
@@ -28,9 +38,10 @@ export const practiceDb = {
       if (weightedOrder.length < input.questionCount) return { insufficient: true, available: weightedOrder.length };
       const session = (await client.query(
         `INSERT INTO practice_sessions
-           (user_id, study_kit_id, mode, question_count, answer_format, timer_seconds)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-        [userId, input.studyKitId, input.mode, input.questionCount, input.answerFormat, input.timerSeconds],
+           (user_id, study_kit_id, source_id, mode, question_count, answer_format, timer_seconds)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [userId, input.studyKitId, input.sourceId ?? null, input.mode, input.questionCount,
+          input.answerFormat, input.timerSeconds],
       )).rows[0];
       for (const [index, item] of weightedOrder.slice(0, input.questionCount).entries()) {
         const options = input.answerFormat === 'written' ? [] : item.options;
@@ -49,7 +60,13 @@ export const practiceDb = {
     });
   },
 
-  async candidateQuestions({ userId, kitId, topicIds }) {
+  /**
+   * `sourceId` restricts the draw to quizzes generated from that one file. It
+   * is the whole of "study this material only" on the exam side: a mock exam
+   * opened from cost-analyst1.pdf must never ask about the slide deck sitting
+   * next to it in the same kit.
+   */
+  async candidateQuestions({ userId, kitId, topicIds, sourceId = null }) {
     const { rows } = await query(
       `SELECT qq.id, qq.topic_id, qq.prompt, qq.options, qq.correct_answer, qq.explanation,
               COALESCE(m.mastery_percent, 35)::int AS effective_mastery
@@ -57,8 +74,9 @@ export const practiceDb = {
          JOIN study_kits k ON k.id = q.study_kit_id
          LEFT JOIN user_topic_mastery m ON m.topic_id = qq.topic_id AND m.user_id = $1
         WHERE q.study_kit_id = $2 AND k.user_id = $1 AND q.status = 'ready'
-          AND (cardinality($3::uuid[]) = 0 OR qq.topic_id = ANY($3::uuid[]))`,
-      [userId, kitId, topicIds],
+          AND (cardinality($3::uuid[]) = 0 OR qq.topic_id = ANY($3::uuid[]))
+          AND ($4::uuid IS NULL OR q.source_id = $4::uuid)`,
+      [userId, kitId, topicIds, sourceId],
     );
     return rows;
   },

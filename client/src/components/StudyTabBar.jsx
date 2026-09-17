@@ -7,13 +7,23 @@ import { useT } from '../i18n/index.js';
  * Flashcards / More, not the app's Home / Kits / Classes / Practice / Profile.
  * docs/screens/06-quiz/01 and 08-flashcards/01 both use this one.
  */
-export const StudyTabBar = ({ kitId = 'kit-database', active = 'practice' }) => {
+export const StudyTabBar = ({ kitId = 'kit-database', active = 'practice', sourceId = null }) => {
   const t = useT();
+  const sourceQuery = sourceId ? `?sourceId=${encodeURIComponent(sourceId)}` : '';
 
   const tabs = [
-    { id: 'practice', to: '/practice', labelKey: 'nav.practice', Icon: BookIcon },
-    { id: 'learn', to: `/study/${kitId}/summary`, labelKey: 'nav.learn', Icon: TargetIcon },
-    { id: 'flashcards', to: `/flashcards/${kitId}`, labelKey: 'nav.flashcards', Icon: CardsIcon },
+    // Scoped to a file, Practice goes straight to a setup for that file rather
+    // than the Practice tab, which is about the whole account.
+    {
+      id: 'practice',
+      to: sourceId
+        ? `/practice/setup?kitId=${encodeURIComponent(kitId)}&sourceId=${encodeURIComponent(sourceId)}`
+        : '/practice',
+      labelKey: 'nav.practice',
+      Icon: BookIcon,
+    },
+    { id: 'learn', to: `/study/${kitId}/guide${sourceQuery}`, labelKey: 'nav.learn', Icon: TargetIcon },
+    { id: 'flashcards', to: `/flashcards/${kitId}${sourceQuery}`, labelKey: 'nav.flashcards', Icon: CardsIcon },
     { id: 'more', to: `/kits/${kitId}`, labelKey: 'nav.more', Icon: DocIcon },
   ];
 

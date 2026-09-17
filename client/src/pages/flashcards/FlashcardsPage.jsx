@@ -9,7 +9,15 @@ import { Owl } from '../../layouts/AuthLayout.jsx';
 import { useStudySource } from '../study/useSourceSummaries.js';
 import { useFlashcards } from './useFlashcards.js';
 
-const summaryKey = (kitId) => `flashcard-session:${kitId}`;
+/**
+ * One session summary per material, not per kit. The deck is drawn from a
+ * single file, so a kit-wide key let the count from one file's session show up
+ * on the completion screen of another's.
+ *
+ * Exported so the completion screen reads the same key.
+ */
+export const flashcardSummaryKey = (kitId, sourceId = null) =>
+  `flashcard-session:${kitId}:${sourceId ?? 'kit'}`;
 /** Both faces must be the same box, or the card changes shape mid-flip. */
 const FACE = 'absolute inset-0 flex flex-col rounded-[1.5rem] bg-white p-6 shadow-sm ring-1 ring-tint-200/70';
 const ratings = [
@@ -23,22 +31,26 @@ export const FlashcardsPage = () => {
   const { language } = useLanguage();
   const navigate = useNavigate();
   const { kitId } = useParams();
-  const { kit, source, status: sourceStatus, error: sourceError } = useStudySource(kitId);
-  const { cards, setCards, status, error, review } = useFlashcards({ source, kitId, language });
+  const { kit, source, sourceId, status: sourceStatus, error: sourceError } = useStudySource(kitId);
+  const { cards, setCards, status, error, review } = useFlashcards({ source, kitId, language, selectedSourceId: sourceId });
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reviewError, setReviewError] = useState(null);
   const total = cards.length;
   const card = cards[index];
-  const title = language === 'km' && kit?.titleKm ? kit.titleKm : kit?.title;
+  const kitTitle = language === 'km' && kit?.titleKm ? kit.titleKm : kit?.title;
+  // The deck came from one file, so the header says which one.
+  const title = sourceId ? (source?.name ?? t('common.loading')) : kitTitle;
   const visibleError = sourceError ?? error ?? reviewError;
+  const key = flashcardSummaryKey(kitId, sourceId);
+  const sourceQuery = sourceId ? `?sourceId=${encodeURIComponent(sourceId)}` : '';
 
-  useEffect(() => { sessionStorage.removeItem(summaryKey(kitId)); }, [kitId]);
+  useEffect(() => { sessionStorage.removeItem(key); }, [key]);
 
   const finish = (summary) => {
-    sessionStorage.setItem(summaryKey(kitId), JSON.stringify(summary));
-    navigate(`/flashcards/${kitId}/complete`);
+    sessionStorage.setItem(key, JSON.stringify(summary));
+    navigate(`/flashcards/${kitId}/complete${sourceQuery}`);
   };
 
   const rate = async (quality) => {
@@ -46,7 +58,7 @@ export const FlashcardsPage = () => {
     setSaving(true); setReviewError(null);
     try {
       const result = await review(card.id, quality);
-      const previous = JSON.parse(sessionStorage.getItem(summaryKey(kitId)) ?? '{"reviewed":0,"needAnotherLook":0,"nextDueAt":null}');
+      const previous = JSON.parse(sessionStorage.getItem(key) ?? '{"reviewed":0,"needAnotherLook":0,"nextDueAt":null}');
       const summary = {
         reviewed: previous.reviewed + 1,
         needAnotherLook: previous.needAnotherLook + (quality < 3 ? 1 : 0),
@@ -57,7 +69,7 @@ export const FlashcardsPage = () => {
       setCards(remaining);
       setIndex((current) => Math.min(current, Math.max(0, remaining.length - 1)));
       setRevealed(false);
-      sessionStorage.setItem(summaryKey(kitId), JSON.stringify(summary));
+      sessionStorage.setItem(key, JSON.stringify(summary));
       if (remaining.length === 0) finish(summary);
     } catch (err) {
       setReviewError({ message: err?.response?.data?.error?.message ?? 'Could not save this review.' });
@@ -117,7 +129,7 @@ export const FlashcardsPage = () => {
         {reviewError && <p className="mt-2 text-center text-sm text-danger-600">{reviewError.message}</p>}
         <div className="mt-5 pb-4 text-center"><button type="button" onClick={shuffle} className="inline-flex items-center gap-2 font-semibold text-navy-800"><svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>{t('flashcards.shuffle')}</button></div>
       </div>
-      <StudyTabBar kitId={kitId} active="flashcards" />
+      <StudyTabBar kitId={kitId} sourceId={sourceId} active="flashcards" />
     </main>
   );
 };

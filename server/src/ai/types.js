@@ -57,6 +57,80 @@
  */
 
 // ---------------------------------------------------------------------------
+// Study guide
+// ---------------------------------------------------------------------------
+
+/**
+ * One teaching module out of one document.
+ *
+ * This is deliberately NOT a summary. A summary restates what the document
+ * said and leaves the student a passive reader; a module teaches one concept
+ * and then checks whether it landed. The four parts are fixed so every module
+ * in every guide has the same shape, and the screen can render them as labelled
+ * sections in the student's own language rather than trusting the model to
+ * write its own headings.
+ *
+ * The section labels are NOT in these strings. They come from the client's i18n
+ * dictionaries, so a Khmer guide is Khmer down to the headings and the model
+ * only ever writes content — which also stops it inventing a fifth section.
+ *
+ * Markdown, because the parts want bullets, bold key terms, formulas and fenced
+ * code, and the client already renders markdown.
+ *
+ * @typedef  {Object}         StudyGuideModule
+ * @property {number}         moduleIndex     1-based, in document order.
+ * @property {string}         title           The concept, not "Module 3".
+ * @property {string}         explanationMd   Core principles: 3-5 skimmable
+ *                                            bullets, key terms bolded, how and
+ *                                            why it works.
+ * @property {string}         applicationMd   ONE brief example, formula or code
+ *                                            block taken from THIS document.
+ * @property {string}         pitfallsMd      Two common mistakes, then one
+ *                                            **Exam tip:** bullet.
+ * @property {RecallCheck[]}  recall          One or two questions, each with its
+ *                                            answer written out in full.
+ */
+
+/**
+ * An active-recall question and its answer.
+ *
+ * They travel together and are stored together: the answer is hidden behind a
+ * disclosure on the screen, so it is useless without the question it belongs to
+ * and there is nothing to be gained by splitting them apart.
+ *
+ * @typedef  {Object} RecallCheck
+ * @property {string} question
+ * @property {string} answer    The complete answer in one or two sentences —
+ *                              never just "B", and never a cross-reference. A
+ *                              question whose answer is empty is a question the
+ *                              student cannot mark themselves on.
+ */
+
+/**
+ * Where a module sits in the guide. Produced once and passed back on every
+ * resumed run, so the set of concepts cannot shift between attempts and a
+ * module a student has already read keeps its number.
+ *
+ * @typedef  {Object} StudyGuideOutlineEntry
+ * @property {number} moduleIndex
+ * @property {string} title
+ * @property {string} focus        One line on what this module must cover.
+ *                                 Written in the outline pass and handed back
+ *                                 on the body pass, which is what keeps eight
+ *                                 independent calls from covering the same
+ *                                 ground twice or leaving a gap between them.
+ */
+
+/**
+ * @typedef  {Object}                   StudyGuide
+ * @property {StudyGuideOutlineEntry[]} outline  ALWAYS every module, so the
+ *                                               caller can create one row each
+ *                                               up front.
+ * @property {StudyGuideModule[]}       modules  Bodies for the requested
+ *                                               indices only — see `only`.
+ */
+
+// ---------------------------------------------------------------------------
 // Quizzes
 // ---------------------------------------------------------------------------
 
@@ -191,6 +265,34 @@
  *                                                      outline only; omitted
  *                                                      means all of them.
  * @property {'batch'|'default'}     [serviceTier='default'] Cost tier for visible background work.
+ */
+
+/**
+ * Resumable exactly like SummarizeChaptersInput, and for the same reason: a
+ * module carries four sections plus its recall checks, so generating eight of
+ * them in one call is both the slowest request in the app and the one with the
+ * most to lose when it fails.
+ *
+ * Intended flow:
+ *   1. `generateStudyGuide({ text, moduleCount: 8, only: [] })`
+ *      -> full `outline`, no bodies. Insert 8 rows at status 'pending'.
+ *   2. Per pending index: `generateStudyGuide({ text, outline, only: [n] })`.
+ *   3. After a crash, pass the indices that are not 'ready' as `only`.
+ *
+ * `text` is ONE document's extracted text. The isolation the feature promises
+ * is structural, not a matter of asking the model nicely: the caller passes a
+ * single source's text and there is no parameter here through which a sibling
+ * file in the same kit could reach the model.
+ *
+ * @typedef  {Object}                   StudyGuideInput
+ * @property {string}                   text
+ * @property {string}                   [title]
+ * @property {Language}                 [language='km']
+ * @property {number}                   [moduleCount=8]  Ignored with `outline`.
+ * @property {StudyGuideOutlineEntry[]} [outline]
+ * @property {number[]}                 [only]           `[]` means outline only;
+ *                                                       omitted means all.
+ * @property {'batch'|'default'}        [serviceTier='default']
  */
 
 /**
@@ -383,6 +485,10 @@ export const createUsageCollector = () => {
  * @property {(input: SummarizeChaptersInput) => Promise<ChapteredSummary>} summarizeChapters
  *   Resumable — always returns the full outline, bodies only for `only`.
  *
+ * @property {(input: StudyGuideInput) => Promise<StudyGuide>} generateStudyGuide
+ *   The Study Guide screen. Resumable — always returns the full outline, bodies
+ *   only for `only`. Never produces an overview or an "AI summary" section.
+ *
  * @property {(input: QuizInput) => Promise<Quiz>} generateQuiz
  *
  * @property {(input: FlashcardInput) => Promise<Flashcard[]>} generateFlashcards
@@ -418,6 +524,7 @@ export const LANGUAGES = /** @type {const} */ (['km', 'en']);
 export const AI_METHODS = /** @type {const} */ ([
   'summarize',
   'summarizeChapters',
+  'generateStudyGuide',
   'generateQuiz',
   'generateFlashcards',
   'tutorReply',

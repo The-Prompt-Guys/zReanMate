@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { useT } from '../i18n/index.js';
 
@@ -221,3 +222,49 @@ export const ArrowRightIcon = ({ className = 'size-5' }) => (
     <path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
+
+export const ChevronRightIcon = ({ className = 'size-5' }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+    <path d="m9.5 5 7 7-7 7" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/**
+ * The floating add button on the kits screens.
+ *
+ * Fixed rather than absolute so it stays put while the list scrolls, and
+ * aligned to the same 26rem column the shell caps at — on a desktop window the
+ * button belongs at the phone column's edge, not the viewport's. It clears the
+ * tab bar, and the safe-area inset keeps it above a home indicator.
+ */
+export const Fab = ({ to, onClick, label, className = '' }) => {
+  const content = (
+    <>
+      <svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true">
+        <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+      </svg>
+      <span className="sr-only">{label}</span>
+    </>
+  );
+  const classes = cx(
+    'pointer-events-auto grid size-14 place-items-center rounded-full bg-sky-500 text-white',
+    'shadow-lg shadow-sky-500/40 transition-transform hover:scale-105 active:scale-95',
+    className,
+  );
+
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[26rem]">
+      <div className="flex justify-end px-5 pb-[calc(6.5rem+env(safe-area-inset-bottom))]">
+        {to ? (
+          <Link to={to} aria-label={label} className={classes}>
+            {content}
+          </Link>
+        ) : (
+          <button type="button" onClick={onClick} aria-label={label} className={classes}>
+            {content}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};

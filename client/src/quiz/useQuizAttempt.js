@@ -2,9 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api, toFormError } from '../lib/api.js';
 
-const storageKey = (kitId, language) => `reanmate:quiz-attempt:${kitId}:${language}`;
+export const quizAttemptStorageKey = (kitId, sourceId, language) =>
+  `reanmate:quiz-attempt:${kitId}:${sourceId ?? 'unknown'}:${language}`;
 
-export const useQuizAttempt = ({ kitId, source, language }) => {
+export const quizSourceStorageKey = (kitId, language) =>
+  `reanmate:quiz-source:${kitId}:${language}`;
+
+export const shouldReuseStoredQuizAttempt = (attemptId, forceNew = false) => !!attemptId && !forceNew;
+
+export const useQuizAttempt = ({ kitId, source, language, forceNew = false }) => {
   const [attempt, setAttempt] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [status, setStatus] = useState('loading');
@@ -24,13 +30,22 @@ export const useQuizAttempt = ({ kitId, source, language }) => {
     initializing.current = true;
     setError(null);
     try {
-      const existing = window.localStorage.getItem(storageKey(kitId, language));
-      if (existing) {
+      const sourceKey = source?.id ?? 'unknown';
+      const storageKey = quizAttemptStorageKey(kitId, sourceKey, language);
+      const existing = window.localStorage.getItem(storageKey);
+
+      if (existing && shouldReuseStoredQuizAttempt(existing, forceNew)) {
         try {
           const loaded = await loadAttempt(existing);
           if (loaded.attempt.status !== 'submitted') return;
-          window.localStorage.removeItem(storageKey(kitId, language));
-        } catch { window.localStorage.removeItem(storageKey(kitId, language)); }
+          window.localStorage.removeItem(storageKey);
+        } catch {
+          window.localStorage.removeItem(storageKey);
+        }
+      }
+
+      if (forceNew) {
+        window.localStorage.removeItem(storageKey);
       }
 
       setStatus('generating');
@@ -41,7 +56,8 @@ export const useQuizAttempt = ({ kitId, source, language }) => {
         if (generated.status !== 'ready') await new Promise((resolve) => window.setTimeout(resolve, 1000));
       } while (generated.status !== 'ready');
       const { data } = await api.post(`/quizzes/${generated.quiz.id}/attempts`);
-      window.localStorage.setItem(storageKey(kitId, language), data.attempt.id);
+      window.localStorage.setItem(storageKey, data.attempt.id);
+      window.localStorage.setItem(quizSourceStorageKey(kitId, language), sourceKey);
       setAttempt(data.attempt);
       setQuestions(data.questions);
       setStatus('ready');
@@ -49,7 +65,7 @@ export const useQuizAttempt = ({ kitId, source, language }) => {
       setError(toFormError(err));
       setStatus('error');
     } finally { initializing.current = false; }
-  }, [kitId, source, language, loadAttempt]);
+  }, [kitId, source, language, loadAttempt, forceNew]);
 
   useEffect(() => { void initialize(); }, [initialize]);
 

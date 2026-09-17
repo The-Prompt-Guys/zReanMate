@@ -54,19 +54,23 @@ export const AppLayout = () => {
             <ul className="flex items-stretch justify-around px-1 pb-[env(safe-area-inset-bottom)]">
               {TABS.map(({ to, labelKey, Icon, end }) => (
                 <li key={to} className="flex-1">
+                  {/*
+                    The reference tints every icon the same brand blue and sets
+                    every label in black — the active tab is marked by a filled
+                    icon, not by colour. NavLink still sets aria-current, so the
+                    state is announced even though it is not a colour change.
+                  */}
                   <NavLink
                     to={to}
                     end={end}
-                    className={({ isActive }) =>
-                      `flex flex-col items-center gap-1 py-2.5 text-xs font-semibold transition-colors ${
-                        isActive ? 'text-navy-800' : 'text-navy-600/55'
-                      }`
-                    }
+                    className="flex flex-col items-center gap-1 py-2.5 text-xs font-bold"
                   >
                     {({ isActive }) => (
                       <>
-                        <Icon filled={isActive} />
-                        <span>{t(labelKey)}</span>
+                        <span className="text-brand-600">
+                          <Icon filled={isActive} />
+                        </span>
+                        <span className="text-ink-900">{t(labelKey)}</span>
                       </>
                     )}
                   </NavLink>
@@ -81,13 +85,108 @@ export const AppLayout = () => {
 };
 
 /**
- * Navy hero used at the top of Home, Kits and Classes — square bottom edge,
- * white text, per the current kits/header treatment.
+ * Navy hero used at the top of Home, Kits and Classes.
+ *
+ * The bottom edge is rounded and the fill is the `.hero-panel` gradient plus
+ * its clipped facet — see index.css. The canvas shows through at the corners,
+ * so the panel reads as a card rather than a painted edge.
+ *
+ * `isolate` opens the stacking context that keeps that facet (z-index -1)
+ * above the gradient but behind the content.
  */
 export const NavyHeader = ({ children, className = '', ...props }) => (
-  <header className={`bg-navy-800 px-6 pb-7 pt-6 text-white ${className}`} {...props}>
+  <header
+    className={`hero-panel relative isolate overflow-hidden rounded-b-3xl px-5 pb-7 pt-6 text-white ${className}`}
+    {...props}
+  >
     {children}
   </header>
+);
+
+/**
+ * Header for the kits flow — a back arrow over a title whose last word is gold,
+ * with the open-book mark at the right. `tile` places an icon ahead of the
+ * title (a kit's folder) and `meta` a line beneath it (its material count).
+ *
+ * The gold accent is the title's last space-separated word. Khmer writes
+ * without spaces between words, so a Khmer title has no last word to find; it
+ * renders entirely white rather than splitting at a meaningless point.
+ *
+ * `splitAccent` turns that accent off. A file name is not a phrase — "keys.pdf"
+ * picked out in gold reads as a mistake — so the screens headed by one of those
+ * rather than a kit title pass false.
+ */
+export const KitsHeader = ({ to = '/', title, meta, tile, action, splitAccent = true, className = '', ...props }) => {
+  const t = useT();
+  const cut = splitAccent ? title.trimEnd().lastIndexOf(' ') : -1;
+  const lead = cut === -1 ? title : title.slice(0, cut);
+  const accent = cut === -1 ? null : title.slice(cut + 1);
+
+  return (
+    <header
+      className={`hero-panel relative isolate overflow-hidden rounded-b-3xl px-5 pb-7 pt-5 text-white ${className}`}
+      {...props}
+    >
+      {/* The reference puts a ⋮ opposite the back arrow on the kit header;
+          `action` is that slot, and screens without one keep the bare arrow. */}
+      <div className="flex items-start justify-between gap-3">
+        <Link
+          to={to}
+          aria-label={t('common.back')}
+          className="-ml-1 inline-flex rounded-lg p-1 transition-opacity hover:opacity-80"
+        >
+          <svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true">
+            <path
+              d="M11 5 4 12l7 7M4.5 12H20"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </Link>
+        {action}
+      </div>
+
+      <div className="mt-2 flex items-center gap-3">
+        {tile}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-[1.95rem] font-extrabold leading-[1.1] tracking-tight">
+            {lead}
+            {accent && (
+              <>
+                {' '}
+                <span className="text-gold-300">{accent}</span>
+              </>
+            )}
+          </h1>
+          {meta && <p className="mt-0.5 text-base font-semibold text-white/85">{meta}</p>}
+        </div>
+        <img
+          src="/brand/reanmate-logo-open-book.png"
+          alt=""
+          aria-hidden="true"
+          className="h-[5.25rem] w-auto shrink-0 object-contain drop-shadow-sm"
+        />
+      </div>
+    </header>
+  );
+};
+
+/** The kit folder tile that sits ahead of a kit title in the header. */
+export const KitFolderTile = () => (
+  <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-white/25 text-white/95 shadow-sm">
+    <svg viewBox="0 0 24 24" className="size-8" fill="none" aria-hidden="true">
+      <path
+        d="M3 7a2 2 0 0 1 2-2h4.6l2 2.4H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+        fill="currentColor"
+        fillOpacity="0.55"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  </span>
 );
 
 const stroke = {
@@ -115,11 +214,20 @@ function KitsIcon({ filled }) {
   );
 }
 
+/**
+ * A group of three, not the book the old tab bar used — the reference nav
+ * draws Classes as people. The outer shoulder arcs keep `fill="none"` so the
+ * filled (active) variant solidifies the heads without closing those arcs into
+ * lozenges.
+ */
 function ClassesIcon({ filled }) {
   return (
     <svg viewBox="0 0 24 24" className="size-6" aria-hidden="true" {...stroke} fill={filled ? 'currentColor' : 'none'}>
-      <path d="M12 7c-2-1.6-4.4-2-7-2v12c2.6 0 5 .4 7 2 2-1.6 4.4-2 7-2V5c-2.6 0-5 .4-7 2z" />
-      <path d="M12 7v12" stroke="currentColor" fill="none" />
+      <circle cx="12" cy="7" r="3.3" />
+      <path d="M6.5 20.3a5.5 5.5 0 0 1 11 0z" />
+      <circle cx="4.4" cy="10.4" r="2.2" />
+      <circle cx="19.6" cy="10.4" r="2.2" />
+      <path d="M1 18.8a3.5 3.5 0 0 1 4.3-3.4M23 18.8a3.5 3.5 0 0 0-4.3-3.4" stroke="currentColor" fill="none" />
     </svg>
   );
 }

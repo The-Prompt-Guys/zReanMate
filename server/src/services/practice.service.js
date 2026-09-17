@@ -21,7 +21,7 @@ export const weightedWithoutReplacement = (items, random = Math.random) => {
 };
 
 const sessionApi = (row) => ({
-  id: row.id, kitId: row.study_kit_id, mode: row.mode,
+  id: row.id, kitId: row.study_kit_id, sourceId: row.source_id ?? null, mode: row.mode,
   questionCount: row.question_count, answerFormat: row.answer_format,
   timerSeconds: row.timer_seconds, status: row.status,
   answered: row.answered_count, correct: row.correct_count,
@@ -44,8 +44,8 @@ const streakFor = (values) => {
 };
 
 export const practiceService = {
-  async topics(userId, q) {
-    const rows = await practiceDb.topics({ userId, q });
+  async topics(userId, q, sourceId = null) {
+    const rows = await practiceDb.topics({ userId, q, sourceId });
     return rows.map((row) => ({ id: row.id, kitId: row.study_kit_id, title: row.name,
       mastery: row.mastery_percent === null ? null : row.mastery_percent,
       effectiveMastery: row.effective_mastery, recommended: row.effective_mastery < 50,
@@ -55,9 +55,13 @@ export const practiceService = {
   async create(userId, _plan, input) {
     if (input.mode === 'mock_exam') await plansService.requireFeature(userId, 'mock_exams');
     const weeklyLimit = await plansService.getLimit(userId, 'practice_sessions_per_week');
-    let candidates = await practiceDb.candidateQuestions({ userId, kitId: input.studyKitId, topicIds: input.topicIds });
+    const sourceId = input.sourceId ?? null;
+    let candidates = await practiceDb.candidateQuestions({ userId, kitId: input.studyKitId, topicIds: input.topicIds, sourceId });
     if (input.topicIds.length > 0 && candidates.length < input.questionCount) {
-      const all = await practiceDb.candidateQuestions({ userId, kitId: input.studyKitId, topicIds: [] });
+      // Topping up ignores the chosen topics but keeps the source filter — the
+      // shortfall is made up from elsewhere in the same file, never from the
+      // rest of the kit.
+      const all = await practiceDb.candidateQuestions({ userId, kitId: input.studyKitId, topicIds: [], sourceId });
       const seen = new Set(candidates.map((item) => item.id));
       candidates = [...candidates, ...all.filter((item) => !seen.has(item.id))];
     }

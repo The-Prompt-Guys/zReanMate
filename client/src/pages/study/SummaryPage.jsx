@@ -16,20 +16,55 @@ export const SummaryPage = () => {
   const t = useT();
   const { language } = useLanguage();
   const { kitId } = useParams();
-  const { kit, source, status: sourceStatus } = useStudySource(kitId);
+  const { kit, source, sourceId, missing, status: sourceStatus } = useStudySource(kitId);
+  // Every link this screen draws keeps the file it is about. Drop it once and
+  // the next screen resolves the kit's first ready file instead.
+  const sourceQuery = sourceId ? `?sourceId=${encodeURIComponent(sourceId)}` : '';
   const { summary: summaryData, chapterData, error, plusRequired } = useSourceSummaries(source, language);
   const summary = summaryData?.summary;
   const chapters = chapterData?.chapters ?? [];
   const ready = chapters.filter((item) => item.status === 'ready').length;
   const percent = chapters.length ? Math.round((ready / chapters.length) * 100) : 0;
-  const title = language === 'km' ? (kit?.titleKm || kit?.title) : kit?.title;
+  const kitTitle = language === 'km' ? (kit?.titleKm || kit?.title) : kit?.title;
+  // The header names the material being studied; the kit is the pill beside it.
+  const title = sourceId ? (source?.name ?? t(missing ? 'study.fileMissingTitle' : 'common.loading')) : kitTitle;
+  const sourceStillProcessing = !!source && source.status !== 'ready';
   const statusKey = { ready: 'summary.chapterStatusReady', generating: 'summary.chapterStatusGenerating', pending: 'summary.chapterStatusPending', failed: 'summary.chapterStatusFailed' };
+
+  // The file named in the URL is not in this kit — deleted, or a stale link.
+  // Saying so beats the old behaviour, which was to summarise a different file
+  // without a word, and beats a blank screen.
+  if (missing) {
+    return <main>
+      <NavyHeader><div className="flex items-start gap-3">
+        <Link to={`/kits/${kitId}`} aria-label={t('common.back')} className="mt-1 shrink-0"><svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></Link>
+        <h1 className="min-w-0 flex-1 text-2xl font-bold leading-tight">{t('study.fileMissingTitle')}</h1>
+      </div></NavyHeader>
+      <div className="px-5 py-10 text-center">
+        <p className="text-base font-medium text-navy-600">{t('study.fileMissing')}</p>
+        <Link to={`/kits/${kitId}`} className="mt-4 inline-block font-semibold text-navy-800">{t('quiz.backToKit')}</Link>
+      </div>
+    </main>;
+  }
+
+  if (sourceStillProcessing) {
+    return <main>
+      <NavyHeader><div className="flex items-start gap-3">
+        <Link to={`/kits/${kitId}`} aria-label={t('common.back')} className="mt-1 shrink-0"><svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></Link>
+        <h1 className="min-w-0 flex-1 text-2xl font-bold leading-tight">{title}</h1>
+      </div></NavyHeader>
+      <div className="px-5 py-10 text-center">
+        <p className="text-base font-bold text-navy-900">{t('summary.generatingSummary')}</p>
+        <p className="mt-2 text-sm text-navy-600">{source?.name ?? t('summary.heading')}</p>
+      </div>
+    </main>;
+  }
 
   return <main>
     <NavyHeader><div className="flex items-start gap-3">
       <Link to={`/kits/${kitId}`} aria-label={t('common.back')} className="mt-1 shrink-0"><svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></Link>
       <h1 className="min-w-0 flex-1 text-2xl font-bold leading-tight">{title}</h1>
-      {source && <span className="shrink-0 rounded-full bg-white/15 px-3 py-1.5 text-sm font-semibold">{source.name}</span>}
+      {sourceId && kitTitle && <span className="shrink-0 rounded-full bg-white/15 px-3 py-1.5 text-sm font-semibold">{kitTitle}</span>}
     </div></NavyHeader>
     <div className="px-5 pt-5">
       <p className="text-sm font-bold uppercase tracking-wide text-navy-600">{t('summary.label')}</p>
@@ -45,7 +80,7 @@ export const SummaryPage = () => {
         <div className="mt-2 flex items-center gap-3"><div className="h-2.5 flex-1 overflow-hidden rounded-full bg-tint-100"><span className="block h-full rounded-full bg-navy-600" style={{ width: `${percent}%` }} /></div><span className="text-base font-bold text-navy-900">{percent}%</span></div>
         <ul className="mt-5 divide-y divide-tint-200">{chapters.map((item) => {
           const isReady = item.status === 'ready';
-          return <li key={item.index}><Link to={isReady ? `/study/${kitId}/summary/${item.index}` : '#'} aria-disabled={!isReady} onClick={(event) => !isReady && event.preventDefault()} className={`flex items-center gap-3 py-4 ${isReady ? '' : 'cursor-default'}`}><span className="min-w-0 flex-1"><span className="block font-bold text-navy-900">{String(item.index).padStart(2, '0')} · {item.title}</span><span className="mt-0.5 block text-sm text-navy-600">{clock(item.startSeconds)}–{clock(item.endSeconds)}</span></span><span className={`shrink-0 text-sm font-semibold ${isReady ? 'text-navy-700' : 'text-ink-400'}`}>{t(statusKey[item.status] ?? 'summary.chapterStatusPending')}</span><svg viewBox="0 0 24 24" className="size-5 shrink-0 text-navy-600" fill="none" aria-hidden="true"><path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></Link></li>;
+          return <li key={item.index}><Link to={isReady ? `/study/${kitId}/summary/${item.index}${sourceQuery}` : '#'} aria-disabled={!isReady} onClick={(event) => !isReady && event.preventDefault()} className={`flex items-center gap-3 py-4 ${isReady ? '' : 'cursor-default'}`}><span className="min-w-0 flex-1"><span className="block font-bold text-navy-900">{String(item.index).padStart(2, '0')} · {item.title}</span><span className="mt-0.5 block text-sm text-navy-600">{clock(item.startSeconds)}–{clock(item.endSeconds)}</span></span><span className={`shrink-0 text-sm font-semibold ${isReady ? 'text-navy-700' : 'text-ink-400'}`}>{t(statusKey[item.status] ?? 'summary.chapterStatusPending')}</span><svg viewBox="0 0 24 24" className="size-5 shrink-0 text-navy-600" fill="none" aria-hidden="true"><path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></Link></li>;
         })}</ul>
       </>}
     </div>

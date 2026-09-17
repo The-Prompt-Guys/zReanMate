@@ -127,7 +127,9 @@ export const flashcardsService = {
   },
 
   async due(userId, input) {
-    const rows = await flashcardsDb.due({ userId, limit: input.limit, kitId: input.kitId });
+    const rows = await flashcardsDb.due({
+      userId, limit: input.limit, kitId: input.kitId, sourceId: input.sourceId ?? null,
+    });
     return { cards: rows.map(cardApi) };
   },
 

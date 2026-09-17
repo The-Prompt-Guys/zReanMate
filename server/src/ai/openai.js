@@ -182,6 +182,73 @@ const SUMMARY_SCHEMA = obj({
 });
 
 /**
+ * The study guide, in two schemas because it is generated in two passes.
+ *
+ * Both are strict: the four sections are required on every module, so a model
+ * that runs out of things to say about pitfalls has to write the section anyway
+ * rather than dropping it and leaving the screen with a hole in it.
+ */
+const STUDY_GUIDE_OUTLINE_SCHEMA = obj({
+  modules: {
+    type: 'array',
+    description:
+      'Every concept the document teaches, in the order it introduces them. ' +
+      'One entry per concept - not per page, and not per heading.',
+    items: obj({
+      moduleIndex: { type: 'integer', description: '1-based, contiguous, in document order.' },
+      title: {
+        type: 'string',
+        description:
+          'The concept itself, e.g. "Normalization to 3NF" - never "Module 3" or "Introduction".',
+      },
+      focus: {
+        type: 'string',
+        description:
+          'One line naming exactly what this module must teach, so modules do not overlap.',
+      },
+    }),
+  },
+});
+
+const STUDY_GUIDE_MODULE_SCHEMA = obj({
+  title: { type: 'string', description: 'The concept being taught.' },
+  explanationMd: {
+    type: 'string',
+    description:
+      'EXACTLY 3 to 5 markdown bullets, one line each, with **key terms** bolded. Say how and ' +
+      'why the concept works, not just what it is. Scannable, not prose - no paragraphs, no ' +
+      'heading, and no bullet longer than two lines.',
+  },
+  applicationMd: {
+    type: 'string',
+    description:
+      'ONE brief example taken from this document: a worked case, a formula, a fenced code ' +
+      'block, or a short numbered workflow. A few lines at most. No heading, no second example.',
+  },
+  pitfallsMd: {
+    type: 'string',
+    description:
+      'EXACTLY 3 markdown bullets: two common mistakes students make on THIS concept, then one ' +
+      'bullet starting "**Exam tip:**" with the single thing worth remembering. No heading.',
+  },
+  recall: {
+    type: 'array',
+    description:
+      'One or two questions testing this module. Every question MUST carry its written answer - ' +
+      'a question with an empty or placeholder answer is invalid.',
+    items: obj({
+      question: { type: 'string', description: 'A conceptual question, not a definition lookup.' },
+      answer: {
+        type: 'string',
+        description:
+          'The complete answer, written out in 1 to 2 sentences. Never a letter, a cross-reference ' +
+          'or "see above" - the student reads only this.',
+      },
+    }),
+  },
+});
+
+/**
  * Note `hasText` is asked for explicitly rather than inferred from an empty
  * `text`. The model can tell a photo of a cat from notes too blurred to read;
  * a length check downstream cannot, and those two need different advice.
@@ -457,6 +524,107 @@ export const createOpenAIProvider = ({
         outline: fullOutline,
         chapters,
       };
+    },
+
+    /**
+     * The Study Guide: one document turned into teaching modules.
+     *
+     * Three things this prompt does deliberately:
+     *
+     * 1. No overview. `summarize` already exists and is passive; asking for a
+     *    high-level pass here would produce the "AI summary" the guide is meant
+     *    to replace, and students skim those instead of working through them.
+     * 2. No headings in the content. The four sections are separate fields and
+     *    the screen labels them from the i18n dictionaries - so a Khmer guide is
+     *    Khmer throughout, and the model cannot quietly restructure a module.
+     * 3. One document only. `material` is a single source's extracted text; the
+     *    prompt says so as well, because a model reading a page that mentions
+     *    "the slides from week 2" will otherwise teach from memory.
+     *
+     * Resumable in the same two phases as summarizeChapters, which matters more
+     * here: a module is four sections plus its recall checks, so one call per
+     * module keeps each request inside the output budget - and Khmer spends
+     * roughly 3x the tokens for the same content (CLAUDE.md, AI layer).
+     */
+    async generateStudyGuide({
+      text,
+      title,
+      language = 'km',
+      moduleCount = 8,
+      outline = null,
+      only = undefined,
+      serviceTier = 'default',
+      onUsage,
+    } = {}) {
+      const material = requireFittingText(text);
+      const about = title ? ` titled "${title}"` : '';
+
+      const fullOutline =
+        outline ??
+        (
+          await structured({
+            label: 'generateStudyGuide:outline',
+            schemaName: 'study_guide_outline',
+            schema: STUDY_GUIDE_OUTLINE_SCHEMA,
+            language,
+            material,
+            serviceTier,
+            onUsage,
+            prompt: [
+              `Plan a study guide for this material${about}.`,
+              `Break it into about ${moduleCount} modules, one per distinct concept it teaches,`,
+              'in the order the document introduces them. Cover every major concept and do not',
+              'skip technical detail.',
+              'Use only this document: it is the whole syllabus for this guide, and anything it',
+              'does not contain is out of scope even if you know it.',
+              'Return a title and a one-line focus for each. No bodies, and no overview module.',
+            ].join(' '),
+          })
+        ).modules;
+
+      const wanted =
+        only === undefined
+          ? fullOutline.map((m) => m.moduleIndex)
+          : [...new Set(only)].filter((i) => fullOutline.some((m) => m.moduleIndex === i));
+
+      const modules = await Promise.all(
+        fullOutline
+          .filter((m) => wanted.includes(m.moduleIndex))
+          .map(async (m) => {
+            const body = await structured({
+              label: `generateStudyGuide:module[${m.moduleIndex}]`,
+              schemaName: 'study_guide_module',
+              schema: STUDY_GUIDE_MODULE_SCHEMA,
+              language,
+              material,
+              serviceTier,
+              onUsage,
+              prompt: [
+                `Teach module ${m.moduleIndex}, "${m.title}", from this material${about}.`,
+                `It must cover: ${m.focus}.`,
+                'Teach only that - the other modules are written separately, so do not introduce',
+                'their concepts or recap them.',
+                'Write for a student meeting this for the first time, and write to be SKIMMED:',
+                'short bullets, bold key terms, no walls of text. Being brief is not licence to',
+                'drop a technical detail - cut the padding, keep the substance.',
+                'Take the example from this document rather than inventing one.',
+                'Every recall question must carry its own written answer, complete in one or two',
+                'sentences.',
+                'Do not write a summary, an overview or an introduction - start teaching.',
+              ].join(' '),
+            });
+            return {
+              moduleIndex: m.moduleIndex,
+              title: body.title || m.title,
+              explanationMd: body.explanationMd,
+              applicationMd: body.applicationMd,
+              pitfallsMd: body.pitfallsMd,
+              recall: body.recall,
+            };
+          }),
+      );
+
+      return { outline: fullOutline, modules };
     },
 
     async generateQuiz({ text, title, language = 'km', count = 10, difficulty = 'mixed', reasoningEffort, onUsage } = {}) {
