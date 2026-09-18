@@ -5,14 +5,32 @@ node_modules/
 client/dist/
 client/.vite/
 
-# environment
+# environment / secrets
 .env
-.env.local
+.env.*
 *.env
 !.env.example
 
-# uploads (multer local disk in dev)
+server/.env
+server/.env.*
+!server/.env.example
+
+client/.env
+client/.env.*
+!client/.env.example
+
+# demo mode is local-only and must never be used in a hosted build
+client/.env.demo
+
+# certs / keys
+*.pem
+*.key
+*.crt
+*.p12
+
+# uploads (multer local disk in dev; replace with S3/object storage before hosting)
 server/uploads/
+server/storage/
 
 # logs
 *.log

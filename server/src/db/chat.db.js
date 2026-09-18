@@ -5,14 +5,39 @@ const MESSAGE_SELECT = `
          m.citations, m.status, m.model, m.created_at`;
 
 export const chatDb = {
-  async conversationForKit({ userId, kitId, language }) {
-    return queryOne(
-      `SELECT c.id, c.study_kit_id, c.language, c.last_message_at, c.created_at,
-              k.title AS kit_title
+  async historyForUser({ userId, language, limit = 50 }) {
+    const { rows } = await query(
+      `SELECT c.id, c.study_kit_id, c.source_id, c.language, c.last_message_at, c.created_at,
+              k.title AS kit_title, s.title AS source_title,
+              (SELECT m.content FROM chat_messages m
+                WHERE m.conversation_id = c.id AND m.role = 'user'
+                ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS preview
          FROM chat_conversations c
          JOIN study_kits k ON k.id = c.study_kit_id
-        WHERE c.user_id = $1 AND c.study_kit_id = $2 AND c.language = $3`,
-      [userId, kitId, language],
+         LEFT JOIN kit_sources s ON s.id = c.source_id
+        WHERE c.user_id = $1 AND c.language = $2
+        ORDER BY COALESCE(c.last_message_at, c.created_at) DESC, c.id DESC
+        LIMIT $3`,
+      [userId, language, limit],
+    );
+    return rows;
+  },
+
+  /**
+   * One thread per material, so switching files and back returns to the
+   * conversation you were having about each rather than one shared history.
+   * `sourceId` null is the kit-wide thread.
+   */
+  async conversationForKit({ userId, kitId, language, sourceId = null }) {
+    return queryOne(
+      `SELECT c.id, c.study_kit_id, c.source_id, c.language, c.last_message_at, c.created_at,
+              k.title AS kit_title, s.title AS source_title
+         FROM chat_conversations c
+         JOIN study_kits k ON k.id = c.study_kit_id
+         LEFT JOIN kit_sources s ON s.id = c.source_id
+        WHERE c.user_id = $1 AND c.study_kit_id = $2 AND c.language = $3
+          AND c.source_id IS NOT DISTINCT FROM $4::uuid`,
+      [userId, kitId, language, sourceId],
     );
   },
 
@@ -54,7 +79,7 @@ export const chatDb = {
     return { used, limit, remaining: Math.max(0, limit - used), reserved: row?.reserved ?? 0 };
   },
 
-  async createSession({ userId, kitId, language, content, limit }) {
+  async createSession({ userId, kitId, language, content, limit, sourceId = null }) {
     return withTransaction(async (client) => {
       await client.query(`SELECT id FROM users WHERE id = $1 FOR UPDATE`, [userId]);
       const kit = (await client.query(`SELECT id, title FROM study_kits WHERE id = $1 AND user_id = $2 FOR UPDATE`, [kitId, userId])).rows[0];
@@ -68,12 +93,23 @@ export const chatDb = {
       )).rows[0];
       if (limit !== null && usage.used + usage.reserved >= limit) return { quotaExceeded: true, used: usage.used, limit };
 
+      // A source that is not in this kit is ignored rather than trusted: the
+      // id arrives from the client, and a thread keyed to someone else's file
+      // would retrieve from material this student never opened.
+      const source = sourceId
+        ? (await client.query(
+            `SELECT id FROM kit_sources WHERE id = $1 AND study_kit_id = $2`,
+            [sourceId, kitId],
+          )).rows[0]
+        : null;
+
       const conversation = (await client.query(
-        `INSERT INTO chat_conversations (user_id, study_kit_id, title, language)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (user_id, study_kit_id, language) WHERE study_kit_id IS NOT NULL
+        `INSERT INTO chat_conversations (user_id, study_kit_id, source_id, title, language)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (user_id, study_kit_id, source_id, language) WHERE study_kit_id IS NOT NULL
          DO UPDATE SET title = chat_conversations.title
-         RETURNING id, study_kit_id, language`, [userId, kitId, kit.title, language],
+         RETURNING id, study_kit_id, source_id, language`,
+        [userId, kitId, source?.id ?? null, kit.title, language],
       )).rows[0];
       const userMessage = (await client.query(
         `INSERT INTO chat_messages (conversation_id, role, content, status)
@@ -120,7 +156,7 @@ export const chatDb = {
 
   async sessionForUser({ userId, sessionId }) {
     return queryOne(
-      `${MESSAGE_SELECT}, c.user_id, c.study_kit_id, c.language
+      `${MESSAGE_SELECT}, c.user_id, c.study_kit_id, c.source_id, c.language
          FROM chat_messages m JOIN chat_conversations c ON c.id = m.conversation_id
         WHERE m.id = $1 AND c.user_id = $2 AND m.role = 'assistant'`,
       [sessionId, userId],

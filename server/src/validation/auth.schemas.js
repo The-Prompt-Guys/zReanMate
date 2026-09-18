@@ -12,11 +12,24 @@ const MIN_PASSWORD = 8;
 // Digits with an optional leading +, once separators are stripped. Deliberately
 // loose — students paste numbers in several formats and a strict national
 // pattern would reject valid ones.
-const phoneSchema = z
-  .string()
-  .trim()
-  .transform((value) => value.replace(/[\s\-().]/g, ''))
-  .refine((value) => /^\+?\d{8,15}$/.test(value), 'Enter a valid phone number');
+//
+// An empty string means "left blank", not "invalid". `.optional()` only excuses
+// a MISSING field, so a caller that posts `phone: ""` for an untouched optional
+// input was told to "enter a valid phone number" for a field it never asked
+// them to fill. Blanking it here makes the two spellings of absent behave the
+// same, whoever is calling.
+// `.optional()` is INSIDE the preprocess on purpose: wrapped around the outside
+// it never sees the blanked value, because preprocess hands its `undefined`
+// straight to the inner schema, which then complains that a string was expected.
+const optionalPhoneSchema = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z
+    .string()
+    .trim()
+    .transform((value) => value.replace(/[\s\-().]/g, ''))
+    .refine((value) => /^\+?\d{8,15}$/.test(value), 'Enter a valid phone number')
+    .optional(),
+);
 
 const emailSchema = z.string().trim().toLowerCase().pipe(z.email('Enter a valid email address'));
 
@@ -25,9 +38,10 @@ export const registerSchema = z
     fullName: z.string().trim().min(1, 'Enter your name').max(120),
     email: emailSchema.optional(),
     // Optional per docs/screens/01-auth-onboarding/01 ("Phone number(optional)").
-    phone: phoneSchema.optional(),
+    phone: optionalPhoneSchema,
     password: z.string().min(MIN_PASSWORD, `Use at least ${MIN_PASSWORD} characters`).max(200),
     locale: z.enum(['km', 'en']).optional(),
+    role: z.enum(['student', 'teacher']),
   })
   // Mirrors the users_needs_identifier CHECK added in migration 002.
   .refine((data) => Boolean(data.email || data.phone), {

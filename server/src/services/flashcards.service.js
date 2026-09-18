@@ -115,7 +115,11 @@ export const flashcardsService = {
 
   async generate(userId, _plan, sourceId, input) {
     await requireSource(userId, sourceId);
-    const params = { count: await plansService.generationCount(userId, 'flashcards'), language: input.language };
+    const params = {
+      count: await plansService.generationCount(userId, 'flashcards'),
+      language: input.language,
+      ...(input.regenerate && { round: input.round ?? Date.now() }),
+    };
     const cache = await summariesDb.getOrCreateCache(summaryCacheKey({
       sourceId, method: 'generateFlashcards', params,
     }));

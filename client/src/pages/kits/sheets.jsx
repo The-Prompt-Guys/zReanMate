@@ -80,8 +80,6 @@ export const ChooseKitSheet = () => {
   const t = useT();
   const { kits, status } = useKits();
 
-  if (status === 'ready' && kits.length === 0) return <Navigate to="/kits/new" replace />;
-
   return (
     <BottomSheet closeTo="/kits" labelledBy="choose-kit-title">
       <SheetTitle id="choose-kit-title">{t('dashboard.addMaterial')}</SheetTitle>
@@ -955,10 +953,13 @@ export const ProcessingSheet = () => {
 export const CreateKitSheet = () => {
   const t = useT();
   const navigate = useNavigate();
+  const location = useLocation();
   const { addKit } = useKits();
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+
+  const nextPath = location.pathname === '/kits/new' ? (kitId) => `/kits/${kitId}/add` : (kitId) => `/kits/${kitId}`;
 
   return (
     <BottomSheet closeTo="/kits" labelledBy="create-kit-title">
@@ -974,7 +975,7 @@ export const CreateKitSheet = () => {
           setError(null);
           try {
             const kit = await addKit({ title: name });
-            navigate(`/kits/${kit.id}`);
+            navigate(nextPath(kit.id));
           } catch (err) {
             setError(err);
             setSubmitting(false);
@@ -1010,7 +1011,7 @@ export const CreateKitSheet = () => {
               })}
             </p>
             <Link
-              to="/onboarding/plan"
+              to="/"
               className="mt-4 inline-flex rounded-full bg-navy-800 px-6 py-3 text-base font-bold text-white"
             >
               {t('kits.upgradeToPlus')}

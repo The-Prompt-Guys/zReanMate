@@ -14,10 +14,17 @@ import { FullPageSpinner } from '../components/FullPageSpinner.jsx';
  * not onboarding, it is a toll booth. The survey is optional personalisation
  * (nothing reads the answers back yet) and `users.role` is nullable by design.
  */
-export const signupDestination = ({ onboarding }) => {
-  if (!onboarding.roleChosen) return '/onboarding/role';
+export const signupDestination = ({ onboarding, role }) => {
+  if (role === 'teacher') return '/teacher';
   if (!onboarding.completedAt) return '/onboarding/survey/1';
   return '/';
+};
+
+export const roleHome = (user) => (user?.role === 'teacher' ? '/teacher' : '/student');
+
+export const RoleHomeRedirect = () => {
+  const { user } = useAuth();
+  return <Navigate to={roleHome(user)} replace />;
 };
 
 /**
@@ -52,13 +59,36 @@ export const RequireAuth = () => {
   return <Outlet />;
 };
 
-/** Keeps a signed-in user off the auth screens. */
-export const RequireGuest = () => {
-  const { isLoading, isAuthenticated } = useAuth();
+export const RequireTeacher = () => {
+  const { isLoading, isAuthenticated, user } = useAuth();
 
   if (DEMO) return <Outlet />;
   if (isLoading) return <FullPageSpinner />;
-  if (isAuthenticated) return <Navigate to="/" replace />;
+  if (!isAuthenticated) return <Navigate to="/auth" replace />;
+  if (user?.role !== 'teacher') return <Navigate to="/student" replace />;
+
+  return <Outlet />;
+};
+
+/** Teachers do not use the student personalization and plan onboarding. */
+export const RequireStudentOnboarding = () => {
+  const { isLoading, isAuthenticated, user } = useAuth();
+
+  if (DEMO) return <Outlet />;
+  if (isLoading) return <FullPageSpinner />;
+  if (!isAuthenticated) return <Navigate to="/auth" replace />;
+  if (user?.role === 'teacher') return <Navigate to="/teacher" replace />;
+
+  return <Outlet />;
+};
+
+/** Keeps a signed-in user off the auth screens. */
+export const RequireGuest = () => {
+  const { isLoading, isAuthenticated, user } = useAuth();
+
+  if (DEMO) return <Outlet />;
+  if (isLoading) return <FullPageSpinner />;
+  if (isAuthenticated) return <Navigate to={roleHome(user)} replace />;
 
   return <Outlet />;
 };

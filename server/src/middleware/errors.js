@@ -37,6 +37,10 @@ export class ApiError extends Error {
   static tooManyRequests(message = 'Too many requests') {
     return new ApiError(429, 'too_many_requests', message);
   }
+
+  static serviceUnavailable(message = 'Service temporarily unavailable') {
+    return new ApiError(503, 'service_unavailable', message);
+  }
 }
 
 export const notFoundHandler = (req, res, next) => {

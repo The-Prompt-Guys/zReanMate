@@ -7,6 +7,8 @@ const router = Router();
 router.use(...authenticated);
 router.get('/profile', profileController.show);
 router.patch('/profile', validateBody(updateProfileBody), profileController.update);
+router.delete('/profile', profileController.remove);
+router.delete('/account', profileController.remove);
 router.get('/me/limits', profileController.limits);
 export default router;
 

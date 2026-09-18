@@ -1,12 +1,16 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 
-import { RequireAuth, RequireGuest } from '../auth/guards.jsx';
+import {
+  RequireAuth,
+  RequireGuest,
+  RequireStudentOnboarding,
+  RequireTeacher,
+  RoleHomeRedirect,
+} from '../auth/guards.jsx';
 import { AuthLayout } from '../layouts/AuthLayout.jsx';
 import { AppLayout } from '../layouts/AppLayout.jsx';
 import { AuthPage } from '../pages/AuthPage.jsx';
-import { RoleSelectionPage } from '../pages/RoleSelectionPage.jsx';
 import { SurveyPage } from '../pages/SurveyPage.jsx';
-import { PlanPage } from '../pages/PlanPage.jsx';
 import { DashboardPage } from '../pages/DashboardPage.jsx';
 import { KitsPage } from '../pages/kits/KitsPage.jsx';
 import { KitDetailPage } from '../pages/kits/KitDetailPage.jsx';
@@ -16,6 +20,8 @@ import { StudyGuidePage } from '../pages/study/StudyGuidePage.jsx';
 import { ChapterSummaryPage } from '../pages/study/ChapterSummaryPage.jsx';
 import { PdfViewerPage } from '../pages/study/PdfViewerPage.jsx';
 import { TutorPage } from '../pages/tutor/TutorPage.jsx';
+import { TutorSourceSheet } from '../pages/tutor/TutorSourceSheet.jsx';
+import { AssistantScreen } from '../pages/assistant/AssistantScreen.jsx';
 import { QuizPage } from '../pages/quiz/QuizPage.jsx';
 import { QuizResultsPage } from '../pages/quiz/QuizResultsPage.jsx';
 import { PracticeHomePage } from '../pages/practice/PracticeHomePage.jsx';
@@ -30,6 +36,17 @@ import { ClassDetailPage } from '../pages/classes/ClassDetailPage.jsx';
 import { AssignmentDetailPage } from '../pages/classes/AssignmentDetailPage.jsx';
 import { AssignmentWorkspacePage } from '../pages/classes/AssignmentWorkspacePage.jsx';
 import { ProfilePage } from '../pages/ProfilePage.jsx';
+import { TeacherClassesPage } from '../pages/teacher/TeacherClassesPage.jsx';
+import { TeacherDashboardPage } from '../pages/teacher/TeacherDashboardPage.jsx';
+import { TeacherClassDetailPage } from '../pages/teacher/TeacherClassDetailPage.jsx';
+import { TeacherAssignmentsPage } from '../pages/teacher/TeacherAssignmentsPage.jsx';
+import { TeacherCreateAssignmentPage } from '../pages/teacher/TeacherCreateAssignmentPage.jsx';
+import { TeacherCalendarPage } from '../pages/teacher/TeacherCalendarPage.jsx';
+import { TeacherAssistantPage } from '../pages/teacher/TeacherAssistantPage.jsx';
+import { TeacherCreateClassSheet } from '../pages/teacher/TeacherCreateClassSheet.jsx';
+import { TeacherUploadMaterialPage } from '../pages/teacher/TeacherUploadMaterialPage.jsx';
+import { TeacherGradeSubmissionPage, TeacherSubmissionListPage } from '../pages/teacher/TeacherSubmissionPages.jsx';
+import { TeacherProfilePage } from '../pages/teacher/TeacherProfilePage.jsx';
 import {
   AddMaterialSheet,
   ChooseKitSheet,
@@ -100,10 +117,14 @@ export const router = createBrowserRouter([
       {
         element: <RequireAuth />,
         children: [
-          { path: '/onboarding/role', element: <RoleSelectionPage /> },
-          { path: '/onboarding/survey/:step', element: <SurveyPage /> },
-          { path: '/onboarding/survey', element: <Navigate to="/onboarding/survey/1" replace /> },
-          { path: '/onboarding/plan', element: <PlanPage /> },
+          {
+            element: <RequireStudentOnboarding />,
+            children: [
+              { path: '/onboarding/survey/:step', element: <SurveyPage /> },
+              { path: '/onboarding/survey', element: <Navigate to="/onboarding/survey/1" replace /> },
+              { path: '/onboarding/plan', element: <Navigate to="/" replace /> },
+            ],
+          },
         ],
       },
     ],
@@ -114,13 +135,14 @@ export const router = createBrowserRouter([
       {
         element: <AppLayout />,
         children: [
-          { path: '/', element: <DashboardPage /> },
+          { path: '/', element: <RoleHomeRedirect /> },
+          { path: '/student', element: <DashboardPage /> },
 
           // Study kits. Create sheets layer over the Kits tab; add-to-kit
           // sheets layer over that kit's file list so students stay put.
           { path: '/kits', element: <KitsPage /> },
           { path: '/kits/add', element: <SheetOver sheet={<ChooseKitSheet />} /> },
-          { path: '/kits/new', element: <SheetOver sheet={<AddMaterialSheet />} /> },
+          { path: '/kits/new', element: <SheetOver sheet={<CreateKitSheet />} /> },
           { path: '/kits/new/photo', element: <SheetOver sheet={<PhotoPickSheet />} /> },
           { path: '/kits/new/photo/camera', element: <SheetOver sheet={<CameraSheet />} /> },
           { path: '/kits/new/pdf', element: <SheetOver sheet={<PdfPickSheet />} /> },
@@ -152,7 +174,12 @@ export const router = createBrowserRouter([
           { path: '/study/:kitId/pdf', element: <PdfViewerPage /> },
 
           // AI tutor
+          { path: '/assistant', element: <AssistantScreen /> },
           { path: '/tutor', element: <TutorPage /> },
+          {
+            path: '/tutor/source',
+            element: <><TutorPage /><TutorSourceSheet /></>,
+          },
 
           // Quiz. These screens use the contextual Practice / Learn /
           // Flashcards / More bar, so AppLayout hides the app tab bar.
@@ -175,6 +202,27 @@ export const router = createBrowserRouter([
           { path: '/classes/:classId', element: <ClassDetailPage /> },
           { path: '/assignments/:assignmentId', element: <AssignmentDetailPage /> },
           { path: '/assignments/:assignmentId/work', element: <AssignmentWorkspacePage /> },
+
+          // Teacher flows
+          {
+            element: <RequireTeacher />,
+            children: [
+              { path: '/teacher', element: <TeacherDashboardPage /> },
+              { path: '/teacher/classes', element: <TeacherClassesPage /> },
+              { path: '/teacher/classes/new', element: <><TeacherClassesPage /><TeacherCreateClassSheet /></> },
+              { path: '/teacher/classes/:classId', element: <TeacherClassDetailPage /> },
+              { path: '/teacher/classes/:classId/materials/new', element: <TeacherUploadMaterialPage /> },
+              { path: '/teacher/assignments', element: <TeacherAssignmentsPage /> },
+              { path: '/teacher/assignments/new', element: <TeacherCreateAssignmentPage /> },
+              { path: '/teacher/quizzes/new', element: <TeacherCreateAssignmentPage /> },
+              { path: '/teacher/assignments/:assignmentId', element: <TeacherSubmissionListPage /> },
+              { path: '/teacher/assignments/:assignmentId/edit', element: <TeacherCreateAssignmentPage /> },
+              { path: '/teacher/assignments/:assignmentId/submissions/:studentId', element: <TeacherGradeSubmissionPage /> },
+              { path: '/teacher/calendar', element: <TeacherCalendarPage /> },
+              { path: '/teacher/assistant', element: <TeacherAssistantPage /> },
+              { path: '/teacher/profile', element: <TeacherProfilePage /> },
+            ],
+          },
 
           // Profile
           { path: '/profile', element: <ProfilePage /> },

@@ -542,22 +542,64 @@ export const createMockProvider = () => ({
     return { outline: fullOutline, modules };
   },
 
-  async generateQuiz({ text, title, language = 'km', count = 10, onUsage } = {}) {
+  /**
+   * Adaptive, in the ways a mock can honestly be.
+   *
+   * It really does skip anything in `avoidQuestions` and really does aim 70% of
+   * the set at `weakTopics`, so the whole adaptive path — the db reads, the
+   * round key, the stored `targeted_weak_concept`, the mix on screen — can be
+   * exercised end to end with no API key. What it cannot do is write a
+   * genuinely new question, so once the fixtures are exhausted it re-uses a
+   * prompt with a round marker rather than pretending to be inventive.
+   */
+  async generateQuiz({
+    text,
+    title,
+    language = 'km',
+    count = 10,
+    questionTypes = ['multipleChoice'],
+    difficulty = 'medium',
+    avoidQuestions = [],
+    weakTopics = [],
+    onUsage,
+  } = {}) {
+    void difficulty;
     const d = dict(language);
+    const seen = new Set(avoidQuestions);
+    const targeted = weakTopics.length ? Math.round(count * 0.7) : 0;
+
+    // Every fixture that has not been asked yet, in order.
+    const fresh = d.questions.filter((q) => !seen.has(q.prompt));
+    const pool = fresh.length ? fresh : d.questions;
+
     const questions = Array.from({ length: Math.max(1, count) }, (_, i) => {
-      const q = d.questions[i % d.questions.length];
+      const q = pool[i % pool.length];
+      const cycle = Math.floor(i / pool.length);
+      // The marker counts from however many the student has already been
+      // asked, not from 1. Counting from 1 each time meant round two produced
+      // the same "... (7)" prompts round one had already used — a mock that
+      // reported duplicate prevention working while handing back duplicates.
+      const prompt =
+        cycle || !fresh.length ? `${q.prompt} (${seen.size + i + 1})` : q.prompt;
+      const requestedType = questionTypes[i % questionTypes.length];
+      const kind = requestedType === 'trueFalse'
+        ? 'true_false'
+        : requestedType === 'shortAnswer' ? 'short_answer' : 'multiple_choice';
       return {
-        kind: q.options.length === 2 ? 'true_false' : 'multiple_choice',
-        prompt: q.prompt,
-        options: q.options,
-        correctAnswer: q.correct,
+        kind,
+        prompt,
+        options: kind === 'multiple_choice'
+          ? (q.options.length === 4 ? q.options : [...q.options, 'Neither', 'Both'].slice(0, 4))
+          : kind === 'true_false' ? ['True', 'False'] : [],
+        correctAnswer: kind === 'short_answer' ? q.options[q.correct] : kind === 'true_false' ? (q.correct % 2) : q.correct,
         explanation: q.explanation,
-        topic: d.topics[i % d.topics.length],
+        topic: i < targeted ? weakTopics[i % weakTopics.length] : d.topics[i % d.topics.length],
+        targetedWeakConcept: i < targeted ? weakTopics[i % weakTopics.length] : null,
       };
     });
 
     reportUsage(onUsage, mockUsage({ input: text, output: JSON.stringify(questions), language }));
-    return { title: title ?? d.summaryTitle, questions };
+    return { title: `Adaptive Quiz - ${title ?? d.summaryTitle}`, questions };
   },
 
   async generateFlashcards({ text, language = 'km', count = 12, onUsage } = {}) {

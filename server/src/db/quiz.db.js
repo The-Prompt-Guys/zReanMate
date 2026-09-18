@@ -30,17 +30,101 @@ export const quizDb = {
           : null;
         await client.query(
           `INSERT INTO quiz_questions
-             (quiz_id, position, kind, prompt, options, correct_answer, explanation, topic_label, topic_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             (quiz_id, position, kind, prompt, options, correct_answer, explanation,
+              topic_label, topic_id, targeted_weak_concept)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            ON CONFLICT (quiz_id, position) DO NOTHING`,
           [inserted.id, position, question.kind, question.prompt,
             JSON.stringify(question.options), JSON.stringify(question.correctAnswer),
-            question.explanation, question.topic, topic?.id ?? null],
+            question.explanation, question.topic, topic?.id ?? null,
+            question.targetedWeakConcept ?? null],
         );
       }
       await client.query(`UPDATE ai_generation_cache SET status = 'ready', error_message = NULL WHERE id = $1`, [cacheId]);
       return inserted;
     });
+  },
+
+  /**
+   * The questions this student has already been asked about this material.
+   *
+   * Scoped to questions they actually ANSWERED, not merely every question ever
+   * generated: an abandoned quiz they never opened is not something they have
+   * seen, and excluding it would burn the good questions for nothing.
+   *
+   * Newest first and capped, because this list goes into the prompt. An old
+   * question is the safest one to forget — it is the least likely to still be
+   * fresh in the student's mind, and the prompt has a budget.
+   */
+  async seenQuestions({ userId, sourceId, limit = 60 }) {
+    const { rows } = await query(
+      `SELECT DISTINCT ON (qq.id) qq.prompt, a.answered_at
+         FROM quiz_attempt_answers a
+         JOIN quiz_attempts att ON att.id = a.attempt_id
+         JOIN quiz_questions qq ON qq.id = a.question_id
+         JOIN quizzes q ON q.id = qq.quiz_id
+        WHERE att.user_id = $1 AND q.source_id = $2
+        ORDER BY qq.id, a.answered_at DESC`,
+      [userId, sourceId],
+    );
+    return rows
+      .sort((a, b) => b.answered_at - a.answered_at)
+      .slice(0, limit)
+      .map((row) => row.prompt);
+  },
+
+  /**
+   * What this student keeps getting wrong on this material, worst first.
+   *
+   * Read from answers on THIS source rather than from `user_topic_mastery`,
+   * which is account-wide: a topic they are weak at in another kit says nothing
+   * about the document in front of them, and this quiz can only ask about this
+   * document. Mastery is still used as the tie-break, so a topic they are
+   * generally shaky on outranks one they merely slipped on once.
+   *
+   * A topic only counts as weak once it has been answered wrong at least once;
+   * "never asked" is not the same as "weak" and must not crowd out the 30%.
+   */
+  async weakTopics({ userId, sourceId, limit = 6 }) {
+    const { rows } = await query(
+      `SELECT qq.topic_label AS topic,
+              count(*) FILTER (WHERE a.is_correct IS FALSE)::int AS wrong,
+              count(*)::int AS asked,
+              COALESCE(min(m.mastery_percent), 100)::int AS mastery
+         FROM quiz_attempt_answers a
+         JOIN quiz_attempts att ON att.id = a.attempt_id
+         JOIN quiz_questions qq ON qq.id = a.question_id
+         JOIN quizzes q ON q.id = qq.quiz_id
+         LEFT JOIN user_topic_mastery m ON m.topic_id = qq.topic_id AND m.user_id = $1
+        WHERE att.user_id = $1 AND q.source_id = $2
+          AND qq.topic_label IS NOT NULL AND qq.topic_label <> ''
+        GROUP BY qq.topic_label
+       HAVING count(*) FILTER (WHERE a.is_correct IS FALSE) > 0
+        ORDER BY (count(*) FILTER (WHERE a.is_correct IS FALSE))::float / count(*) DESC,
+                 min(m.mastery_percent) ASC NULLS LAST
+        LIMIT $3`,
+      [userId, sourceId, limit],
+    );
+    return rows;
+  },
+
+  /**
+   * How many quizzes on this material this student has already finished.
+   *
+   * It is the round number, and it goes into the generation cache key — which
+   * is what makes "generate another" actually generate another. Without it the
+   * key is the same every time and the student is handed back the quiz they
+   * just sat.
+   */
+  async completedRounds({ userId, sourceId }) {
+    const row = await queryOne(
+      `SELECT count(DISTINCT att.id)::int AS rounds
+         FROM quiz_attempts att
+         JOIN quizzes q ON q.id = att.quiz_id
+        WHERE att.user_id = $1 AND q.source_id = $2 AND att.status = 'submitted'`,
+      [userId, sourceId],
+    );
+    return row?.rounds ?? 0;
   },
 
   async byCache(cacheId) {
@@ -50,7 +134,7 @@ export const quizDb = {
   async questions(quizId, { answersForAttemptId = null } = {}) {
     const { rows } = await query(
       `SELECT qq.id, qq.position, qq.kind, qq.prompt, qq.options, qq.explanation,
-              qq.topic_label, a.response, a.is_correct, a.answered_at,
+              qq.topic_label, qq.targeted_weak_concept, a.response, a.is_correct, a.answered_at,
               CASE WHEN a.id IS NULL THEN NULL ELSE qq.correct_answer END AS revealed_answer
          FROM quiz_questions qq
          LEFT JOIN quiz_attempt_answers a

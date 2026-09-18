@@ -113,10 +113,13 @@ const systemPrompt = (language) =>
   [
     'You are ReanMate, a study tutor for Cambodian secondary and university students.',
     `Write every user-facing string in ${LANGUAGE_NAMES[language] ?? LANGUAGE_NAMES.km}.`,
+    language === 'km'
+      ? 'For Khmer replies, write the explanation in Khmer script and translate ordinary English wording into Khmer. Keep English only for code, filenames, proper names, or an unavoidable technical label, and put the Khmer explanation first.'
+      : '',
     'Explain plainly, use short sentences, and prefer a concrete example over an abstract rule.',
     'Base every claim on the study material provided. If the material does not answer the',
     'question, say so rather than inventing an answer.',
-  ].join(' ');
+  ].filter(Boolean).join(' ');
 
 /**
  * Never silently truncate — a summary of half a document looks correct and is
@@ -309,8 +312,20 @@ const QUIZ_SCHEMA = obj({
         type: ['string', 'null'],
         description: 'Expected answer for short_answer/written, else null.',
       },
-      explanation: { type: 'string' },
+      explanation: {
+        type: 'string',
+        description:
+          'Why the correct option is right AND why each distractor is wrong, both grounded in ' +
+          'the document. A student who picked wrongly must learn what they misread.',
+      },
       topic: { type: 'string' },
+      targetedWeakConcept: {
+        type: ['string', 'null'],
+        description:
+          'The weak concept this question was written to attack, copied EXACTLY from the list ' +
+          'of weak concepts in the instructions. null when the question covers the rest of the ' +
+          'document instead.',
+      },
     }),
   },
 });
@@ -627,7 +642,44 @@ export const createOpenAIProvider = ({
       return { outline: fullOutline, modules };
     },
 
-    async generateQuiz({ text, title, language = 'km', count = 10, difficulty = 'mixed', reasoningEffort, onUsage } = {}) {
+    /**
+     * A quiz over one document, adapted to how the student has done on it.
+     *
+     * Two inputs make it adaptive, and both are gathered by the caller from the
+     * database rather than guessed at here:
+     *
+     * `avoidQuestions` — what this student has already been asked about this
+     *   material. Listing them is the only way to get a genuinely new set: the
+     *   model cannot know what a previous call produced, and without the list
+     *   it writes the same obvious questions about the same obvious sentences
+     *   every time.
+     *
+     * `weakTopics` — what they keep getting wrong, worst first. The 70/30 split
+     *   is stated as a count rather than a percentage, because a model asked for
+     *   "70%" of eight questions will cheerfully return five or six.
+     *
+     * Every question is multiple choice with four options. A quiz the student
+     * can be re-tested on has to be comparable between rounds, and a mix of
+     * true/false and written answers is not.
+     */
+    async generateQuiz({
+      text,
+      title,
+      language = 'km',
+      count = 10,
+      difficulty = 'mixed',
+      questionTypes = ['multipleChoice'],
+      includeAnswerKey = true,
+      avoidQuestions = [],
+      weakTopics = [],
+      reasoningEffort,
+      onUsage,
+    } = {}) {
+      // Stated as counts, not percentages — see above. With no history the
+      // split is 0/all, which is the "spread evenly" case.
+      const targeted = weakTopics.length ? Math.round(count * 0.7) : 0;
+      const general = count - targeted;
+
       const result = await structured({
         label: 'generateQuiz',
         schemaName: 'quiz',
@@ -637,12 +689,52 @@ export const createOpenAIProvider = ({
         reasoningEffort,
         onUsage,
         prompt: [
-          `Write ${count} ${difficulty} quiz questions about this material.`,
-          'multiple_choice needs exactly 4 options, true_false exactly 2, and for both set',
-          'correctIndex to the 0-based index of the right option with correctText null.',
-          'For short_answer and written set correctText and leave correctIndex null.',
-          'Every question needs an explanation and a topic. Only ask what the material covers.',
-        ].join(' '),
+          `Write exactly ${count} questions about this material at ${difficulty} difficulty.`,
+          `Allowed question types only: ${questionTypes.join(', ')}.`,
+          `${title ? `titled "${title}"` : ''}.`,
+          'Use only this document — not your own knowledge of the subject, and not any other',
+          'file it may refer to.',
+          'Do not ask questions about the class name, source labels, filenames, or the fact that',
+          'a document was supplied. Ask about concepts, definitions, procedures, and examples',
+          'stated in the document itself.',
+          'For multipleChoice, use kind "multiple_choice" with exactly 4 options and exactly one correctIndex.',
+          'For trueFalse, use kind "true_false" with exactly 2 options ("True" and "False") and correctIndex.',
+          'For shortAnswer, use kind "short_answer", an empty options array, and correctText.',
+          'Use only allowed types and distribute them across the requested count where possible.',
+          'Distractors must be plausible to someone who half-understood the material, never filler.',
+          'Vary which position holds the correct option instead of writing the true statement',
+          'first every time. (The server reshuffles as well, so the four options must read as',
+          'a set in any order — never "all of the above", "both A and B", or an option that',
+          'refers to another by letter.)',
+          'Every question needs a topic and an explanation saying why the right option is right',
+          'and why the others are wrong, pointing at what the document actually says.',
+          weakTopics.length
+            ? [
+                `This student has already been tested on this material. Exactly ${targeted} of the`,
+                `${count} questions must attack these weak concepts, worst first —`,
+                `${weakTopics.map((topic) => `"${topic}"`).join(', ')} —`,
+                'and each of those questions must set targetedWeakConcept to the concept it',
+                `attacks, spelled exactly as listed. The other ${general} must cover different`,
+                'parts of the document, with targetedWeakConcept null.',
+              ].join(' ')
+            : 'Spread the questions evenly across the core subtopics, and set targetedWeakConcept null on every one.',
+          avoidQuestions.length
+            ? [
+                'The student has already answered the questions listed below. Do not repeat,',
+                'rephrase, translate or narrowly re-angle any of them — a question testing the',
+                'same fact in different words is a duplicate. Ask about something else in the',
+                'document, or test the same concept from a genuinely different direction',
+                '(applying it, comparing it, spotting where it breaks).',
+                `ALREADY ASKED:\n${avoidQuestions.map((q) => `- ${q}`).join('\n')}`,
+              ].join(' ')
+            : '',
+          `Title the quiz "${title ?? 'Generated Quiz'}".`,
+          includeAnswerKey
+            ? 'Include correct answers so the teacher can edit the answer key.'
+            : 'Still include correct answers internally for validation, but the teacher UI may hide them until enabled.',
+        ]
+          .filter(Boolean)
+          .join(' '),
       });
 
       return {
@@ -670,6 +762,12 @@ export const createOpenAIProvider = ({
             correctAnswer,
             explanation: q.explanation,
             topic: q.topic,
+            // Only trust it when it names a weakness that was actually asked
+            // for — a model that invents its own label would report a mix that
+            // never happened.
+            targetedWeakConcept: weakTopics.includes(q.targetedWeakConcept)
+              ? q.targetedWeakConcept
+              : null,
           };
         }),
       };

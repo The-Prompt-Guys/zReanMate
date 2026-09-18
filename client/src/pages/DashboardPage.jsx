@@ -328,7 +328,7 @@ export const DashboardPage = () => {
               </h3>
               <p className="mt-1 text-sm font-medium text-ink-600">{t('dashboard.emptyBody')}</p>
               <Link
-                to="/kits/new"
+                to="/kits/add"
                 className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-5 py-2 text-sm font-extrabold text-white"
               >
                 {t('dashboard.emptyAction')}

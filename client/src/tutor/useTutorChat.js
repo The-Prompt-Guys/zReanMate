@@ -14,7 +14,12 @@ const parseEventBlock = (block) => {
   return { event, id, data: JSON.parse(data.join('\n') || '{}') };
 };
 
-export const useTutorChat = (kitId, language) => {
+/**
+ * `sourceId` is the material the thread is about, or null for the whole kit.
+ * It is part of the conversation the server hands back, so switching files
+ * loads that file's history rather than one shared thread.
+ */
+export const useTutorChat = (kitId, language, sourceId = null, { enabled = true } = {}) => {
   const [messages, setMessages] = useState([]);
   const [quota, setQuota] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
@@ -23,14 +28,16 @@ export const useTutorChat = (kitId, language) => {
   const streamingSessionRef = useRef(null);
 
   const load = useCallback(async () => {
-    if (!kitId) return;
+    if (!enabled || !kitId) return;
     try {
-      const { data } = await api.get(`/chat/conversation/${kitId}`, { params: { language } });
+      const { data } = await api.get(`/chat/conversation/${kitId}`, {
+        params: { language, sourceId: sourceId || undefined },
+      });
       setMessages(data.messages);
       setQuota(data.quota);
       setError(null);
     } catch (err) { setError(toFormError(err)); }
-  }, [kitId, language]);
+  }, [enabled, kitId, language, sourceId]);
 
   useEffect(() => { load(); return () => abortRef.current?.abort(); }, [load]);
 
@@ -102,21 +109,23 @@ export const useTutorChat = (kitId, language) => {
   }, [updateAssistant]);
 
   useEffect(() => {
+    if (!enabled) return undefined;
     const unfinished = messages.find((message) => message.role === 'assistant' && (message.status === 'queued' || message.status === 'streaming'));
     if (unfinished) void stream(unfinished.id);
-  }, [messages, stream]);
+    return undefined;
+  }, [enabled, messages, stream]);
 
   const send = useCallback(async (content) => {
     const text = content.trim();
-    if (!kitId || !text) return;
+    if (!enabled || !kitId || !text) return;
     try {
-      const { data } = await api.post('/chat', { kitId, content: text, language });
+      const { data } = await api.post('/chat', { kitId, sourceId: sourceId || undefined, content: text, language });
       setMessages((current) => [...current, data.userMessage, data.assistantMessage]);
       setQuota(data.quota);
       setError(null);
       await stream(data.sessionId);
     } catch (err) { setError(toFormError(err)); }
-  }, [kitId, language, stream]);
+  }, [enabled, kitId, sourceId, language, stream]);
 
   const retry = useCallback(async (failedSessionId) => {
     try {

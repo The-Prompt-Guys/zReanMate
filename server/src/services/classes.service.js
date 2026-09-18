@@ -2,9 +2,11 @@ import { randomBytes } from 'node:crypto';
 
 import { classesDb } from '../db/classes.db.js';
 import { ApiError } from '../middleware/errors.js';
+import { absoluteUploadPath, removeUploadedFile, relativeUploadPath, verifyUploadedFile } from '../middleware/upload.js';
 
 const classApi = (row) => ({
   id: row.id, title: row.title, description: row.description, subject: row.subject,
+  coverUrl: row.cover_image_path ? `/api/classes/${row.id}/cover` : null,
   teacher: row.teacher_name, teacherId: row.teacher_id, joinCode: row.join_code,
   weeks: row.week_count, lessonCount: row.lesson_count, lessonsDone: row.lessons_done,
   status: row.status,
@@ -37,9 +39,15 @@ export const classesService = {
       quizzes: quizzes.map((row) => ({ id: row.id, title: row.title,
         questionCount: row.question_count, status: row.status, week: row.week_number,
         kitId: row.study_kit_id })),
-      assignments: assignments.map((row) => ({ id: row.id, title: row.title,
-        dueAt: row.due_at, status: row.status })),
+      assignments: assignments.map((row) => ({ id: row.id, quizId: row.quiz_id, title: row.title,
+        dueAt: row.due_at, status: row.status, type: row.assignment_type, week: row.week_number })),
     };
+  },
+
+  async remove(teacherId, classId) {
+    const row = await classesDb.remove(teacherId, classId);
+    if (!row) throw ApiError.notFound('That class does not exist or is not yours');
+    return { deleted: true, classId: row.id };
   },
 
   async create(teacherId, input) {
@@ -53,6 +61,29 @@ export const classesService = {
       }
     }
     throw ApiError.conflict('Could not allocate a class code');
+  },
+
+  async setCover(teacherId, classId, file) {
+    if (!file) throw ApiError.badRequest('Choose a class cover image');
+    try {
+      const verified = await verifyUploadedFile(file);
+      if (verified.kind !== 'image') throw ApiError.badRequest('A class cover must be an image');
+      const row = await classesDb.setCover({
+        teacherId, classId, storagePath: relativeUploadPath(file.path),
+        mimeType: file.mimetype, byteSize: verified.byteSize,
+      });
+      if (!row) throw ApiError.notFound('That class does not exist');
+      return { coverUrl: `/api/classes/${classId}/cover` };
+    } catch (error) {
+      await removeUploadedFile(file.path).catch(() => {});
+      throw error;
+    }
+  },
+
+  async cover(userId, classId) {
+    const row = await classesDb.cover({ userId, classId });
+    if (!row?.cover_image_path) throw ApiError.notFound('That class has no cover image');
+    return { path: absoluteUploadPath(row.cover_image_path), mimeType: row.cover_image_mime_type };
   },
 
   async join(userId, code) {

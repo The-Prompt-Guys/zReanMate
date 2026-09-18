@@ -142,7 +142,7 @@ export const SheetTile = ({ tone = 'blue', className = '', children }) => (
 );
 
 /** A tappable row inside a sheet — icon tile, title, subtitle, chevron. */
-export const SheetOption = ({ to, onClick, tone = 'blue', icon, title, description }) => {
+export const SheetOption = ({ to, onClick, tone = 'blue', icon, title, description, disabled = false }) => {
   const content = (
     <>
       <SheetTile tone={tone}>{icon}</SheetTile>
@@ -161,7 +161,19 @@ export const SheetOption = ({ to, onClick, tone = 'blue', icon, title, descripti
   // White on the sheet's own white, told apart by its ring rather than a tint —
   // the same card treatment the dashboard uses.
   const className =
-    'flex w-full items-center gap-4 rounded-2xl bg-white p-3.5 shadow-sm ring-1 ring-tint-200/70 transition-colors hover:bg-canvas';
+    'flex w-full items-center gap-4 rounded-2xl bg-white p-3.5 shadow-sm ring-1 ring-tint-200/70 transition-colors' +
+    (disabled ? ' cursor-not-allowed opacity-50' : ' hover:bg-canvas');
+
+  // A disabled row is still read out, and still says why in its description —
+  // it just cannot be chosen. Rendering it as a live button that ignores taps
+  // would be worse than showing it greyed.
+  if (disabled) {
+    return (
+      <button type="button" disabled aria-disabled="true" className={className}>
+        {content}
+      </button>
+    );
+  }
 
   if (to) {
     return (

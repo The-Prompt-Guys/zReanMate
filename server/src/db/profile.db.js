@@ -1,4 +1,8 @@
+import { rm } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import { query, queryOne } from './pool.js';
+import { uploadRoot } from '../middleware/upload.js';
 
 export const profileDb = {
   async get(userId) {
@@ -22,6 +26,19 @@ export const profileDb = {
         WHERE id = $1 AND status <> 'deleted' RETURNING id`,
       [userId, patch.fullName ?? null, patch.locale ?? null],
     );
+  },
+  async deleteAccount(userId) {
+    const userDir = join(uploadRoot, userId);
+    await rm(userDir, { recursive: true, force: true });
+
+    const row = await queryOne(
+      `DELETE FROM users
+        WHERE id = $1 AND status <> 'deleted'
+        RETURNING id`,
+      [userId],
+    );
+
+    return row;
   },
 };
 

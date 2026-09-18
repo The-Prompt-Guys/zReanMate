@@ -17,11 +17,9 @@ export const FLOWS = [
       { shot: '01-auth-signup-phone', name: 'Sign up / Log in', route: '/auth', built: true },
       { shot: '02-phone-otp-verification', name: 'Phone OTP', route: null, built: false, skipped: 'No SMS provider' },
       { shot: '03-email-code-verification', name: 'Email code', route: null, built: false, skipped: 'No email provider' },
-      { shot: '04-role-selection-student-teacher', name: 'Role selection', route: '/onboarding/role', built: true },
       { shot: '05-onboarding-survey', name: 'Survey — step 1', route: '/onboarding/survey/1', built: true },
       { shot: '06-onboarding-step-2', name: 'Survey — step 2', route: '/onboarding/survey/2', built: true },
       { shot: '07-onboarding-step-3', name: 'Survey — step 3', route: '/onboarding/survey/3', built: true },
-      { shot: '08-free-vs-plus-comparison', name: 'Free vs Plus', route: '/onboarding/plan', built: true },
     ],
   },
   {

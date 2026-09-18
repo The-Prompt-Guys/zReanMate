@@ -18,6 +18,9 @@ const AuthContext = createContext(null);
  * fixtures — no /api call, no cookie, mockUser signed in. See src/mock/mode.js.
  */
 const DEMO = isDemo();
+const DEMO_ROLE_KEY = 'reanmate.demo.role';
+
+const readDemoRole = () => (DEMO ? window.localStorage.getItem(DEMO_ROLE_KEY) : null);
 
 const EMPTY_ONBOARDING = {
   roleChosen: false,
@@ -48,7 +51,11 @@ export const AuthProvider = ({ children }) => {
     // Prototype mode never calls the API — see src/mock/mode.js.
     if (DEMO) {
       const { mockOnboarding, mockUser } = await loadDemoFixtures();
-      const data = { user: mockUser, onboarding: mockOnboarding };
+      const role = readDemoRole() ?? mockUser.role;
+      const data = {
+        user: { ...mockUser, role },
+        onboarding: { ...mockOnboarding, roleChosen: Boolean(role) },
+      };
       applySession(data);
       return data;
     }
@@ -75,7 +82,16 @@ export const AuthProvider = ({ children }) => {
 
   const register = useCallback(
     async (payload) => {
-      if (DEMO) return (await reload()).user;
+      if (DEMO) {
+        const { mockOnboarding, mockUser } = await loadDemoFixtures();
+        const data = {
+          user: { ...mockUser, role: payload.role },
+          onboarding: { ...mockOnboarding, roleChosen: Boolean(payload.role) },
+        };
+        window.localStorage.setItem(DEMO_ROLE_KEY, payload.role);
+        applySession(data);
+        return data.user;
+      }
       const { data } = await api.post('/auth/register', payload);
       // Registration returns the user but not onboarding state; read it back so
       // the router can route on a complete picture.
@@ -102,6 +118,7 @@ export const AuthProvider = ({ children }) => {
   const logout = useCallback(async () => {
     try {
       if (!DEMO) await api.post('/auth/logout');
+      else window.localStorage.removeItem(DEMO_ROLE_KEY);
     } finally {
       // Clear locally even if the call failed — the user asked to be signed out.
       clearSession();
@@ -111,6 +128,7 @@ export const AuthProvider = ({ children }) => {
   const chooseRole = useCallback(async (role) => {
     if (DEMO) {
       const { mockUser } = await loadDemoFixtures();
+      window.localStorage.setItem(DEMO_ROLE_KEY, role);
       setUser((prev) => ({ ...prev, role }));
       setOnboarding((prev) => ({ ...prev, roleChosen: true }));
       return { ...mockUser, role };

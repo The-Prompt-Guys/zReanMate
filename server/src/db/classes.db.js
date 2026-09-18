@@ -7,7 +7,8 @@ const ACCESS = `(c.teacher_id = $1 OR EXISTS (
 
 const CLASS_SELECT = `
   SELECT c.id, c.teacher_id, c.title, c.description, c.subject, c.join_code,
-         c.week_count, c.cover_color, c.status, c.created_at,
+         c.week_count, c.cover_color, c.cover_image_path, c.cover_image_mime_type,
+         c.cover_image_byte_size, c.status, c.created_at,
          COALESCE(u.full_name, u.email, u.phone, 'Teacher') AS teacher_name,
          (SELECT count(*)::int FROM lessons l WHERE l.class_id = c.id) AS lesson_count,
          (SELECT count(*)::int FROM lesson_progress lp
@@ -28,11 +29,35 @@ export const classesDb = {
     return queryOne(`${CLASS_SELECT} WHERE c.id = $2 AND ${ACCESS}`, [userId, classId]);
   },
 
+  async remove(teacherId, classId) {
+    return queryOne(
+      `DELETE FROM classes WHERE id = $2 AND teacher_id = $1 RETURNING id`,
+      [teacherId, classId],
+    );
+  },
+
   async create({ teacherId, title, description, subject, weekCount, joinCode }) {
     return queryOne(
       `INSERT INTO classes (teacher_id, title, description, subject, week_count, join_code)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
       [teacherId, title, description ?? null, subject ?? null, weekCount, joinCode],
+    );
+  },
+
+  async setCover({ teacherId, classId, storagePath, mimeType, byteSize }) {
+    return queryOne(
+      `UPDATE classes SET cover_image_path = $3, cover_image_mime_type = $4, cover_image_byte_size = $5
+       WHERE id = $1 AND teacher_id = $2
+       RETURNING id`,
+      [classId, teacherId, storagePath, mimeType, byteSize],
+    );
+  },
+
+  async cover({ userId, classId }) {
+    return queryOne(
+      `SELECT c.cover_image_path, c.cover_image_mime_type FROM classes c
+       WHERE c.id = $2 AND ${ACCESS}`,
+      [userId, classId],
     );
   },
 
@@ -73,7 +98,7 @@ export const classesDb = {
   async materials(userId, classId) {
     const { rows } = await query(
       `SELECT m.id, m.title, m.mime_type, m.byte_size,
-              COALESCE(l.week_number, 1) AS week_number
+              COALESCE(m.week_number, l.week_number, 1) AS week_number
          FROM class_materials m JOIN classes c ON c.id = m.class_id
          LEFT JOIN lessons l ON l.id = m.lesson_id
         WHERE m.class_id = $2 AND ${ACCESS}
@@ -98,8 +123,10 @@ export const classesDb = {
 
   async assignments(userId, classId) {
     const { rows } = await query(
-      `SELECT a.id, a.title, a.due_at, a.status
+      `SELECT a.id, a.title, a.due_at, a.status, a.assignment_type,
+              COALESCE(l.week_number, 1) AS week_number
          FROM assignments a JOIN classes c ON c.id = a.class_id
+         LEFT JOIN lessons l ON l.id = a.lesson_id
         WHERE a.class_id = $2 AND ${ACCESS}
         ORDER BY a.due_at NULLS LAST, a.created_at`,
       [userId, classId],

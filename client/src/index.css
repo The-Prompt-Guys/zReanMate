@@ -199,6 +199,56 @@ body {
   clip-path: polygon(30% 0%, 100% 0%, 100% 60%, 60% 100%, 0% 100%, 0% 40%);
 }
 
+/* Teacher workspace -------------------------------------------------------
+   The reference screens use a brighter, more dimensional classroom palette
+   than the student flows. These two foundations keep every teacher page on
+   the same soft-blue canvas while allowing the existing app shell to own the
+   phone-width breakpoint and the bottom navigation. */
+.teacher-page {
+  background:
+    radial-gradient(circle at 10% 0%, rgb(210 236 255 / 0.72), transparent 28rem),
+    linear-gradient(180deg, #f1f9ff 0%, #f8fcff 56%, #edf7ff 100%);
+}
+
+.teacher-hero {
+  background:
+    radial-gradient(circle at 84% 14%, rgb(88 158 255 / 0.32), transparent 10rem),
+    linear-gradient(135deg, #123a87 0%, #174897 48%, #2057ae 100%);
+  box-shadow: inset 0 -1px rgb(255 255 255 / 0.12);
+}
+
+.teacher-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.42;
+  background: linear-gradient(140deg, transparent 36%, rgb(255 255 255 / 0.12) 36%, transparent 58%);
+}
+
+.teacher-display {
+  text-wrap: balance;
+}
+
+.teacher-input {
+  width: 100%;
+  min-height: 2.75rem;
+  background: transparent;
+  color: #17488f;
+  font-size: 1rem;
+  font-weight: 650;
+  outline: none;
+}
+
+.teacher-input::placeholder {
+  color: #91add8;
+}
+
+.teacher-input:focus {
+  border-radius: 0.5rem;
+  box-shadow: 0 0 0 2px rgb(8 120 249 / 0.3);
+}
+
 
 @keyframes sheet-slide-up {
   from {

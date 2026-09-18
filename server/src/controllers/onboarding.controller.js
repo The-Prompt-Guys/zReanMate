@@ -1,8 +1,10 @@
 import { onboardingService } from '../services/onboarding.service.js';
+import { tokenService } from '../services/token.service.js';
 
 export const onboardingController = {
   async setRole(req, res) {
     const user = await onboardingService.setRole(req.auth.userId, req.body.role);
+    tokenService.setAccessCookie(res, tokenService.signAccessToken(user));
     res.json({ user });
   },
 

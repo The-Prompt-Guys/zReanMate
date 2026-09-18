@@ -17,14 +17,23 @@ export const useFlashcards = ({ source, kitId, language, selectedSourceId = null
   const [cards, setCards] = useState([]);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
+  const [regeneration, setRegeneration] = useState(0);
 
   const refresh = useCallback(async () => {
     if (!sourceId || sourceStatus !== 'ready') return;
     try {
       setError(null);
-      const generation = await api.post(`/sources/${sourceId}/flashcards`, { language });
+      const generation = await api.post(`/sources/${sourceId}/flashcards`, {
+        language,
+        regenerate: regeneration > 0,
+        ...(regeneration > 0 && { round: regeneration }),
+      });
       setStatus(generation.data.status);
       if (generation.data.status === 'ready') {
+        if (regeneration > 0 && generation.data.cards?.length) {
+          setCards(generation.data.cards);
+          return;
+        }
         // Scoped to the source, not the kit: the deck is generated from one
         // file and the due list has to match it, or reviewing cost-analyst1.pdf
         // deals cards from every other material in the kit.
@@ -37,7 +46,7 @@ export const useFlashcards = ({ source, kitId, language, selectedSourceId = null
       setError(toFormError(err));
       setStatus('error');
     }
-  }, [sourceId, sourceStatus, kitId, language, selectedSourceId]);
+  }, [sourceId, sourceStatus, kitId, language, selectedSourceId, regeneration]);
 
   useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => {
@@ -51,5 +60,12 @@ export const useFlashcards = ({ source, kitId, language, selectedSourceId = null
     return data.review;
   }, []);
 
-  return { cards, setCards, status, error, refresh, review };
+  const regenerate = useCallback(() => {
+    setCards([]);
+    setError(null);
+    setStatus('loading');
+    setRegeneration((value) => value + 1);
+  }, []);
+
+  return { cards, setCards, status, error, refresh, review, regenerate };
 };

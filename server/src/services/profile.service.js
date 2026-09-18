@@ -18,5 +18,12 @@ export const profileService = {
     if (!await profileDb.update(userId, patch)) throw ApiError.unauthorized();
     return this.get(userId);
   },
+  async deleteAccount(userId) {
+    if (!await profileDb.deleteAccount(userId)) {
+      throw ApiError.unauthorized('That account is no longer active');
+    }
+
+    return { deleted: true };
+  },
 };
 

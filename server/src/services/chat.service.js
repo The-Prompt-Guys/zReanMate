@@ -9,6 +9,8 @@ import {
   trackGeneration,
 } from './aiUsage.service.js';
 import { createUsageCollector } from '../ai/types.js';
+import { detectRequestedReplyLanguage } from './replyLanguage.service.js';
+import { kitsDb } from '../db/kits.db.js';
 
 const active = new Map();
 const nextTick = () => new Promise((resolve) => setImmediate(resolve));
@@ -41,6 +43,7 @@ const runProducer = async (session, entry) => {
   const startedAt = Date.now();
   let history = [];
   let sources = [];
+  let replyLanguage = session.language;
   let logged = false;
 
   const logTurn = async (status, errorMessage = null) => {
@@ -50,7 +53,7 @@ const runProducer = async (session, entry) => {
       kind: 'tutor',
       userId: session.user_id,
       studyKitId: session.study_kit_id,
-      language: session.language,
+      language: replyLanguage,
       sourceText: sources.map((item) => item.content).join('\n'),
       request: { retrievedSources: sources.length, historyTurns: history.length, maxOutputTokens: 400 },
       response: { answerChars: answer.length },
@@ -64,6 +67,7 @@ const runProducer = async (session, entry) => {
   try {
     history = await chatDb.recentHistory(session.conversation_id, 4);
     const queryText = [...history].reverse().find((message) => message.role === 'user')?.content ?? '';
+    replyLanguage = detectRequestedReplyLanguage(queryText, session.language);
 
     // Logged as its own 'embedding' row rather than folded into the tutor
     // total: it runs on a different model, and mixing the two would attribute
@@ -81,7 +85,14 @@ const runProducer = async (session, entry) => {
       ({ onUsage }) => ai.embed({ texts: [queryText], onUsage }),
     );
 
-    const matches = await chunksDb.cosineSearchForKit({ kitId: session.study_kit_id, embedding: embedded.embeddings[0], limit: 3 });
+    // Scoped to the file this thread is about, when it is about one. The
+    // citations then name the material the student actually opened.
+    const matches = await chunksDb.cosineSearchForKit({
+      kitId: session.study_kit_id,
+      sourceId: session.source_id ?? null,
+      embedding: embedded.embeddings[0],
+      limit: 3,
+    });
     sources = matches.map((row) => ({
       title: row.title,
       content: row.content,
@@ -91,7 +102,7 @@ const runProducer = async (session, entry) => {
 
     let terminalSeen = false;
     let streamError = null;
-    for await (const chunk of ai.tutorReply({ messages: history, language: session.language, sources, maxOutputTokens: 400, onUsage: usage.record })) {
+    for await (const chunk of ai.tutorReply({ messages: history, language: replyLanguage, sources, maxOutputTokens: 400, onUsage: usage.record })) {
       if (terminalSeen) continue;
       if (chunk.type === 'delta') {
         answer += chunk.text;
@@ -132,12 +143,62 @@ const runProducer = async (session, entry) => {
 };
 
 export const chatService = {
-  async conversation(userId, kitId, language, _plan) {
-    const conversation = await chatDb.conversationForKit({ userId, kitId, language });
+  async explain(userId, input) {
+    const kit = await kitsDb.findById({ userId, kitId: input.kitId });
+    if (!kit) throw ApiError.notFound('That study kit does not exist');
+
+    const ai = getAI();
+    const replyLanguage = detectRequestedReplyLanguage(input.content, input.language);
+    const embedded = await ai.embed({ texts: [input.content] });
+    const matches = await chunksDb.cosineSearchForKit({
+      kitId: input.kitId,
+      sourceId: input.sourceId ?? null,
+      embedding: embedded.embeddings[0],
+      limit: 3,
+    });
+    const sources = matches.map((row) => ({
+      title: row.title,
+      content: row.content,
+      pageNumber: row.page_number,
+      startSeconds: row.start_seconds,
+    }));
+    let content = '';
+    let citations = [];
+    for await (const chunk of ai.tutorReply({
+      messages: [{ role: 'user', content: input.content }],
+      language: replyLanguage,
+      sources,
+      maxOutputTokens: 400,
+    })) {
+      if (chunk.type === 'delta') content += chunk.text;
+      if (chunk.type === 'done') citations = chunk.citations;
+      if (chunk.type === 'error') throw new Error(chunk.message);
+    }
+    return { content, citations, language: replyLanguage };
+  },
+
+  async history(userId, language) {
+    const rows = await chatDb.historyForUser({ userId, language });
+    return {
+      conversations: rows.map((row) => ({
+        id: row.id,
+        kitId: row.study_kit_id,
+        sourceId: row.source_id,
+        language: row.language,
+        kitTitle: row.kit_title,
+        sourceTitle: row.source_title,
+        preview: row.preview,
+        lastMessageAt: row.last_message_at ?? row.created_at,
+      })),
+    };
+  },
+
+  async conversation(userId, kitId, language, _plan, sourceId = null) {
+    const conversation = await chatDb.conversationForKit({ userId, kitId, language, sourceId });
     const messages = conversation ? await chatDb.messages(conversation.id) : [];
     const quota = (await plansService.limits(userId)).limits.tutor_messages_per_month;
     return {
-      conversation: conversation ? { id: conversation.id, kitId: conversation.study_kit_id, language: conversation.language, kitTitle: conversation.kit_title, lastMessageAt: conversation.last_message_at } : null,
+      conversation: conversation ? { id: conversation.id, kitId: conversation.study_kit_id, sourceId: conversation.source_id ?? null, sourceTitle: conversation.source_title ?? null, language: conversation.language, kitTitle: conversation.kit_title, lastMessageAt: conversation.last_message_at } : null,
       messages: messages.map(toMessage),
       quota: { used: quota.used, limit: quota.limit, remaining: quota.remaining },
     };
@@ -145,7 +206,7 @@ export const chatService = {
 
   async create(userId, _plan, input) {
     const limit = await plansService.getLimit(userId, 'tutor_messages_per_month');
-    const result = await chatDb.createSession({ userId, kitId: input.kitId, language: input.language, content: input.content, limit });
+    const result = await chatDb.createSession({ userId, kitId: input.kitId, sourceId: input.sourceId ?? null, language: input.language, content: input.content, limit });
     if (result.missing) throw ApiError.notFound('That study kit does not exist');
     if (result.quotaExceeded) throw new ApiError(429, 'quota_exceeded', 'Tutor message limit reached', { used: result.used, limit: result.limit });
     return {

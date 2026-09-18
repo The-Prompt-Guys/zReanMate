@@ -74,7 +74,16 @@ export const chunksDb = {
     return rows[0]?.count ?? 0;
   },
 
-  async cosineSearchForKit({ kitId, embedding, limit = 3 }) {
+  /**
+   * Nearest chunks to a question.
+   *
+   * `sourceId` narrows the search to one material. It is the difference
+   * between a tutor that answers about the file you opened and one that
+   * answers from whatever in the kit happened to match — which is how a
+   * question about a PyQt6 chapter came back explaining fractional reserve
+   * banking, cited to a file the student had not asked about.
+   */
+  async cosineSearchForKit({ kitId, embedding, limit = 3, sourceId = null }) {
     const { rows } = await query(
       `SELECT c.id, c.source_id, c.content, c.page_number,
               c.start_seconds, c.end_seconds, s.title,
@@ -82,9 +91,10 @@ export const chunksDb = {
          FROM document_chunks c
          JOIN kit_sources s ON s.id = c.source_id
         WHERE c.study_kit_id = $1 AND c.embedding IS NOT NULL
+          AND ($4::uuid IS NULL OR c.source_id = $4::uuid)
         ORDER BY c.embedding <=> $2::vector
         LIMIT $3`,
-      [kitId, JSON.stringify(embedding), limit],
+      [kitId, JSON.stringify(embedding), limit, sourceId],
     );
     return rows;
   },

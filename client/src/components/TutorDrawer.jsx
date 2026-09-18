@@ -11,12 +11,12 @@ const PROMPTS = [
   { en: 'Quiz me', km: 'សាកល្បងខ្ញុំ' },
 ];
 
-export const TutorDrawer = ({ defaultOpen = true, subject, kitId }) => {
+export const TutorDrawer = ({ defaultOpen = true, subject, kitId, sourceId = null }) => {
   const t = useT();
   const { language } = useLanguage();
   const [open, setOpen] = useState(defaultOpen);
   const [draft, setDraft] = useState('');
-  const { messages, quota, suggestions, send, retry } = useTutorChat(kitId, language);
+  const { messages, quota, suggestions, send, retry } = useTutorChat(kitId, language, sourceId);
   const submit = (event) => { event.preventDefault(); const content = draft; setDraft(''); void send(content); };
 
   return <section className="sticky bottom-0 z-10 rounded-t-[1.5rem] bg-tint-100/95 px-5 pb-5 pt-3 backdrop-blur" aria-label={t('tutor.title')}>

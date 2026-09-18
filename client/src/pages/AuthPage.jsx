@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext.jsx';
-import { signupDestination } from '../auth/guards.jsx';
-import { Button, FormAlert, TextField } from '../components/ui.jsx';
+import { roleHome, signupDestination } from '../auth/guards.jsx';
+import { Button, FormAlert, OptionCard, TextField } from '../components/ui.jsx';
 import { Owl, Wordmark } from '../layouts/AuthLayout.jsx';
 import { toFormError } from '../lib/api.js';
 import { useT, useLanguage } from '../i18n/index.js';
@@ -34,6 +34,7 @@ export const AuthPage = () => {
   const { register, login } = useAuth();
 
   const [mode, setMode] = useState('signup');
+  const [role, setRole] = useState(null);
   const [values, setValues] = useState({
     fullName: '',
     email: '',
@@ -66,23 +67,29 @@ export const AuthPage = () => {
 
     try {
       if (mode === 'signup') {
-        await register({
+        const user = await register({
           fullName: values.fullName,
           email: values.email || undefined,
           phone: values.phone || undefined,
           password: values.password,
           locale: language,
+          role,
         });
+        if (user?.role === 'teacher') {
+          navigate('/teacher', { replace: true });
+          return;
+        }
       } else {
-        await login({ identifier: values.identifier, password: values.password });
+        const user = await login({ identifier: values.identifier, password: values.password });
+        navigate(location.state?.from ?? roleHome(user), { replace: true });
+        return;
       }
-      // Signup runs the onboarding wizard; a fresh account has no role yet, so
-      // this lands on role selection. Signing in to an existing account does
-      // NOT — it goes to wherever they were headed, or the dashboard. Handing
-      // a returning user the survey again is the bug this replaced.
-      const destination = mode === 'signup'
-        ? signupDestination({ onboarding: { roleChosen: false, completedAt: null } })
-        : (location.state?.from ?? '/');
+      // Signup continues to the optional personal study survey. Returning users
+      // go to the page they requested or the dashboard.
+      const destination = signupDestination({
+        onboarding: { roleChosen: true, completedAt: null },
+        role,
+      });
       navigate(destination, { replace: true });
     } catch (error) {
       const { code, message, fields } = toFormError(error);
@@ -193,6 +200,27 @@ export const AuthPage = () => {
               error={errors.phone}
               autoComplete="tel"
             />
+            <div className="space-y-3" role="radiogroup" aria-label={t('onboarding.roleTitle')}>
+              <p className="text-sm font-semibold text-navy-900">{t('onboarding.roleTitle')}</p>
+              <OptionCard
+                name="role"
+                value="student"
+                checked={role === 'student'}
+                onChange={setRole}
+                icon={<span aria-hidden="true" className="text-2xl">🎓</span>}
+                title={t('onboarding.roleStudent')}
+                description={t('onboarding.roleStudentHint')}
+              />
+              <OptionCard
+                name="role"
+                value="teacher"
+                checked={role === 'teacher'}
+                onChange={setRole}
+                icon={<span aria-hidden="true" className="text-2xl">📚</span>}
+                title={t('onboarding.roleTeacher')}
+                description={t('onboarding.roleTeacherHint')}
+              />
+            </div>
           </>
         ) : (
           <TextField
@@ -217,7 +245,7 @@ export const AuthPage = () => {
           required
         />
 
-        <Button type="submit" disabled={busy} className="mt-2">
+        <Button type="submit" disabled={busy || (isSignup && !role)} className="mt-2">
           {busy ? t('common.loading') : t(isSignup ? 'auth.createAccount' : 'auth.logIn')}
         </Button>
       </form>

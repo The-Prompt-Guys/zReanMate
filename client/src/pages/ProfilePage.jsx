@@ -2,22 +2,31 @@ import { NavyHeader } from '../layouts/AppLayout.jsx';
 import { Owl } from '../layouts/AuthLayout.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { LanguageSwitcher, useT } from '../i18n/index.js';
-import { LIMIT_LABELS, useProfile } from '../profile/useProfile.js';
+import { api } from '../lib/api.js';
+import { useProfile } from '../profile/useProfile.js';
 
 /** docs/screens/10-profile/01-profile-tab. */
 export const ProfilePage = () => {
   const t = useT();
   const { user, logout } = useAuth();
-  const { profile, limits, error, update } = useProfile();
+  const { profile, error, update } = useProfile();
   const shown = profile ?? { fullName: user?.full_name, summary: { kits: 0, cards: 0, mastery: 0 }, activityDays: [] };
-  const activity = new Set(shown.activityDays.map((day) => new Date(day).getUTCDay()));
-  const learningWeek = [1, 2, 3, 4, 5, 6, 0].map((day) => activity.has(day));
   const edit = async () => {
     const fullName = window.prompt(t('profile.edit'), shown.fullName ?? '')?.trim();
     if (fullName) await update({ fullName });
   };
+  const deleteAccount = async () => {
+    const confirmed = window.confirm(t('profile.deleteAccountConfirm'));
+    if (!confirmed) return;
 
-  const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+    try {
+      await api.delete('/profile');
+      await logout();
+    } catch (err) {
+      const message = err?.response?.data?.error?.message ?? t('profile.deleteAccountFailed');
+      window.alert(message);
+    }
+  };
 
   return (
     <main>
@@ -57,27 +66,6 @@ export const ProfilePage = () => {
           </dl>
         </section>
 
-        {limits && <section className="rounded-card bg-white p-4 shadow-sm ring-1 ring-tint-200/70"><h2 className="text-xl font-bold text-navy-900">{t('profile.plan')}</h2><p className="mt-1 capitalize text-navy-600">{limits.planTier}</p><ul className="mt-3 space-y-2 text-sm text-navy-700">{Object.entries(limits.limits).filter(([key]) => LIMIT_LABELS[key]).map(([key, value]) => <li key={key} className="flex justify-between gap-3"><span>{t(LIMIT_LABELS[key])}</span><strong>{value.remaining === null ? t('plan.unlimited') : t('profile.limitRemaining', { remaining: value.remaining, limit: value.limit })}</strong></li>)}</ul></section>}
-
-        <section>
-          <h2 className="text-xl font-bold text-navy-900">{t('profile.activity')}</h2>
-          <div className="mt-3 rounded-card bg-white p-4 shadow-sm ring-1 ring-tint-200/70">
-            <ul className="flex justify-between">
-              {learningWeek.map((active, i) => (
-                <li key={DAY_KEYS[i]} className="flex flex-col items-center gap-3">
-                  <span className="text-sm font-semibold text-navy-600">
-                    {t(`profile.day_${DAY_KEYS[i]}`)}
-                  </span>
-                  <span
-                    className={`size-3 rounded-full ${active ? 'bg-navy-800' : 'bg-gold-400'}`}
-                    aria-label={t(active ? 'profile.studied' : 'profile.missed')}
-                  />
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
         <section>
           <h2 className="text-xl font-bold text-navy-900">{t('profile.preferences')}</h2>
 
@@ -104,6 +92,14 @@ export const ProfilePage = () => {
             className="mt-3 w-full rounded-card bg-white py-4 text-lg font-bold text-danger-600 shadow-sm ring-1 ring-tint-200/70"
           >
             {t('auth.logout')}
+          </button>
+
+          <button
+            type="button"
+            onClick={deleteAccount}
+            className="mt-3 w-full rounded-card bg-danger-50 py-4 text-lg font-bold text-danger-600 shadow-sm ring-1 ring-danger-200"
+          >
+            {t('profile.deleteAccount')}
           </button>
         </section>
       </div>

@@ -1,5 +1,6 @@
 import { tokenService } from '../services/token.service.js';
 import { ApiError } from './errors.js';
+import { usersDb } from '../db/users.db.js';
 
 /**
  * Rejects anything without a valid access-token cookie.
@@ -34,9 +35,14 @@ export const requireAuth = (req, res, next) => {
  * Requires a specific role. Unused this session — teacher-only routes arrive
  * with classes — but it belongs beside requireAuth.
  */
-export const requireRole = (...roles) => (req, res, next) => {
+export const requireRole = (...roles) => async (req, res, next) => {
   if (!req.auth) return next(ApiError.unauthorized('Sign in to continue'));
   if (!roles.includes(req.auth.role)) {
+    const user = await usersDb.findById(req.auth.userId);
+    if (user && roles.includes(user.role)) {
+      req.auth.role = user.role;
+      return next();
+    }
     return next(ApiError.forbidden('Your account cannot do that'));
   }
   return next();

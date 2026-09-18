@@ -58,7 +58,7 @@ const issueSession = async (user, { req, res }) => {
 };
 
 export const authService = {
-  async register({ fullName, email, phone, password, locale }, { req, res }) {
+  async register({ fullName, email, phone, password, locale, role }, { req, res }) {
     const normalizedEmail = normalizeEmail(email);
     const normalizedPhone = normalizePhone(phone);
 
@@ -87,6 +87,7 @@ export const authService = {
         phone: normalizedPhone,
         passwordHash,
         locale,
+        role,
         verifiedAt: autoVerifiedAt(),
       });
     } catch (err) {

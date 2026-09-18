@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { useAuth } from '../auth/AuthContext.jsx';
 import { Button, CheckIcon, SegmentedProgress, TextButton } from '../components/ui.jsx';
 import { Owl, Wordmark } from '../layouts/AuthLayout.jsx';
 import { useT } from '../i18n/index.js';
@@ -25,13 +26,14 @@ const PLUS_FEATURES = [
 export const PlanPage = () => {
   const t = useT();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [notice, setNotice] = useState(null);
   const { limits } = useProfile();
   // The free kit count is a plan_limits row, not copy — reading it here keeps
   // the feature list from drifting from what the server actually enforces.
   const freeKitLimit = limits?.plans?.free?.limits?.max_kits;
 
-  const finish = () => navigate('/', { replace: true });
+  const finish = () => navigate(user?.role === 'teacher' ? '/teacher' : '/', { replace: true });
 
   return (
     <main className="flex flex-1 flex-col">

@@ -12,14 +12,27 @@ export const ClassesPage = () => {
   const { classes, status, error, join } = useClasses();
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState(null);
+  const [joinDialogOpen, setJoinDialogOpen] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+
+  const closeJoinDialog = () => {
+    setJoinDialogOpen(false);
+    setJoinError(null);
+    setJoinCode('');
+  };
 
   const joinClass = async () => {
-    const code = window.prompt(t('classes.joinCode'))?.trim();
+    const code = joinCode.trim();
     if (!code) return;
     setJoining(true); setJoinError(null);
-    try { await join(code); }
-    catch (err) { setJoinError(err?.response?.data?.error?.message ?? 'That class code is not valid.'); }
-    finally { setJoining(false); }
+    try {
+      await join(code);
+      closeJoinDialog();
+    } catch (err) {
+      setJoinError(err?.response?.data?.error?.message ?? 'That class code is not valid.');
+    } finally {
+      setJoining(false);
+    }
   };
 
   return (
@@ -31,14 +44,57 @@ export const ClassesPage = () => {
       <div className="space-y-3 px-5 pt-5">
         {status === 'loading' && <p className="py-8 text-center text-navy-600">{t('common.loading')}</p>}
         {error && <p className="py-4 text-center text-danger-600">{error.message}</p>}
-        {status === 'ready' && classes.length === 0 && <div className="rounded-card bg-white p-6 text-center ring-1 ring-tint-200"><Owl variant="waving" className="mx-auto size-20" /><p className="mt-2 text-navy-600">{t('classes.noUpcoming')}</p></div>}
         <ul className="space-y-3">{classes.map((klass) => {
           const total = Math.max(1, klass.lessonCount);
           return <li key={klass.id}><Link to={`/classes/${klass.id}`} className="flex items-center gap-4 rounded-card bg-white p-4 shadow-sm ring-1 ring-tint-200/70"><span className="grid size-12 shrink-0 place-items-center rounded-xl bg-tint-100 text-navy-800"><ClassIcon /></span><span className="min-w-0 flex-1"><span className="block font-bold text-navy-900">{klass.title}</span><span className="mt-0.5 block text-sm text-navy-600">{klass.teacher}</span><span className="mt-1.5 block text-sm text-navy-800">{t('classes.lessonsCompleted', { done: klass.lessonsDone, total: klass.lessonCount })}</span><span className="mt-2 block h-2 w-full overflow-hidden rounded-full bg-tint-200"><span className="block h-full rounded-full bg-navy-800" style={{ width: `${(klass.lessonsDone / total) * 100}%` }} /></span></span><svg viewBox="0 0 24 24" className="size-5 shrink-0 text-navy-600" fill="none" aria-hidden="true"><path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></Link></li>;
         })}</ul>
         {joinError && <p className="text-center text-sm text-danger-600">{joinError}</p>}
-        <button type="button" disabled={joining} onClick={joinClass} className="mt-3 flex w-full items-center justify-center gap-3 rounded-full bg-navy-800 py-4 text-lg font-bold text-white disabled:opacity-50"><PeopleIcon />{t('classes.join')}</button>
+        <button type="button" disabled={joining} onClick={() => setJoinDialogOpen(true)} className="mt-3 flex w-full items-center justify-center gap-3 rounded-full bg-navy-800 py-4 text-lg font-bold text-white disabled:opacity-50"><PeopleIcon />{t('classes.join')}</button>
       </div>
+
+      {joinDialogOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/45 p-4">
+          <div className="w-full max-w-[28rem] rounded-[1.2rem] bg-[#0f2859] p-4 text-white shadow-2xl ring-1 ring-[#224a93]">
+            <p className="text-[1.1rem] font-bold text-white">{t('classes.joinCode')}</p>
+            <div className="mt-3">
+              <input
+                autoFocus
+                value={joinCode}
+                onChange={(event) => setJoinCode(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    void joinClass();
+                  }
+                  if (event.key === 'Escape') {
+                    closeJoinDialog();
+                  }
+                }}
+                placeholder={t('classes.joinCode')}
+                className="w-full rounded-xl border border-[#d4a340] bg-[#0d214d] px-3 py-3 text-lg text-white placeholder:text-white/60 focus:border-[#f0c76a] focus:outline-none"
+              />
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeJoinDialog}
+                className="rounded-full border border-[#d4a340] bg-transparent px-4 py-2 text-sm font-bold text-[#f4d08f]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={joining || !joinCode.trim()}
+                onClick={() => void joinClass()}
+                className="rounded-full bg-[#d4a340] px-5 py-2 text-sm font-bold text-[#1d1a17] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 };

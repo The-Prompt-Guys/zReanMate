@@ -21,15 +21,15 @@ export const usersDb = {
    * provider exists — see auth.service.js. The columns stay in the schema so
    * turning verification on later is a policy change, not a migration.
    */
-  async create({ fullName, email, phone, passwordHash, locale = 'km', verifiedAt }) {
+  async create({ fullName, email, phone, passwordHash, locale = 'km', role, verifiedAt }) {
     return queryOne(
-      `INSERT INTO users (full_name, email, phone, password_hash, locale,
+      `INSERT INTO users (full_name, email, phone, password_hash, role, locale,
                           phone_verified_at, email_verified_at)
-       VALUES ($1, $2, $3, $4, $5,
-               CASE WHEN $3::text IS NULL THEN NULL ELSE $6::timestamptz END,
-               CASE WHEN $2::text IS NULL THEN NULL ELSE $6::timestamptz END)
+       VALUES ($1, $2, $3, $4, $5, $6,
+               CASE WHEN $3::text IS NULL THEN NULL ELSE $7::timestamptz END,
+               CASE WHEN $2::text IS NULL THEN NULL ELSE $7::timestamptz END)
        RETURNING ${PUBLIC_COLUMNS}`,
-      [fullName ?? null, email ?? null, phone ?? null, passwordHash, locale, verifiedAt],
+      [fullName ?? null, email ?? null, phone ?? null, passwordHash, role, locale, verifiedAt],
     );
   },
 

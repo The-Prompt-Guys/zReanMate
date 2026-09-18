@@ -8,8 +8,16 @@ const writeFrame = (res, frame) => {
 };
 
 export const chatController = {
+  async explain(req, res) {
+    res.json(await chatService.explain(req.auth.userId, req.body));
+  },
+
+  async history(req, res) {
+    res.json(await chatService.history(req.auth.userId, req.validatedQuery.language));
+  },
+
   async conversation(req, res) {
-    const result = await chatService.conversation(req.auth.userId, req.validatedParams.kitId, req.validatedQuery.language, req.auth.plan);
+    const result = await chatService.conversation(req.auth.userId, req.validatedParams.kitId, req.validatedQuery.language, req.auth.plan, req.validatedQuery.sourceId);
     res.json(result);
   },
 

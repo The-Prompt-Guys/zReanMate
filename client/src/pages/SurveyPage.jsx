@@ -114,7 +114,7 @@ export const SurveyPage = () => {
   const t = useT();
   const navigate = useNavigate();
   const { step: stepParam } = useParams();
-  const { submitSurvey, onboarding } = useAuth();
+  const { submitSurvey, onboarding, user } = useAuth();
 
   const stepNumber = Number(stepParam);
   const index = stepNumber - 1;
@@ -138,8 +138,9 @@ export const SurveyPage = () => {
   if (!step) return <Navigate to="/onboarding/survey/1" replace />;
 
   const isLast = index === STEPS.length - 1;
+  const finishOnboarding = () => navigate(user?.role === 'teacher' ? '/teacher' : '/', { replace: true });
 
-  const advance = () => (isLast ? navigate('/onboarding/plan') : navigate(`/onboarding/survey/${stepNumber + 1}`));
+  const advance = () => (isLast ? finishOnboarding() : navigate(`/onboarding/survey/${stepNumber + 1}`));
 
   const persist = async ({ skip }) => {
     setBusy(true);
@@ -152,7 +153,7 @@ export const SurveyPage = () => {
         skipped: skip,
         complete: skip || isLast,
       });
-      if (skip) navigate('/onboarding/plan');
+      if (skip) finishOnboarding();
       else advance();
     } catch (error) {
       const { code, message, fields } = toFormError(error);

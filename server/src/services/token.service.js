@@ -76,6 +76,13 @@ export const tokenService = {
     });
   },
 
+  setAccessCookie(res, accessToken) {
+    res.cookie(ACCESS_COOKIE, accessToken, {
+      ...baseCookie,
+      maxAge: 15 * 60 * 1000,
+    });
+  },
+
   clearAuthCookies(res) {
     // Options must match those used to set them or the browser keeps the cookie.
     res.clearCookie(ACCESS_COOKIE, baseCookie);

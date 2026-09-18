@@ -13,6 +13,7 @@ import flashcardRoutes from './flashcards.routes.js';
 import classRoutes from './classes.routes.js';
 import assignmentRoutes from './assignments.routes.js';
 import profileRoutes from './profile.routes.js';
+import teacherRoutes from './teacher.routes.js';
 import { authController } from '../controllers/auth.controller.js';
 import { authenticated } from '../middleware/guards.js';
 
@@ -33,6 +34,7 @@ router.use(flashcardRoutes);
 router.use('/classes', classRoutes);
 router.use(assignmentRoutes);
 router.use(profileRoutes);
+router.use('/teacher', teacherRoutes);
 
 // Top-level alias; /api/auth/me serves the same handler.
 router.get('/me', ...authenticated, authController.me);

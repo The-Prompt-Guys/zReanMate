@@ -44,9 +44,90 @@ export const validateGeneratedQuiz = (quiz, expectedCount) => {
       explanation: question.explanation.trim(),
       correctAnswer: typeof question.correctAnswer === 'string' ? question.correctAnswer.trim() : question.correctAnswer,
       topic: typeof question.topic === 'string' ? question.topic.trim() : '',
+      targetedWeakConcept:
+        typeof question.targetedWeakConcept === 'string' && question.targetedWeakConcept.trim()
+          ? question.targetedWeakConcept.trim()
+          : null,
     };
   });
   return { title: quiz.title.trim(), questions };
+};
+
+/**
+ * Spreads the correct answers evenly across A, B, C and D.
+ *
+ * This is done here rather than asked for in the prompt, because asking does
+ * not work. A model writes the true statement first and then invents three
+ * wrong ones around it, so the answer lands on A far more often than chance —
+ * and a student who notices picks A without reading, which makes the quiz
+ * measure nothing. Telling it to "randomise" produces a model's idea of random,
+ * which is still lopsided and is unverifiable per quiz.
+ *
+ * Shuffling after generation makes the distribution a property of the code:
+ * positions are dealt from a bag holding each slot an equal number of times, so
+ * a 10-question quiz is 3/3/2/2 across the four slots no matter what the model
+ * did. The remainder goes to random slots, so it is not always A and B that get
+ * the extra one.
+ *
+ * Distractors are shuffled among the remaining slots too — otherwise two quizzes
+ * on the same material read as the same list with one item moved.
+ *
+ * `random` is injectable so tests are deterministic; nothing about the result
+ * depends on the sequence being unpredictable, only on it being even.
+ *
+ * Questions with no options (short answer, written) pass through untouched.
+ */
+export const balanceAnswerPositions = (questions, random = Math.random) => {
+  const shuffled = (items) => {
+    const copy = [...items];
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  };
+
+  // One bag per option count: four-option questions are balanced across four
+  // slots, and a two-option question cannot be dealt into slot C.
+  const bags = new Map();
+  const takeSlot = (optionCount, total) => {
+    if (!bags.has(optionCount)) {
+      const base = Math.floor(total / optionCount);
+      const slots = [];
+      for (let slot = 0; slot < optionCount; slot += 1) {
+        for (let n = 0; n < base; n += 1) slots.push(slot);
+      }
+      // The leftovers land on randomly chosen slots rather than the first ones.
+      const remainder = shuffled([...Array(optionCount).keys()]).slice(0, total - slots.length);
+      bags.set(optionCount, shuffled([...slots, ...remainder]));
+    }
+    const bag = bags.get(optionCount);
+    return bag.length ? bag.pop() : Math.floor(random() * optionCount);
+  };
+
+  const counts = new Map();
+  for (const question of questions) {
+    if (Number.isInteger(question.correctAnswer) && question.options.length > 1) {
+      counts.set(question.options.length, (counts.get(question.options.length) ?? 0) + 1);
+    }
+  }
+
+  return questions.map((question) => {
+    const optionCount = question.options.length;
+    // Only choice questions have a position to move; a written answer has none.
+    if (!Number.isInteger(question.correctAnswer) || optionCount < 2) return question;
+
+    const target = takeSlot(optionCount, counts.get(optionCount) ?? 1);
+    const correct = question.options[question.correctAnswer];
+    const distractors = shuffled(question.options.filter((_, i) => i !== question.correctAnswer));
+
+    const options = [];
+    for (let slot = 0; slot < optionCount; slot += 1) {
+      options.push(slot === target ? correct : distractors.pop());
+    }
+
+    return { ...question, options, correctAnswer: target };
+  });
 };
 
 const requireSource = async (userId, sourceId) => {
@@ -61,6 +142,9 @@ const questionApi = (row) => ({
   options: row.options, explanation: row.is_correct === null ? null : row.explanation,
   topic: row.topic_label, response: row.response, isCorrect: row.is_correct,
   correctAnswer: row.revealed_answer,
+  // Named on screen so the student can see the quiz is working on their weak
+  // spots rather than asking again at random.
+  targetedWeakConcept: row.targeted_weak_concept ?? null,
 });
 const attemptApi = (row) => ({
   id: row.id, quizId: row.quiz_id, status: row.status, total: row.total_questions,
@@ -74,6 +158,16 @@ const runGeneration = async ({ cacheId, sourceId, params }) => {
     if (!claimed) return;
     const source = await sourcesDb.findByIdUnscoped(sourceId);
     const ai = getAI();
+    // Gathered for the student the quiz is FOR, which is not always the
+    // source's owner — a class material is sat by every enrolled student, and
+    // each of them is weak at different things.
+    const forUserId = params.userId ?? source.user_id;
+    const [avoidQuestions, weakRows] = await Promise.all([
+      quizDb.seenQuestions({ userId: forUserId, sourceId }),
+      quizDb.weakTopics({ userId: forUserId, sourceId }),
+    ]);
+    const weakTopics = weakRows.map((row) => row.topic);
+
     const raw = await trackGeneration(
       {
         kind: 'quiz',
@@ -82,15 +176,29 @@ const runGeneration = async ({ cacheId, sourceId, params }) => {
         sourceId,
         language: params.language,
         sourceText: source.extracted_text,
-        request: { count: params.count, difficulty: params.difficulty, reasoningEffort: 'medium' },
-        describe: (value) => ({ questions: value.questions?.length ?? 0 }),
+        request: {
+          count: params.count,
+          difficulty: params.difficulty,
+          reasoningEffort: 'medium',
+          round: params.round ?? 0,
+          avoiding: avoidQuestions.length,
+          weakTopics: weakTopics.length,
+        },
+        describe: (value) => ({
+          questions: value.questions?.length ?? 0,
+          targeted: value.questions?.filter((q) => q.targetedWeakConcept).length ?? 0,
+        }),
       },
       ({ onUsage }) =>
         ai.generateQuiz({ text: source.extracted_text, title: source.name,
           language: params.language, difficulty: params.difficulty, count: params.count,
+          avoidQuestions, weakTopics,
           reasoningEffort: 'medium', onUsage }),
     );
-    const quiz = validateGeneratedQuiz(raw, params.count);
+    const validated = validateGeneratedQuiz(raw, params.count);
+    // Shuffled before it is stored, so the position a student sees is the one
+    // that was graded — the answer index in the row IS the shuffled one.
+    const quiz = { ...validated, questions: balanceAnswerPositions(validated.questions) };
     await quizDb.saveGenerated({ cacheId, source, quiz, params, model: ai.name });
   } catch (error) {
     await summariesDb.failCache(cacheId, error.message);
@@ -119,10 +227,14 @@ const quizSnapshot = async (cache) => {
  */
 export const quizService = {
   async prewarm(userId, sourceId, { language }) {
+    // Round 0, generated during ingest: there is no history yet by definition,
+    // so this is the evenly-spread quiz every student starts from.
     const params = {
       count: await plansService.generationCount(userId, 'quiz'),
       difficulty: 'mixed',
       language,
+      userId,
+      round: 0,
     };
     const key = summaryCacheKey({ sourceId, method: 'generateQuiz', params });
     const cache = await summariesDb.getOrCreateCache(key);
@@ -130,9 +242,25 @@ export const quizService = {
     await runGeneration({ cacheId: cache.id, sourceId, params });
   },
 
+  /**
+   * The quiz for this student, this round.
+   *
+   * `round` is how many quizzes on this material they have already submitted,
+   * and it is part of the cache key — so sitting a quiz and asking for another
+   * gets a genuinely new one, while reloading mid-quiz gets the same one back
+   * rather than paying for a regeneration. `userId` is in the key for the same
+   * reason the history is read per student: two students on the same class
+   * material are weak at different things and must not share a cached quiz.
+   */
   async generate(userId, _plan, sourceId, input) {
     await requireSource(userId, sourceId);
-    const params = { count: await plansService.generationCount(userId, 'quiz'), difficulty: input.difficulty, language: input.language };
+    const params = {
+      count: await plansService.generationCount(userId, 'quiz'),
+      difficulty: input.difficulty,
+      language: input.language,
+      userId,
+      round: await quizDb.completedRounds({ userId, sourceId }),
+    };
     const key = summaryCacheKey({ sourceId, method: 'generateQuiz', params });
     const cache = await summariesDb.getOrCreateCache(key);
     if (cache.status !== 'ready' && !activeCaches.has(cache.id)) {

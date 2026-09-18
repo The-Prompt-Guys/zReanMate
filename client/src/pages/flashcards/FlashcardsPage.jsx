@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { StudyTabBar } from '../../components/StudyTabBar.jsx';
@@ -21,8 +21,7 @@ export const flashcardSummaryKey = (kitId, sourceId = null) =>
 /** Both faces must be the same box, or the card changes shape mid-flip. */
 const FACE = 'absolute inset-0 flex flex-col rounded-[1.5rem] bg-white p-6 shadow-sm ring-1 ring-tint-200/70';
 const ratings = [
-  { quality: 1, key: 'again' }, { quality: 3, key: 'hard' },
-  { quality: 4, key: 'good' }, { quality: 5, key: 'easy' },
+  { quality: 1, key: 'again' }, { quality: 4, key: 'gotIt' },
 ];
 
 /** docs/screens/08-flashcards/01-flashcards-interface. */
@@ -32,11 +31,13 @@ export const FlashcardsPage = () => {
   const navigate = useNavigate();
   const { kitId } = useParams();
   const { kit, source, sourceId, status: sourceStatus, error: sourceError } = useStudySource(kitId);
-  const { cards, setCards, status, error, review } = useFlashcards({ source, kitId, language, selectedSourceId: sourceId });
+  const { cards, setCards, status, error, review, regenerate } = useFlashcards({ source, kitId, language, selectedSourceId: sourceId });
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reviewError, setReviewError] = useState(null);
+  const [reviewedCount, setReviewedCount] = useState(0);
+  const sessionTotal = useRef(null);
   const total = cards.length;
   const card = cards[index];
   const kitTitle = language === 'km' && kit?.titleKm ? kit.titleKm : kit?.title;
@@ -47,6 +48,9 @@ export const FlashcardsPage = () => {
   const sourceQuery = sourceId ? `?sourceId=${encodeURIComponent(sourceId)}` : '';
 
   useEffect(() => { sessionStorage.removeItem(key); }, [key]);
+  useEffect(() => {
+    if (sessionTotal.current === null && cards.length > 0) sessionTotal.current = cards.length;
+  }, [cards.length]);
 
   const finish = (summary) => {
     sessionStorage.setItem(key, JSON.stringify(summary));
@@ -65,6 +69,7 @@ export const FlashcardsPage = () => {
         nextDueAt: !previous.nextDueAt || new Date(result.dueAt) < new Date(previous.nextDueAt)
           ? result.dueAt : previous.nextDueAt,
       };
+      setReviewedCount(summary.reviewed);
       const remaining = cards.filter((item) => item.id !== card.id);
       setCards(remaining);
       setIndex((current) => Math.min(current, Math.max(0, remaining.length - 1)));
@@ -75,6 +80,23 @@ export const FlashcardsPage = () => {
       setReviewError({ message: err?.response?.data?.error?.message ?? 'Could not save this review.' });
     } finally { setSaving(false); }
   };
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target.isContentEditable) return;
+      if (event.code === 'Space') {
+        event.preventDefault();
+        setRevealed((value) => !value);
+        return;
+      }
+      if (!revealed || saving) return;
+      const qualityByKey = { 1: 1, 2: 4 };
+      const quality = qualityByKey[event.key];
+      if (quality) void rate(quality);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [rate, revealed, saving]);
 
   const shuffle = () => {
     setCards((current) => [...current].sort(() => Math.random() - 0.5));
@@ -102,8 +124,8 @@ export const FlashcardsPage = () => {
         <p className="mt-1 truncate text-base text-white/75">{title}</p>
       </NavyHeader>
       <div className="flex-1 px-5 pt-5">
-        <p className="font-bold text-navy-900">{t('flashcards.cardProgress', { current: index + 1, total })}</p>
-        <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-tint-100"><span className="block h-full rounded-full bg-navy-800 transition-[width]" style={{ width: `${((index + 1) / total) * 100}%` }} /></div>
+        <p className="font-bold text-navy-900">{t('flashcards.cardProgress', { current: reviewedCount + 1, total: sessionTotal.current ?? total })}</p>
+        <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-tint-100"><span className="block h-full rounded-full bg-navy-800 transition-[width]" style={{ width: `${Math.min(100, ((reviewedCount + 1) / (sessionTotal.current ?? total)) * 100)}%` }} /></div>
         <button
           key={card.id}
           type="button"
@@ -114,12 +136,12 @@ export const FlashcardsPage = () => {
           <span className={`flashcard-inner relative block min-h-[19rem] w-full ${revealed ? 'is-flipped' : ''}`}>
             <span aria-hidden={revealed} className={FACE + ' flashcard-face'}>
               <span className="flex items-start justify-between gap-3"><span className="text-sm font-bold uppercase tracking-wide text-navy-600/80">{t('flashcards.term')}</span><Owl variant="default" className="-mt-2 size-16 shrink-0" /></span>
-              <span className="mt-3 flex-1 text-3xl font-bold leading-tight text-navy-900">{card.term}</span>
+              <span className="mt-3 flex-1 break-words text-2xl font-bold leading-tight text-navy-900">{card.term}</span>
               <span className="mt-4 text-base text-navy-600">{t('flashcards.tapToReveal')}</span>
             </span>
             <span aria-hidden={!revealed} className={FACE + ' flashcard-face flashcard-face-back'}>
               <span className="flex items-start justify-between gap-3"><span className="text-sm font-bold uppercase tracking-wide text-navy-600/80">{t('flashcards.definition')}</span><Owl variant="default" className="-mt-2 size-16 shrink-0" /></span>
-              <span className="mt-3 flex-1 overflow-y-auto text-3xl font-bold leading-tight text-navy-900">{card.definition}</span>
+              <span className="mt-3 flex-1 overflow-y-auto break-words text-2xl font-bold leading-tight text-navy-900">{card.definition}</span>
               {card.hint && <span className="mt-2 text-sm text-navy-500">{card.hint}</span>}
               <span className="mt-4 text-base text-navy-600">{t('flashcards.tapToHide')}</span>
             </span>
@@ -127,7 +149,7 @@ export const FlashcardsPage = () => {
         </button>
         {!revealed ? <div className="mt-5"><Button onClick={() => setRevealed(true)}>{t('flashcards.reveal')}</Button></div> : <div className="mt-5 grid grid-cols-4 gap-2">{ratings.map(({ quality, key }) => <button key={quality} type="button" disabled={saving} onClick={() => rate(quality)} className="rounded-xl border border-tint-200 bg-white px-2 py-3 text-sm font-bold text-navy-800 disabled:opacity-50">{t(`flashcards.${key}`)}</button>)}</div>}
         {reviewError && <p className="mt-2 text-center text-sm text-danger-600">{reviewError.message}</p>}
-        <div className="mt-5 pb-4 text-center"><button type="button" onClick={shuffle} className="inline-flex items-center gap-2 font-semibold text-navy-800"><svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>{t('flashcards.shuffle')}</button></div>
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-5 pb-4"><button type="button" onClick={shuffle} className="inline-flex items-center gap-2 font-semibold text-navy-800"><svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>{t('flashcards.shuffle')}</button><button type="button" onClick={regenerate} className="inline-flex items-center gap-2 font-semibold text-navy-800"><svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.7-4L4 9M4 5v4h4M4 13a8 8 0 0 0 14.7 4L20 15m0 4v-4h-4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>{t('flashcards.regenerate')}</button></div>
       </div>
       <StudyTabBar kitId={kitId} sourceId={sourceId} active="flashcards" />
     </main>
