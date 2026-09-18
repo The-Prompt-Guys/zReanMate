@@ -178,12 +178,31 @@ html.theme-dark .text-ink-900 {
   color: #f4f8ff;
 }
 
+html.theme-dark .text-navy-800,
+html.theme-dark .text-navy-600,
+html.theme-dark .text-navy-700 {
+  color: #bcd2f4;
+}
+
+html.theme-dark .divide-tint-200 > :not(:last-child),
+html.theme-dark .ring-tint-200\/70 {
+  border-color: #3b5276;
+}
+
 html.theme-dark .bg-white {
   background-color: #17253b;
 }
 
 html.theme-dark .bg-tint-100 {
   background-color: #203554;
+}
+
+html.theme-dark nav.bg-white\/95 {
+  background-color: rgb(255 255 255 / 0.95);
+}
+
+html.theme-dark nav .text-ink-900 {
+  color: #0a0a0a;
 }
 
 /**
