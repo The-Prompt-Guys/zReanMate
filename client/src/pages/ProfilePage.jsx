@@ -15,9 +15,6 @@ export const ProfilePage = () => {
   const { profile, error, update } = useProfile();
   const [reminders, setReminders] = useStoredPreference('reanmate.study-reminders', true);
   const [darkMode, setDarkMode] = useStoredPreference('reanmate.dark-mode', false);
-  const [notifications, setNotifications] = useState(
-    typeof Notification !== 'undefined' && Notification.permission === 'granted',
-  );
   const shown = profile ?? { fullName: user?.full_name, summary: { kits: 0, cards: 0, mastery: 0 }, activityDays: [] };
   const edit = async () => {
     const fullName = window.prompt(t('profile.edit'), shown.fullName ?? '')?.trim();
@@ -26,12 +23,6 @@ export const ProfilePage = () => {
   useEffect(() => {
     document.documentElement.classList.toggle('theme-dark', darkMode);
   }, [darkMode]);
-
-  const enableNotifications = async () => {
-    if (typeof Notification === 'undefined') return;
-    const permission = await Notification.requestPermission();
-    setNotifications(permission === 'granted');
-  };
 
   return (
     <main>
@@ -78,8 +69,7 @@ export const ProfilePage = () => {
             <Row
               icon={<BellIcon />}
               label={t('profile.notifications')}
-              onClick={enableNotifications}
-              value={notifications ? t('profile.on') : t('profile.off')}
+              onClick={() => navigate('/notifications')}
             />
             <Row
               icon={<ClockIcon />}

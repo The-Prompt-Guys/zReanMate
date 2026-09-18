@@ -36,6 +36,7 @@ import { ClassDetailPage } from '../pages/classes/ClassDetailPage.jsx';
 import { AssignmentDetailPage } from '../pages/classes/AssignmentDetailPage.jsx';
 import { AssignmentWorkspacePage } from '../pages/classes/AssignmentWorkspacePage.jsx';
 import { ProfilePage } from '../pages/ProfilePage.jsx';
+import { NotificationsPage } from '../pages/NotificationsPage.jsx';
 import { TeacherClassesPage } from '../pages/teacher/TeacherClassesPage.jsx';
 import { TeacherDashboardPage } from '../pages/teacher/TeacherDashboardPage.jsx';
 import { TeacherClassDetailPage } from '../pages/teacher/TeacherClassDetailPage.jsx';
@@ -226,6 +227,7 @@ export const router = createBrowserRouter([
 
           // Profile
           { path: '/profile', element: <ProfilePage /> },
+          { path: '/notifications', element: <NotificationsPage /> },
 
           // Every registered screen that is not built yet still resolves,
           // so the tab bar and the index never dead-end on a 404.
