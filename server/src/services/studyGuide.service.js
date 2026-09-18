@@ -160,8 +160,10 @@ const runStudyGuide = async ({ cacheId, sourceId, language, moduleCount }) => {
     };
 
     const rows = (await studyGuideDb.listModules(cacheId)).filter((item) => item.status !== 'ready');
-    for (let index = 0; index < rows.length; index += 2) {
-      await Promise.all(rows.slice(index, index + 2).map(generateModule));
+    // Four concurrent calls shorten the guide's dominant phase while leaving
+    // headroom for provider rate limits and database connections.
+    for (let index = 0; index < rows.length; index += 4) {
+      await Promise.all(rows.slice(index, index + 4).map(generateModule));
     }
     await studyGuideDb.finish(cacheId);
   } catch (error) {
