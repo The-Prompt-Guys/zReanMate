@@ -204,18 +204,13 @@ export const DashboardPage = () => {
       >
         <div className="flex items-start justify-between gap-3">
           <BrandLockup />
-          {/*
-            The reference draws an unread badge on this bell. There is no
-            notifications endpoint (docs/API-CONTRACT.md lists none), so the
-            badge is left off rather than shipped with a hardcoded count.
-          */}
-          <button
-            type="button"
+          <Link
+            to="/notifications"
             aria-label={t('profile.notifications')}
             className="grid size-10 shrink-0 place-items-center rounded-full bg-white/20 text-white transition-colors hover:bg-white/30"
           >
             <BellIcon />
-          </button>
+          </Link>
         </div>
 
         <div className="mt-5 flex items-end justify-between gap-2">
