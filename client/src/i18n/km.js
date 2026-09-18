@@ -653,6 +653,7 @@ export default {
     help: 'ជំនួយ',
     technicalSupport: 'ជំនួយបច្ចេកទេស',
     contactTechnicalSupport: 'ទាក់ទងជំនួយបច្ចេកទេសតាម Telegram',
+    contactTechnicalSupportConfirm: 'តើអ្នកចង់ទាក់ទងជំនួយបច្ចេកទេសតាម Telegram មែនទេ?',
     about: 'អំពី ReanMate',
     tagline: 'បន្តរៀន មួយជំហានម្តងៗ',
     edit: 'កែសម្រួល',

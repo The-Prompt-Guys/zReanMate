@@ -812,6 +812,7 @@ export default {
     help: 'Help',
     technicalSupport: 'Technical support',
     contactTechnicalSupport: 'Contact technical support on Telegram',
+    contactTechnicalSupportConfirm: 'Do you want to contact technical support on Telegram?',
     about: 'About ReanMate',
     tagline: 'Keep learning, one step at a time',
     edit: 'Edit',

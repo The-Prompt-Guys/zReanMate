@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { NavyHeader } from '../layouts/AppLayout.jsx';
 import { Owl } from '../layouts/AuthLayout.jsx';
@@ -9,6 +10,7 @@ import { useProfile } from '../profile/useProfile.js';
 /** docs/screens/10-profile/01-profile-tab. */
 export const ProfilePage = () => {
   const t = useT();
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { profile, error, update } = useProfile();
   const [reminders, setReminders] = useStoredPreference('reanmate.study-reminders', true);
@@ -18,6 +20,9 @@ export const ProfilePage = () => {
   const edit = async () => {
     const fullName = window.prompt(t('profile.edit'), shown.fullName ?? '')?.trim();
     if (fullName) await update({ fullName });
+  };
+  const confirmSupport = (event) => {
+    if (!window.confirm(t('profile.contactTechnicalSupportConfirm'))) event.preventDefault();
   };
   useEffect(() => {
     document.documentElement.classList.toggle('theme-dark', darkMode);
@@ -97,6 +102,7 @@ export const ProfilePage = () => {
               label={t('profile.technicalSupport')}
               href="https://t.me/+85577517901"
               ariaLabel={t('profile.contactTechnicalSupport')}
+              onClick={confirmSupport}
             />
           </ul>
 
@@ -139,7 +145,7 @@ const streakFor = (values = []) => {
 const Row = ({ icon, label, onClick, href, ariaLabel, value }) => (
   <li>
     {href ? (
-      <a href={href} target="_blank" rel="noreferrer" aria-label={ariaLabel ?? label} className="flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-tint-100/60">
+      <a href={href} target="_blank" rel="noreferrer" onClick={onClick} aria-label={ariaLabel ?? label} className="flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-tint-100/60">
         <RowContent icon={icon} label={label} value={value} />
       </a>
     ) : (
