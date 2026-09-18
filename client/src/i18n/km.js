@@ -656,6 +656,7 @@ export default {
     edit: 'កែសម្រួល',
     statKits: 'ឯកសារសិក្សា',
     statCards: 'កាតបានពិនិត្យ',
+    statStreak: 'ថ្ងៃរៀនជាប់គ្នា',
     statMastery: 'ជំនាញមធ្យម',
     activity: 'សកម្មភាពសិក្សា',
     deleteAccount: 'លុបគណនី',

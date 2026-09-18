@@ -815,6 +815,7 @@ export default {
     edit: 'Edit',
     statKits: 'study kits',
     statCards: 'cards reviewed',
+    statStreak: 'study streak',
     statMastery: 'average mastery',
     activity: 'Learning activity',
     deleteAccount: 'Delete account',

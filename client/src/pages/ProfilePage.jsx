@@ -15,7 +15,7 @@ export const ProfilePage = () => {
   const { profile, error, update } = useProfile();
   const [reminders, setReminders] = useStoredPreference('reanmate.study-reminders', true);
   const [darkMode, setDarkMode] = useStoredPreference('reanmate.dark-mode', false);
-  const shown = profile ?? { fullName: user?.full_name, summary: { kits: 0, cards: 0, mastery: 0 }, activityDays: [] };
+  const shown = profile ?? { fullName: user?.full_name, summary: { kits: 0, streak: 0, mastery: 0 }, activityDays: [] };
   const edit = async () => {
     const fullName = window.prompt(t('profile.edit'), shown.fullName ?? '')?.trim();
     if (fullName) await update({ fullName });
@@ -53,7 +53,7 @@ export const ProfilePage = () => {
 
           <dl className="mt-3 grid grid-cols-3 divide-x divide-white/80 text-center">
             <Stat icon={<KitsIcon />} value={shown.summary.kits} label={t('profile.statKits')} />
-            <Stat icon={<CardsIcon />} value={shown.summary.cards} label={t('profile.statCards')} />
+            <Stat icon={<StreakIcon />} value={shown.summary.streak} label={t('profile.statStreak')} />
             <Stat
               icon={<TargetIcon />}
               value={`${shown.summary.mastery}%`}
@@ -173,10 +173,9 @@ const KitsIcon = () => (
   </svg>
 );
 
-const CardsIcon = () => (
+const StreakIcon = () => (
   <svg {...p}>
-    <rect x="3" y="7" width="13" height="13" rx="2.5" />
-    <path d="M8 4h10a2 2 0 0 1 2 2v10" />
+    <path d="M13.6 3.5c.4 3.2-1.1 4.6-2.6 6.1-1.1 1.1-1.9 2.2-1.5 4a3.2 3.2 0 0 0 2.8 2.5c-.2-1.7.5-2.8 1.6-3.8 1.4 1.1 2.3 2.6 2.3 4.4A4.7 4.7 0 0 1 11.5 21C7.9 20.8 5 18 5 14.3c0-3.2 2-5.3 4.2-7.3.2 1.8 1 2.7 1.8 3.3.7-1.6 1.6-3.8 2.6-6.8Z" />
   </svg>
 );
 

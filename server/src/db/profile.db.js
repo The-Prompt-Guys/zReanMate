@@ -15,7 +15,6 @@ export const profileDb = {
               COALESCE((SELECT jsonb_agg(days.day ORDER BY days.day) FROM (
                 SELECT DISTINCT (ps.completed_at AT TIME ZONE 'UTC')::date AS day
                   FROM practice_sessions ps WHERE ps.user_id = u.id
-                    AND ps.completed_at >= date_trunc('week', now() AT TIME ZONE 'UTC')
               ) days), '[]'::jsonb) AS activity_days
          FROM users u WHERE u.id = $1 AND u.status <> 'deleted'`, [userId],
     );
