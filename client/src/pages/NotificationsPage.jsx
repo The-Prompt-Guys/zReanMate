@@ -1,27 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { NavyHeader } from '../layouts/AppLayout.jsx';
 import { useT } from '../i18n/index.js';
 
-const STORAGE_KEY = 'reanmate.notifications-enabled';
-
 export const NotificationsPage = () => {
   const t = useT();
-  const [enabled, setEnabled] = useStoredBoolean(STORAGE_KEY, true);
-  const [permission, setPermission] = useState(() => (
-    typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
-  ));
-
-  const requestPermission = async () => {
-    if (typeof Notification === 'undefined') return;
-    const nextPermission = await Notification.requestPermission();
-    setPermission(nextPermission);
-    if (nextPermission === 'granted') setEnabled(true);
-  };
-
-  const browserSupported = permission !== 'unsupported';
-  const granted = permission === 'granted';
+  const [notifications, setNotifications] = useState(() => [
+    { id: 'assignment', title: t('profile.notificationAssignmentTitle'), body: t('profile.notificationAssignmentBody'), time: t('profile.notificationToday'), read: false },
+    { id: 'study', title: t('profile.notificationStudyTitle'), body: t('profile.notificationStudyBody'), time: t('profile.notificationOneHourAgo'), read: false },
+    { id: 'quiz', title: t('profile.notificationQuizTitle'), body: t('profile.notificationQuizBody'), time: t('profile.notificationYesterday'), read: true },
+  ]);
+  const unreadCount = notifications.filter((notification) => !notification.read).length;
+  const markRead = (id) => setNotifications((items) => items.map((item) => item.id === id ? { ...item, read: true } : item));
+  const markAllRead = () => setNotifications((items) => items.map((item) => ({ ...item, read: true })));
 
   return (
     <main>
@@ -34,61 +26,38 @@ export const NotificationsPage = () => {
         <p className="mt-1 text-base text-white/75">{t('profile.notificationsSubtitle')}</p>
       </NavyHeader>
 
-      <div className="mx-auto w-full max-w-2xl space-y-5 px-4 pt-5 sm:px-6">
-        <section className="rounded-card bg-white p-5 shadow-sm ring-1 ring-tint-200/70">
-          <div className="flex items-start gap-4">
-            <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-tint-100 text-navy-800">
-              <BellIcon />
-            </span>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-xl font-bold text-navy-900">{t('profile.browserNotifications')}</h2>
-              <p className="mt-1 text-base text-navy-600">{t('profile.browserNotificationsHint')}</p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={enabled}
-              onClick={browserSupported && !granted ? requestPermission : () => setEnabled((value) => !value)}
-              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${enabled && granted ? 'bg-brand-600' : 'bg-tint-200'}`}
-            >
-              <span className={`absolute top-1 size-5 rounded-full bg-white shadow-sm transition-transform ${enabled && granted ? 'translate-x-6' : 'translate-x-1'}`} />
-            </button>
-          </div>
+      <div className="mx-auto w-full max-w-2xl space-y-4 px-4 pt-5 sm:px-6">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-xl font-bold text-navy-900">{t('profile.notificationsTitle')}</h2>
+          {unreadCount > 0 && <button type="button" onClick={markAllRead} className="text-sm font-bold text-brand-600">{t('profile.markAllRead')}</button>}
+        </div>
 
-          <p className={`mt-5 rounded-field p-3 text-sm font-semibold ${granted ? 'bg-tint-100 text-navy-800' : 'bg-danger-50 text-danger-600'}`}>
-            {granted ? t('profile.notificationsAllowed') : t('profile.notificationsBlocked')}
-          </p>
-
-          {browserSupported && !granted && (
-            <button type="button" onClick={requestPermission} className="mt-4 w-full rounded-card bg-brand-600 px-4 py-3 text-base font-bold text-white">
-              {t('profile.enableNotifications')}
-            </button>
-          )}
-        </section>
+        <ul className="space-y-3">
+          {notifications.map((notification) => (
+            <li key={notification.id}>
+              <button
+                type="button"
+                onClick={() => markRead(notification.id)}
+                className={`flex w-full items-start gap-4 rounded-card p-4 text-left shadow-sm ring-1 ring-tint-200/70 transition-colors ${notification.read ? 'bg-white' : 'bg-tint-100'}`}
+              >
+                <span className={`grid size-11 shrink-0 place-items-center rounded-xl ${notification.read ? 'bg-tint-100' : 'bg-brand-600 text-white'}`}>
+                  <BellIcon />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-start justify-between gap-3">
+                    <strong className="text-base font-bold text-navy-900">{notification.title}</strong>
+                    {!notification.read && <span className="mt-1 size-2 shrink-0 rounded-full bg-brand-600" aria-label={t('profile.unread')} />}
+                  </span>
+                  <span className="mt-1 block text-sm text-navy-600">{notification.body}</span>
+                  <span className="mt-2 block text-xs font-semibold text-ink-500">{notification.time}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
       </div>
     </main>
   );
-};
-
-const useStoredBoolean = (key, initialValue) => {
-  const [value, setValue] = useState(() => {
-    try {
-      const stored = window.localStorage.getItem(key);
-      return stored == null ? initialValue : stored === 'true';
-    } catch {
-      return initialValue;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(key, String(value));
-    } catch {
-      // Preference remains available for this session.
-    }
-  }, [key, value]);
-
-  return [value, setValue];
 };
 
 const BellIcon = () => (
