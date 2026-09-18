@@ -168,6 +168,24 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+html.theme-dark body,
+html.theme-dark .bg-canvas {
+  background-color: #101b2d;
+}
+
+html.theme-dark .text-navy-900,
+html.theme-dark .text-ink-900 {
+  color: #f4f8ff;
+}
+
+html.theme-dark .bg-white {
+  background-color: #17253b;
+}
+
+html.theme-dark .bg-tint-100 {
+  background-color: #203554;
+}
+
 /**
  * The Home/Kits hero panel: a navy gradient with an angled facet cut across it.
  *

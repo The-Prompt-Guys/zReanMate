@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
 import { NavyHeader } from '../layouts/AppLayout.jsx';
 import { Owl } from '../layouts/AuthLayout.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -7,13 +10,29 @@ import { useProfile } from '../profile/useProfile.js';
 /** docs/screens/10-profile/01-profile-tab. */
 export const ProfilePage = () => {
   const t = useT();
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { profile, error, update } = useProfile();
+  const [reminders, setReminders] = useStoredPreference('reanmate.study-reminders', true);
+  const [darkMode, setDarkMode] = useStoredPreference('reanmate.dark-mode', false);
+  const [notifications, setNotifications] = useState(
+    typeof Notification !== 'undefined' && Notification.permission === 'granted',
+  );
   const shown = profile ?? { fullName: user?.full_name, summary: { kits: 0, cards: 0, mastery: 0 }, activityDays: [] };
   const edit = async () => {
     const fullName = window.prompt(t('profile.edit'), shown.fullName ?? '')?.trim();
     if (fullName) await update({ fullName });
   };
+  useEffect(() => {
+    document.documentElement.classList.toggle('theme-dark', darkMode);
+  }, [darkMode]);
+
+  const enableNotifications = async () => {
+    if (typeof Notification === 'undefined') return;
+    const permission = await Notification.requestPermission();
+    setNotifications(permission === 'granted');
+  };
+
   return (
     <main>
       <NavyHeader className="flex flex-wrap items-center gap-4">
@@ -56,9 +75,24 @@ export const ProfilePage = () => {
           <h2 className="text-xl font-bold text-navy-900">{t('profile.preferences')}</h2>
 
           <ul className="mt-3 divide-y divide-tint-200 overflow-hidden rounded-card bg-white shadow-sm ring-1 ring-tint-200/70">
-            <Row icon={<BellIcon />} label={t('profile.notifications')} />
-            <Row icon={<ClockIcon />} label={t('profile.reminders')} />
-            <Row icon={<MoonIcon />} label={t('profile.appearance')} />
+            <Row
+              icon={<BellIcon />}
+              label={t('profile.notifications')}
+              onClick={enableNotifications}
+              value={notifications ? t('profile.on') : t('profile.off')}
+            />
+            <Row
+              icon={<ClockIcon />}
+              label={t('profile.reminders')}
+              onClick={() => setReminders((value) => !value)}
+              value={reminders ? t('profile.on') : t('profile.off')}
+            />
+            <Row
+              icon={<MoonIcon />}
+              label={t('profile.appearance')}
+              onClick={() => setDarkMode((value) => !value)}
+              value={darkMode ? t('profile.dark') : t('profile.light')}
+            />
             <li className="flex items-center gap-4 px-4 py-4">
               <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-tint-100 text-navy-800">
                 <GlobeIcon />
@@ -69,7 +103,7 @@ export const ProfilePage = () => {
           </ul>
 
           <ul className="mt-3 divide-y divide-tint-200 overflow-hidden rounded-card bg-white shadow-sm ring-1 ring-tint-200/70">
-            <Row icon={<HelpIcon />} label={t('profile.help')} />
+            <Row icon={<HelpIcon />} label={t('profile.help')} onClick={() => navigate('/assistant')} />
           </ul>
 
           <button
@@ -95,19 +129,41 @@ const Stat = ({ icon, value, label }) => (
   </div>
 );
 
-const Row = ({ icon, label }) => (
+const Row = ({ icon, label, onClick, value }) => (
   <li>
-    <button type="button" className="flex w-full items-center gap-4 px-4 py-4 text-left">
+    <button type="button" onClick={onClick} className="flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-tint-100/60">
       <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-tint-100 text-navy-800">
         {icon}
       </span>
       <span className="flex-1 text-lg font-bold text-navy-900">{label}</span>
+      {value && <span className="text-sm font-semibold text-navy-600">{value}</span>}
       <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-navy-600" fill="none" aria-hidden="true">
         <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </button>
   </li>
 );
+
+const useStoredPreference = (key, initialValue) => {
+  const [value, setValue] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem(key);
+      return stored == null ? initialValue : stored === 'true';
+    } catch {
+      return initialValue;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(key, String(value));
+    } catch {
+      // Preference remains available for this session.
+    }
+  }, [key, value]);
+
+  return [value, setValue];
+};
 
 const p = {
   viewBox: '0 0 24 24',
