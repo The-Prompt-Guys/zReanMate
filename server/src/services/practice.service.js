@@ -23,7 +23,7 @@ export const weightedWithoutReplacement = (items, random = Math.random) => {
 const sessionApi = (row) => ({
   id: row.id, kitId: row.study_kit_id, sourceId: row.source_id ?? null, mode: row.mode,
   questionCount: row.question_count, answerFormat: row.answer_format,
-  timerSeconds: row.timer_seconds, status: row.status,
+  timerSeconds: row.timer_seconds, expiresAt: row.expires_at, status: row.status,
   answered: row.answered_count, correct: row.correct_count,
   mastery: row.mastery_percent, weakTopics: row.weak_topics ?? [],
   durationSeconds: row.duration_seconds, startedAt: row.started_at,
@@ -53,7 +53,6 @@ export const practiceService = {
   },
 
   async create(userId, _plan, input) {
-    if (input.mode === 'mock_exam') await plansService.requireFeature(userId, 'mock_exams');
     const weeklyLimit = await plansService.getLimit(userId, 'practice_sessions_per_week');
     const sourceId = input.sourceId ?? null;
     let candidates = await practiceDb.candidateQuestions({ userId, kitId: input.studyKitId, topicIds: input.topicIds, sourceId });
@@ -74,6 +73,7 @@ export const practiceService = {
   },
 
   async get(userId, sessionId) {
+    await practiceDb.expire({ userId, sessionId });
     const session = await practiceDb.session({ userId, sessionId });
     if (!session) throw ApiError.notFound('That practice session does not exist');
     const questions = await practiceDb.questions(sessionId);

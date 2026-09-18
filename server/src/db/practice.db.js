@@ -36,12 +36,13 @@ export const practiceDb = {
       )).rows[0].count;
       if (weeklyLimit !== null && used >= weeklyLimit) return { quotaExceeded: true, used, limit: weeklyLimit };
       if (weightedOrder.length < input.questionCount) return { insufficient: true, available: weightedOrder.length };
+      const expiresAt = input.timerSeconds > 0 ? new Date(Date.now() + input.timerSeconds * 1000) : null;
       const session = (await client.query(
         `INSERT INTO practice_sessions
-           (user_id, study_kit_id, source_id, mode, question_count, answer_format, timer_seconds)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+           (user_id, study_kit_id, source_id, mode, question_count, answer_format, timer_seconds, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
         [userId, input.studyKitId, input.sourceId ?? null, input.mode, input.questionCount,
-          input.answerFormat, input.timerSeconds],
+          input.answerFormat, input.timerSeconds, expiresAt],
       )).rows[0];
       for (const [index, item] of weightedOrder.slice(0, input.questionCount).entries()) {
         const options = input.answerFormat === 'written' ? [] : item.options;
@@ -85,6 +86,16 @@ export const practiceDb = {
     return queryOne(`SELECT * FROM practice_sessions WHERE id = $1 AND user_id = $2`, [sessionId, userId]);
   },
 
+  async expire({ userId, sessionId }) {
+    return queryOne(
+      `UPDATE practice_sessions SET status = 'completed', completed_at = now(), duration_seconds = timer_seconds
+       WHERE id = $1 AND user_id = $2 AND status = 'in_progress'
+         AND expires_at IS NOT NULL AND expires_at <= now()
+       RETURNING *`,
+      [sessionId, userId],
+    );
+  },
+
   async questions(sessionId) {
     const { rows } = await query(
       `SELECT q.id, q.position, q.prompt, q.options, q.explanation, q.topic_id,
@@ -101,7 +112,8 @@ export const practiceDb = {
       const item = (await client.query(
         `SELECT q.*, s.status FROM practice_session_questions q
          JOIN practice_sessions s ON s.id = q.session_id
-         WHERE q.session_id = $1 AND q.position = $2 AND s.user_id = $3 FOR UPDATE`,
+         WHERE q.session_id = $1 AND q.position = $2 AND s.user_id = $3
+           AND (s.expires_at IS NULL OR s.expires_at > now()) FOR UPDATE`,
         [sessionId, input.position, userId],
       )).rows[0];
       if (!item || item.status !== 'in_progress') return null;
