@@ -2,7 +2,6 @@ import { NavyHeader } from '../layouts/AppLayout.jsx';
 import { Owl } from '../layouts/AuthLayout.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { LanguageSwitcher, useT } from '../i18n/index.js';
-import { api } from '../lib/api.js';
 import { useProfile } from '../profile/useProfile.js';
 
 /** docs/screens/10-profile/01-profile-tab. */
@@ -15,22 +14,9 @@ export const ProfilePage = () => {
     const fullName = window.prompt(t('profile.edit'), shown.fullName ?? '')?.trim();
     if (fullName) await update({ fullName });
   };
-  const deleteAccount = async () => {
-    const confirmed = window.confirm(t('profile.deleteAccountConfirm'));
-    if (!confirmed) return;
-
-    try {
-      await api.delete('/profile');
-      await logout();
-    } catch (err) {
-      const message = err?.response?.data?.error?.message ?? t('profile.deleteAccountFailed');
-      window.alert(message);
-    }
-  };
-
   return (
     <main>
-      <NavyHeader className="flex items-center gap-4">
+      <NavyHeader className="flex flex-wrap items-center gap-4">
         <span className="grid size-16 shrink-0 place-items-center rounded-full bg-white/20 text-2xl font-bold">
           {(shown.fullName ?? 'S').charAt(0)}
         </span>
@@ -47,7 +33,7 @@ export const ProfilePage = () => {
         </button>
       </NavyHeader>
 
-      <div className="space-y-6 px-5 pt-5">
+      <div className="mx-auto w-full max-w-2xl space-y-6 px-4 pt-5 sm:px-6">
         {error && <p className="text-center text-danger-600">{error.message}</p>}
         <section className="rounded-card bg-tint-100 p-5">
           <div className="flex items-start justify-between">
@@ -93,14 +79,6 @@ export const ProfilePage = () => {
           >
             {t('auth.logout')}
           </button>
-
-          <button
-            type="button"
-            onClick={deleteAccount}
-            className="mt-3 w-full rounded-card bg-danger-50 py-4 text-lg font-bold text-danger-600 shadow-sm ring-1 ring-danger-200"
-          >
-            {t('profile.deleteAccount')}
-          </button>
         </section>
       </div>
     </main>
@@ -108,12 +86,12 @@ export const ProfilePage = () => {
 };
 
 const Stat = ({ icon, value, label }) => (
-  <div className="px-2">
+  <div className="min-w-0 px-2">
     <span className="mx-auto grid size-11 place-items-center rounded-xl bg-white text-navy-800">
       {icon}
     </span>
     <dd className="mt-2 text-2xl font-bold text-navy-900">{value}</dd>
-    <dt className="mt-0.5 text-sm text-navy-600">{label}</dt>
+    <dt className="mt-0.5 break-words text-sm text-navy-600">{label}</dt>
   </div>
 );
 
