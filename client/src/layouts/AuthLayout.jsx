@@ -55,11 +55,11 @@ export const BrandLogo = ({ className = 'h-12 max-w-[12rem]' }) => {
 export const BrandLockup = ({ className = '' }) => {
   const t = useT();
   return (
-    <div className={`min-w-0 ${className}`}>
+    <div className={`flex h-16 min-w-0 items-center overflow-visible ${className}`}>
       <img
         src="/brand/reanmate-logo.png"
         alt={t('common.appName')}
-        className="h-16 w-auto max-w-[14rem] object-contain object-left"
+        className="h-20 w-auto max-w-[16rem] object-contain object-left"
       />
     </div>
   );
