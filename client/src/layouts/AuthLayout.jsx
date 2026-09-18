@@ -59,11 +59,8 @@ export const BrandLockup = ({ className = '' }) => {
       <img
         src="/brand/reanmate-logo.png"
         alt={t('common.appName')}
-        className="h-12 w-auto max-w-[12rem] object-contain object-left"
+        className="h-16 w-auto max-w-[14rem] object-contain object-left"
       />
-      <p className="mt-1 text-xs font-medium leading-tight text-white/80">
-        {t('common.brandTagline')}
-      </p>
     </div>
   );
 };
