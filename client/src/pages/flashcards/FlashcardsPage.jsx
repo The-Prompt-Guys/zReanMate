@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
-import { StudyTabBar } from '../../components/StudyTabBar.jsx';
 import { Button } from '../../components/ui.jsx';
 import { useLanguage, useT } from '../../i18n/index.js';
 import { NavyHeader } from '../../layouts/AppLayout.jsx';
@@ -151,7 +150,6 @@ export const FlashcardsPage = () => {
         {reviewError && <p className="mt-2 text-center text-sm text-danger-600">{reviewError.message}</p>}
         <div className="mt-5 flex flex-wrap items-center justify-center gap-5 pb-4"><button type="button" onClick={shuffle} className="inline-flex items-center gap-2 font-semibold text-navy-800"><svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>{t('flashcards.shuffle')}</button><button type="button" onClick={regenerate} className="inline-flex items-center gap-2 font-semibold text-navy-800"><svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.7-4L4 9M4 5v4h4M4 13a8 8 0 0 0 14.7 4L20 15m0 4v-4h-4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" /></svg>{t('flashcards.regenerate')}</button></div>
       </div>
-      <StudyTabBar kitId={kitId} sourceId={sourceId} active="flashcards" />
     </main>
   );
 };

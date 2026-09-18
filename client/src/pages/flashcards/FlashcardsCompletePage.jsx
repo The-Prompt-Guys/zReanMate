@@ -1,6 +1,5 @@
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
-import { StudyTabBar } from '../../components/StudyTabBar.jsx';
 import { Button } from '../../components/ui.jsx';
 import { useLanguage, useT } from '../../i18n/index.js';
 import { useKits } from '../../kits/KitsContext.jsx';
@@ -52,7 +51,6 @@ export const FlashcardsCompletePage = () => {
         </section>
         <div className="mt-6 space-y-3 pb-4"><Button onClick={reviewAgain}>{t('flashcards.reviewAgain')}</Button><div className="text-center"><Link to={`/kits/${kitId}`} className="font-semibold text-navy-600">{t('quiz.backToKit')}</Link></div></div>
       </div>
-      <StudyTabBar kitId={kitId} sourceId={sourceId} active="flashcards" />
     </main>
   );
 };

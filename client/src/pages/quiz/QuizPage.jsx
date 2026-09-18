@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
-import { StudyTabBar } from '../../components/StudyTabBar.jsx';
 import { Button, CheckIcon } from '../../components/ui.jsx';
 import { useLanguage, useT } from '../../i18n/index.js';
 import { api } from '../../lib/api.js';
@@ -50,7 +49,6 @@ export const QuizPage = () => {
           <p className="mt-2 text-sm text-navy-600">{source?.name ?? t('summary.heading')}</p>
         </div>
       </div>
-      <StudyTabBar kitId={kitId} sourceId={sourceId} active="practice" />
     </main>;
   }
 
@@ -88,7 +86,6 @@ export const QuizPage = () => {
       {!checked && <div className="mt-5 flex items-center justify-between"><button type="button" onClick={() => setIndex((value) => Math.max(0, value - 1))} disabled={index === 0} className="font-semibold text-navy-800 disabled:opacity-40">{t('common.back')}</button><button type="button" onClick={next} className="font-semibold text-navy-800">{t('common.skip')}</button></div>}
       <div className="mt-4 space-y-3 pb-4">{checked ? <Button onClick={next}>{t('quiz.nextQuestion')}</Button> : <><Button onClick={() => check()} disabled={choice === null || choice === '' || checking}>{t('quiz.checkAnswer')}</Button>{question.options.length > 0 && <div className="text-center"><button type="button" onClick={() => check(0)} className="font-semibold text-navy-800">{t('quiz.showAnswer')}</button></div>}</>}</div>
     </div>}
-    <StudyTabBar kitId={kitId} sourceId={sourceId} active="practice" />
     {owlOpen && <QuizTutorPopup explain={explain} language={language} t={t} onClose={() => setOwlOpen(false)} />}
   </main>;
 };
