@@ -5,6 +5,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://zreanmate.onrender.com/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
