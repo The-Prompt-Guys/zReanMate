@@ -51,14 +51,13 @@ import { studyGuideService } from './studyGuide.service.js';
  * rather than after it.
  */
 const STUDY_MATERIALS = [
-  { percent: 65, run: ({ sourceId, language }) => summariesService.prewarm(sourceId, { language }) },
   // The Study Guide is the slowest of these — an outline plus one call per
-  // module — which is exactly why it is prewarmed rather than left to the
-  // screen. It is also the first thing most students open.
+  // module — so it runs first and now generates two modules concurrently.
   {
-    percent: 70,
+    percent: 65,
     run: ({ sourceId, language }) => studyGuideService.prewarm(sourceId, { language }),
   },
+  { percent: 75, run: ({ sourceId, language }) => summariesService.prewarm(sourceId, { language }) },
   {
     percent: 80,
     run: ({ sourceId, userId, language }) => quizService.prewarm(userId, sourceId, { language }),
@@ -76,12 +75,27 @@ const STUDY_MATERIALS = [
  * one slow screen beats losing a material that was otherwise good.
  */
 const generateStudyMaterials = async (context) => {
-  for (const step of STUDY_MATERIALS) {
-    await sourcesDb.updateStatus(context.sourceId, {
-      stage: 'generating',
-      progressPercent: step.percent,
-    });
+  const [studyGuide, ...remaining] = STUDY_MATERIALS;
+  await sourcesDb.updateStatus(context.sourceId, {
+    stage: 'generating',
+    progressPercent: studyGuide.percent,
+  });
 
+  try {
+    await studyGuide.run(context);
+  } catch (err) {
+    console.error(
+      `[ingest] source ${context.sourceId}: study material at ${studyGuide.percent}% failed:`,
+      err.message,
+    );
+  }
+
+  await sourcesDb.updateStatus(context.sourceId, {
+    stage: 'generating',
+    progressPercent: 75,
+  });
+
+  await Promise.all(remaining.map(async (step) => {
     try {
       await step.run(context);
     } catch (err) {
@@ -90,7 +104,7 @@ const generateStudyMaterials = async (context) => {
         err.message,
       );
     }
-  }
+  }));
 };
 
 export const ingestService = {

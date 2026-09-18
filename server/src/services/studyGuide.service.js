@@ -116,10 +116,9 @@ const runStudyGuide = async ({ cacheId, sourceId, language, moduleCount }) => {
       await studyGuideDb.saveOutline({ cacheId, source, outline, language });
     }
 
-    const rows = await studyGuideDb.listModules(cacheId);
-    for (const row of rows.filter((item) => item.status !== 'ready')) {
+    const generateModule = async (row) => {
       const claim = await studyGuideDb.claimModule(cacheId, row.position);
-      if (!claim) continue;
+      if (!claim) return;
       try {
         const generated = await trackGeneration(
           {
@@ -158,6 +157,11 @@ const runStudyGuide = async ({ cacheId, sourceId, language, moduleCount }) => {
       } catch (error) {
         await studyGuideDb.failModule(cacheId, row.position);
       }
+    };
+
+    const rows = (await studyGuideDb.listModules(cacheId)).filter((item) => item.status !== 'ready');
+    for (let index = 0; index < rows.length; index += 2) {
+      await Promise.all(rows.slice(index, index + 2).map(generateModule));
     }
     await studyGuideDb.finish(cacheId);
   } catch (error) {
