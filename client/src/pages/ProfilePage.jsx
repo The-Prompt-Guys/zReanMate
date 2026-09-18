@@ -16,6 +16,7 @@ export const ProfilePage = () => {
   const [reminders, setReminders] = useStoredPreference('reanmate.study-reminders', true);
   const [darkMode, setDarkMode] = useStoredPreference('reanmate.dark-mode', false);
   const shown = profile ?? { fullName: user?.full_name, summary: { kits: 0, streak: 0, mastery: 0 }, activityDays: [] };
+  const studyStreak = shown.summary.streak ?? streakFor(shown.activityDays);
   const edit = async () => {
     const fullName = window.prompt(t('profile.edit'), shown.fullName ?? '')?.trim();
     if (fullName) await update({ fullName });
@@ -53,7 +54,7 @@ export const ProfilePage = () => {
 
           <dl className="mt-3 grid grid-cols-3 divide-x divide-white/80 text-center">
             <Stat icon={<KitsIcon />} value={shown.summary.kits} label={t('profile.statKits')} />
-            <Stat icon={<StreakIcon />} value={shown.summary.streak} label={t('profile.statStreak')} />
+            <Stat icon={<StreakIcon />} value={studyStreak} label={t('profile.statStreak')} />
             <Stat
               icon={<TargetIcon />}
               value={`${shown.summary.mastery}%`}
@@ -118,6 +119,19 @@ const Stat = ({ icon, value, label }) => (
     <dt className="mt-0.5 break-words text-sm text-navy-600">{label}</dt>
   </div>
 );
+
+const streakFor = (values = []) => {
+  const days = new Set(values.map((value) => String(value).slice(0, 10)));
+  const cursor = new Date();
+  let streak = 0;
+
+  while (days.has(cursor.toISOString().slice(0, 10))) {
+    streak += 1;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+
+  return streak;
+};
 
 const Row = ({ icon, label, onClick, value }) => (
   <li>
