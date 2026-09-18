@@ -307,6 +307,8 @@ export default {
     analyzingTopic: 'កំពុងបង្កើតប្រធានបទរបស់អ្នក',
     analyzingSubtitle: 'កំពុងអានកំណត់ត្រា និងបង្កើតឯកសារសិក្សា',
     analyzingSubtitleDocument: 'កំពុងអានឯកសាររបស់អ្នក និងបង្កើតឯកសារសិក្សា',
+    processingWhyTitle: 'ហេតុអ្វីបានជាវាអាចចំណាយពេល?',
+    processingWhyBody: 'យើងកំពុងផ្ទុកឡើង និងអានឯកសារ ស្រង់ ឬស្កេនអត្ថបទ បែងចែកជាផ្នែកសម្រាប់ស្វែងរក ហើយរៀបចំសេចក្តីសង្ខេប មគ្គុទ្ទេសក៍សិក្សា និងសំណួរប្រឡង។',
     stageUploading: 'កំពុងផ្ទុករូបភាព',
     stageUploadingDocument: 'កំពុងផ្ទុកឯកសារ',
     stageReadingNotes: 'កំពុងអានកំណត់ត្រារបស់អ្នក',

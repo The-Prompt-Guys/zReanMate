@@ -308,6 +308,8 @@ export default {
     analyzingTopic: 'Building your topic',
     analyzingSubtitle: 'Reading your notes and creating study materials',
     analyzingSubtitleDocument: 'Reading your file and creating study materials',
+    processingWhyTitle: 'Why can this take a while?',
+    processingWhyBody: 'We upload and read your file, extract or scan its text, split it into searchable sections, then prepare summaries, study guides, and quiz material.',
     stageUploading: 'Uploading photo',
     stageUploadingDocument: 'Uploading document',
     stageReadingNotes: 'Reading your notes',

@@ -1066,6 +1066,11 @@ const AnalyzingBody = ({ id, title, subtitle, percent, steps }) => {
       <SheetTitle id={id}>{title}</SheetTitle>
       <SheetSubtitle>{subtitle}</SheetSubtitle>
 
+      <div className="mt-4 rounded-card bg-tint-100 p-4">
+        <p className="text-sm font-extrabold text-navy-900">{t('kits.processingWhyTitle')}</p>
+        <p className="mt-1 text-sm leading-relaxed text-navy-700">{t('kits.processingWhyBody')}</p>
+      </div>
+
       <div className="mt-6 flex items-center gap-3">
         <div
           className="h-2.5 flex-1 overflow-hidden rounded-full bg-tint-100"
