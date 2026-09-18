@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { Markdown } from '../../components/Markdown.jsx';
-import { StudyTabBar } from '../../components/StudyTabBar.jsx';
 import { useLanguage, useT } from '../../i18n/index.js';
 import { NavyHeader } from '../../layouts/AppLayout.jsx';
 import { api, toFormError } from '../../lib/api.js';
@@ -149,7 +148,6 @@ export const StudyGuidePage = () => {
         </div>
       </div>
 
-      <StudyTabBar kitId={kitId} sourceId={sourceId} active="learn" />
     </main>
   );
 };
