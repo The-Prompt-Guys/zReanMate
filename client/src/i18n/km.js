@@ -651,6 +651,8 @@ export default {
     upgrade: 'ដំឡើងកម្រិតទៅ Plus',
     limitRemaining: 'នៅសល់ {remaining} ក្នុងចំណោម {limit}',
     help: 'ជំនួយ',
+    technicalSupport: 'ជំនួយបច្ចេកទេស',
+    contactTechnicalSupport: 'ទាក់ទងជំនួយបច្ចេកទេសតាម Telegram',
     about: 'អំពី ReanMate',
     tagline: 'បន្តរៀន មួយជំហានម្តងៗ',
     edit: 'កែសម្រួល',

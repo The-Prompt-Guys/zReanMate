@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import { NavyHeader } from '../layouts/AppLayout.jsx';
 import { Owl } from '../layouts/AuthLayout.jsx';
@@ -10,7 +9,6 @@ import { useProfile } from '../profile/useProfile.js';
 /** docs/screens/10-profile/01-profile-tab. */
 export const ProfilePage = () => {
   const t = useT();
-  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { profile, error, update } = useProfile();
   const [reminders, setReminders] = useStoredPreference('reanmate.study-reminders', true);
@@ -94,7 +92,12 @@ export const ProfilePage = () => {
           </ul>
 
           <ul className="mt-3 divide-y divide-tint-200 overflow-hidden rounded-card bg-white shadow-sm ring-1 ring-tint-200/70">
-            <Row icon={<HelpIcon />} label={t('profile.help')} onClick={() => navigate('/assistant')} />
+            <Row
+              icon={<HelpIcon />}
+              label={t('profile.technicalSupport')}
+              href="https://t.me/+85577517901"
+              ariaLabel={t('profile.contactTechnicalSupport')}
+            />
           </ul>
 
           <button
@@ -133,9 +136,22 @@ const streakFor = (values = []) => {
   return streak;
 };
 
-const Row = ({ icon, label, onClick, value }) => (
+const Row = ({ icon, label, onClick, href, ariaLabel, value }) => (
   <li>
-    <button type="button" onClick={onClick} className="flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-tint-100/60">
+    {href ? (
+      <a href={href} target="_blank" rel="noreferrer" aria-label={ariaLabel ?? label} className="flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-tint-100/60">
+        <RowContent icon={icon} label={label} value={value} />
+      </a>
+    ) : (
+      <button type="button" onClick={onClick} className="flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-tint-100/60">
+        <RowContent icon={icon} label={label} value={value} />
+      </button>
+    )}
+  </li>
+);
+
+const RowContent = ({ icon, label, value }) => (
+  <>
       <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-tint-100 text-navy-800">
         {icon}
       </span>
@@ -144,8 +160,7 @@ const Row = ({ icon, label, onClick, value }) => (
       <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-navy-600" fill="none" aria-hidden="true">
         <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-    </button>
-  </li>
+  </>
 );
 
 const useStoredPreference = (key, initialValue) => {

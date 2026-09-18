@@ -810,6 +810,8 @@ export default {
     upgrade: 'Upgrade to Plus',
     limitRemaining: '{remaining} left of {limit}',
     help: 'Help',
+    technicalSupport: 'Technical support',
+    contactTechnicalSupport: 'Contact technical support on Telegram',
     about: 'About ReanMate',
     tagline: 'Keep learning, one step at a time',
     edit: 'Edit',
