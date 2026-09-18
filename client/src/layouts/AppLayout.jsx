@@ -55,7 +55,7 @@ export const AppLayout = () => {
 
   // Immersive screens (quiz, flashcards, tutor) own the full height and hide
   // the tab bar, matching the screenshots where it is absent.
-  const immersive = /^\/(quiz|flashcards|tutor|study)\b/.test(pathname);
+  const immersive = /^\/(quiz|flashcards|tutor|study|practice)\b/.test(pathname);
 
   // Role first, path second: a teacher keeps their own tabs on the shared
   // screens (assistant, profile), and anyone who opens a /teacher URL gets a
