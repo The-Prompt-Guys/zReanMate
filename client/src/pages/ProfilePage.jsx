@@ -15,6 +15,7 @@ export const ProfilePage = () => {
   const { profile, error, update } = useProfile();
   const [reminders, setReminders] = useStoredPreference('reanmate.study-reminders', true);
   const [darkMode, setDarkMode] = useStoredPreference('reanmate.dark-mode', false);
+  const [supportPrompt, setSupportPrompt] = useState(false);
   const shown = profile ?? { fullName: user?.full_name, summary: { kits: 0, streak: 0, mastery: 0 }, activityDays: [] };
   const studyStreak = shown.summary.streak ?? streakFor(shown.activityDays);
   const edit = async () => {
@@ -22,7 +23,20 @@ export const ProfilePage = () => {
     if (fullName) await update({ fullName });
   };
   const confirmSupport = (event) => {
-    if (!window.confirm(t('profile.contactTechnicalSupportConfirm'))) event.preventDefault();
+    event.preventDefault();
+    setSupportPrompt(true);
+  };
+  useEffect(() => {
+    if (!supportPrompt) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setSupportPrompt(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [supportPrompt]);
+  const openSupport = () => {
+    setSupportPrompt(false);
+    window.open('https://t.me/+85577517901', '_blank', 'noopener,noreferrer');
   };
   useEffect(() => {
     document.documentElement.classList.toggle('theme-dark', darkMode);
@@ -115,6 +129,53 @@ export const ProfilePage = () => {
           </button>
         </section>
       </div>
+
+      {supportPrompt && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-navy-900/55 px-5"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSupportPrompt(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="support-dialog-title"
+            className="w-full max-w-sm rounded-card bg-white p-5 shadow-2xl ring-1 ring-tint-200"
+          >
+            <div className="flex items-start gap-4">
+              <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-tint-100 text-navy-800">
+                <HelpIcon />
+              </span>
+              <div className="min-w-0">
+                <h2 id="support-dialog-title" className="text-xl font-bold text-navy-900">
+                  {t('profile.contactTechnicalSupportTitle')}
+                </h2>
+                <p className="mt-2 text-base text-navy-600">
+                  {t('profile.contactTechnicalSupportConfirm')}
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setSupportPrompt(false)}
+                className="rounded-card px-4 py-3 text-base font-bold text-navy-700 ring-1 ring-tint-200 hover:bg-tint-100"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={openSupport}
+                className="rounded-card bg-brand-600 px-4 py-3 text-base font-bold text-white hover:bg-brand-700"
+              >
+                {t('profile.contactSupport')}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 };
