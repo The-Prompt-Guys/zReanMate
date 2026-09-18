@@ -68,7 +68,7 @@ export const AppLayout = () => {
     <div className="min-h-dvh bg-canvas">
       <div className="mx-auto flex min-h-dvh w-full max-w-[26rem] flex-col bg-canvas">
         {planWall && <div className="sticky top-0 z-30 flex items-center gap-3 bg-gold-400 px-4 py-3 text-sm font-semibold text-navy-900"><span className="flex-1">{t(planWall === 'feature_unavailable' ? 'plan.featureWall' : 'kits.quotaTitle')}</span><Link to="/" className="underline">{t('profile.upgrade')}</Link><button type="button" onClick={() => setPlanWall(null)} aria-label={t('common.close')}>×</button></div>}
-        <div className={immersive ? 'flex-1' : 'flex-1 pb-24'}>
+        <div className={immersive ? 'min-h-0 flex-1' : 'min-h-0 flex-1 overflow-y-auto pb-24'}>
           <Outlet />
         </div>
 
