@@ -13,17 +13,24 @@ const toInt = (value, fallback) => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
+const configuredCorsOrigins = (process.env.CORS_ORIGINS ?? '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: toInt(process.env.PORT, 4000),
 
   databaseUrl: required('DATABASE_URL', 'postgres://postgres:postgres@localhost:5432/reanmate'),
 
-  // Vite dev server. Comma-separated so staging can add its own origin.
-  corsOrigins: (process.env.CORS_ORIGINS ?? 'http://localhost:5173')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
+  // Keep the deployed frontend available even when an old Render env value
+  // is still present. Additional staging or preview origins remain configurable.
+  corsOrigins: [
+    'http://localhost:5173',
+    'https://z-rean-mate.vercel.app',
+    ...configuredCorsOrigins,
+  ].filter((origin, index, origins) => origins.indexOf(origin) === index),
 
   jsonBodyLimit: process.env.JSON_BODY_LIMIT ?? '1mb',
 
