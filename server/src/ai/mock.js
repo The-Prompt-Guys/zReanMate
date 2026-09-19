@@ -14,6 +14,26 @@ import { EMBEDDING_DIMENSIONS, assertEmbeddingWidth } from './types.js';
 /** Mirrors EMBED_BATCH_SIZE in ./openai.js so mock api_calls stay comparable. */
 const MOCK_EMBED_BATCH_SIZE = 96;
 
+/**
+ * Stamps generated text so it cannot be mistaken for real content.
+ *
+ * This exists because it already went wrong. The fixtures below describe a
+ * database whatever the document says — nothing here reads `text` — and they
+ * read plausibly enough that mock quizzes sat in the database looking like
+ * genuine output. A student who had uploaded a chemistry paper was asked what
+ * SQL stands for, and nothing on the screen said why.
+ *
+ * The marker is ASCII and leading, so it survives Khmer text and is the first
+ * thing visible in a UI, a log line and a psql dump alike.
+ */
+const MOCK_MARKER = '[MOCK]';
+const marked = (value) => `${MOCK_MARKER} ${value}`;
+
+/** Says out loud that the document was never opened. */
+const ignoredNote = (language, title) => (language === 'km'
+  ? `${MOCK_MARKER} ខ្លឹមសារសាកល្បង — មិនបានអានឯកសារ${title ? ` "${title}"` : ''}ទេ`
+  : `${MOCK_MARKER} Placeholder content — the document${title ? ` "${title}"` : ''} was not read`);
+
 const seedFrom = (input) =>
   Number.parseInt(createHash('sha256').update(String(input)).digest('hex').slice(0, 8), 16);
 
@@ -409,7 +429,7 @@ export const createMockProvider = () => ({
   async summarize({ text, title, language = 'km', onUsage } = {}) {
     const d = dict(language);
     const result = {
-      title: title ? `${d.summaryTitle}: ${title}` : d.summaryTitle,
+      title: ignoredNote(language, title),
       bodyMd: d.summaryBody,
       keyPoints: d.keyPoints,
     };
@@ -568,9 +588,14 @@ export const createMockProvider = () => ({
     const seen = new Set(avoidQuestions);
     const targeted = weakTopics.length ? Math.round(count * 0.7) : 0;
 
+    // Marked before the seen-check, not after: `avoidQuestions` holds prompts
+    // read back from the database, which are already marked. Comparing a marked
+    // history against unmarked fixtures would match nothing and quietly break
+    // duplicate prevention.
+    const stamped = d.questions.map((q) => ({ ...q, prompt: marked(q.prompt) }));
     // Every fixture that has not been asked yet, in order.
-    const fresh = d.questions.filter((q) => !seen.has(q.prompt));
-    const pool = fresh.length ? fresh : d.questions;
+    const fresh = stamped.filter((q) => !seen.has(q.prompt));
+    const pool = fresh.length ? fresh : stamped;
 
     const questions = Array.from({ length: Math.max(1, count) }, (_, i) => {
       const q = pool[i % pool.length];
@@ -599,7 +624,7 @@ export const createMockProvider = () => ({
     });
 
     reportUsage(onUsage, mockUsage({ input: text, output: JSON.stringify(questions), language }));
-    return { title: `Adaptive Quiz - ${title ?? d.summaryTitle}`, questions };
+    return { title: ignoredNote(language, title ?? d.summaryTitle), questions };
   },
 
   async generateFlashcards({ text, language = 'km', count = 12, onUsage } = {}) {
@@ -608,7 +633,7 @@ export const createMockProvider = () => ({
       const [term, definition] = d.terms[i % d.terms.length];
       const cycle = Math.floor(i / d.terms.length);
       return {
-        term: cycle ? `${term} ${cycle + 1}` : term,
+        term: marked(cycle ? `${term} ${cycle + 1}` : term),
         definition,
         hint: null,
         topic: d.topics[i % d.topics.length],
