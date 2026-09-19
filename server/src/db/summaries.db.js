@@ -1,19 +1,24 @@
 import { query, queryOne, withTransaction } from './pool.js';
 
 const CACHE_SELECT = `
-  SELECT c.id, c.source_id, c.method, c.params, c.params_hash, c.outline,
-         c.status, c.error_message, c.created_at, c.updated_at
+  SELECT c.id, c.source_id, c.method, c.params, c.params_hash, c.provider,
+         c.outline, c.status, c.error_message, c.created_at, c.updated_at
     FROM ai_generation_cache c`;
 
 export const summariesDb = {
-  async getOrCreateCache({ sourceId, method, params, paramsHash }) {
+  /**
+   * `provider` completes the key — see 022. A row written by the mock and a row
+   * written by the real API are different rows, so a live key stops inheriting
+   * whatever the mock left behind.
+   */
+  async getOrCreateCache({ sourceId, method, params, paramsHash, provider }) {
     return queryOne(
-      `INSERT INTO ai_generation_cache (source_id, method, params, params_hash)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (source_id, method, params_hash) DO UPDATE
+      `INSERT INTO ai_generation_cache (source_id, method, params, params_hash, provider)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (source_id, method, params_hash, provider) DO UPDATE
          SET params = ai_generation_cache.params
        RETURNING *`,
-      [sourceId, method, JSON.stringify(params), paramsHash],
+      [sourceId, method, JSON.stringify(params), paramsHash, provider],
     );
   },
 
