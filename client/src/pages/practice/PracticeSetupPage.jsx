@@ -37,8 +37,12 @@ export const PracticeSetupPage = () => {
         ...(sourceId && { sourceId }),
         mode: 'mock_exam',
         questionCount: count,
-        answerFormat: 'multiple_choice',
-        timerSeconds: timer || 600,
+        // Both of these used to be thrown away. answerFormat was hardcoded to
+        // multiple_choice while the screen went on rendering a "Write your
+        // answer" toggle that did nothing, and `timer || 600` turned "No timer"
+        // — which is 0 — into a silent ten-minute countdown.
+        answerFormat: format,
+        timerSeconds: timer,
         topicIds: [],
       });
       window.localStorage.setItem('reanmate:practice-session', data.session.id);

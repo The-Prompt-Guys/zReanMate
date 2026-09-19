@@ -48,13 +48,20 @@ export const practiceDb = {
         const options = input.answerFormat === 'written' ? [] : item.options;
         const correct = input.answerFormat === 'written' && typeof item.correct_answer === 'number'
           ? item.options[item.correct_answer] : item.correct_answer;
+        // Carried from mock_exam_questions.expected_answer — the correct answer
+        // in full prose, which is what a typed response can actually be marked
+        // against. Null for a question drawn from the quiz pool: those store
+        // only an index into their options, so `correct` above is one option's
+        // wording and grading against it is the string-match problem this
+        // column exists to replace.
         await client.query(
           `INSERT INTO practice_session_questions
              (session_id, question_id, topic_id, position, prompt, options,
-              correct_answer, explanation, weight_at_select)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+              correct_answer, expected_answer, explanation, weight_at_select)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [session.id, item.id, item.topic_id, index + 1, item.prompt,
-            JSON.stringify(options), JSON.stringify(correct), item.explanation, item.weight],
+            JSON.stringify(options), JSON.stringify(correct), item.expected_answer ?? null,
+            item.explanation, item.weight],
         );
       }
       return { session, used, limit: weeklyLimit };
@@ -66,18 +73,34 @@ export const practiceDb = {
    * is the whole of "study this material only" on the exam side: a mock exam
    * opened from cost-analyst1.pdf must never ask about the slide deck sitting
    * next to it in the same kit.
+   *
+   * `provider` keeps the mock provider's output out of a real session. The mock
+   * writes the same three canned database questions whatever the document says
+   * — it never reads the text — and rows it wrote before a real key was
+   * configured are still sitting in `quiz_questions`, marked 'ready' and
+   * indistinguishable here without the join. Filtering them out is what stops a
+   * chemistry paper producing an exam about SQL primary keys.
+   *
+   * Mock rows ARE still drawn when the mock is the active provider: with no key
+   * configured they are the only content that exists, and a developer with an
+   * empty exam learns less than one with an obviously fake exam.
+   *
+   * Quizzes a teacher wrote have no cache row at all, so they pass on
+   * `generation_cache_id IS NULL` and are never affected by any of this.
    */
-  async candidateQuestions({ userId, kitId, topicIds, sourceId = null }) {
+  async candidateQuestions({ userId, kitId, topicIds, sourceId = null, provider }) {
     const { rows } = await query(
       `SELECT qq.id, qq.topic_id, qq.prompt, qq.options, qq.correct_answer, qq.explanation,
               COALESCE(m.mastery_percent, 35)::int AS effective_mastery
          FROM quiz_questions qq JOIN quizzes q ON q.id = qq.quiz_id
          JOIN study_kits k ON k.id = q.study_kit_id
+         LEFT JOIN ai_generation_cache c ON c.id = q.generation_cache_id
          LEFT JOIN user_topic_mastery m ON m.topic_id = qq.topic_id AND m.user_id = $1
         WHERE q.study_kit_id = $2 AND k.user_id = $1 AND q.status = 'ready'
           AND (cardinality($3::uuid[]) = 0 OR qq.topic_id = ANY($3::uuid[]))
-          AND ($4::uuid IS NULL OR q.source_id = $4::uuid)`,
-      [userId, kitId, topicIds, sourceId],
+          AND ($4::uuid IS NULL OR q.source_id = $4::uuid)
+          AND ($5::text = 'mock' OR q.generation_cache_id IS NULL OR c.provider <> 'mock')`,
+      [userId, kitId, topicIds, sourceId, provider],
     );
     return rows;
   },
@@ -99,7 +122,8 @@ export const practiceDb = {
   async questions(sessionId) {
     const { rows } = await query(
       `SELECT q.id, q.position, q.prompt, q.options, q.explanation, q.topic_id,
-              a.response, a.is_correct, a.answered_at
+              q.correct_answer, q.expected_answer,
+              a.response, a.is_correct, a.grader_note, a.answered_at
          FROM practice_session_questions q
          LEFT JOIN practice_answers a ON a.session_id = q.session_id AND a.position = q.position
         WHERE q.session_id = $1 ORDER BY q.position`, [sessionId],
@@ -118,9 +142,25 @@ export const practiceDb = {
       )).rows[0];
       if (!item || item.status !== 'in_progress') return null;
       const expected = item.correct_answer;
-      const correct = typeof expected === 'string'
-        ? String(input.response).trim().toLocaleLowerCase() === expected.trim().toLocaleLowerCase()
-        : input.response === expected;
+      // A written answer that has an answer key to mark against is left
+      // UNMARKED here and graded at submit, in one batched AI call.
+      //
+      // The alternative is the comparison below, which lowercases both sides
+      // and tests them for equality — so a student who conveys the right idea
+      // in their own words is marked wrong, and Khmer, having no spaces
+      // between words, is never normalised at all.
+      //
+      // `is_correct` is nullable precisely so an answer can sit unmarked
+      // between being typed and being graded. Nothing waits on the model while
+      // the student is still writing.
+      const gradeLater = typeof item.expected_answer === 'string'
+        && item.expected_answer.trim().length > 0
+        && typeof input.response === 'string';
+      const correct = gradeLater
+        ? null
+        : (typeof expected === 'string'
+          ? String(input.response).trim().toLocaleLowerCase() === expected.trim().toLocaleLowerCase()
+          : input.response === expected);
       const saved = (await client.query(
         `INSERT INTO practice_answers
            (session_id, question_id, topic_id, position, prompt_snapshot, response, is_correct, time_spent_seconds)
@@ -138,6 +178,49 @@ export const practiceDb = {
       );
       return saved;
     });
+  },
+
+  /**
+   * Answers still waiting to be marked, with the key to mark them against.
+   *
+   * Ordered by position so the grader's reply — which is positional, per the
+   * AIProvider contract — can be zipped straight back onto them.
+   */
+  async ungradedWritten(sessionId) {
+    const { rows } = await query(
+      `SELECT a.position, q.prompt, q.expected_answer, a.response
+         FROM practice_answers a
+         JOIN practice_session_questions q
+           ON q.session_id = a.session_id AND q.position = a.position
+        WHERE a.session_id = $1 AND a.is_correct IS NULL
+          AND q.expected_answer IS NOT NULL
+          AND length(trim(q.expected_answer)) > 0
+        ORDER BY a.position`,
+      [sessionId],
+    );
+    return rows;
+  },
+
+  /**
+   * Writes the marks back.
+   *
+   * Keyed by position rather than by array index, so a grader that returned
+   * the wrong number of results cannot shift every later mark onto the wrong
+   * answer. The service checks the count too; this is the second lock.
+   */
+  async applyGrades(sessionId, grades) {
+    if (grades.length === 0) return 0;
+    let updated = 0;
+    for (const grade of grades) {
+      const { rowCount } = await query(
+        `UPDATE practice_answers
+            SET is_correct = $3, grader_note = $4
+          WHERE session_id = $1 AND position = $2`,
+        [sessionId, grade.position, grade.isCorrect, grade.note || null],
+      );
+      updated += rowCount;
+    }
+    return updated;
   },
 
   async submit({ userId, sessionId, durationSeconds }) {
