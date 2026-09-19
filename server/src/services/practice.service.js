@@ -68,8 +68,7 @@ const streakFor = (values) => {
  * `weight` is 0 on every row: the column records the mastery weight a question
  * was chosen for, and these were not chosen for one.
  */
-const examDraw = async ({ userId, input, sourceId, provider }) => {
-  void provider;
+const examDraw = async ({ userId, input, sourceId }) => {
   const bank = await mockExamDb.bankQuestions({ userId, kitId: input.studyKitId, sourceId });
   if (bank.length < input.questionCount) return null;
 
@@ -147,8 +146,7 @@ const gradeWritten = async ({ userId, sessionId, session }) => {
   );
 };
 
-const finishCreate = (result, input, weeklyLimit) => {
-  void weeklyLimit;
+const finishCreate = (result, input) => {
   if (result.missing) throw ApiError.notFound('That study kit does not exist');
   if (result.quotaExceeded) throw new ApiError(429, 'quota_exceeded', 'Weekly practice limit reached', { used: result.used, limit: result.limit });
   if (result.insufficient) throw ApiError.conflict('Not enough generated questions for those settings', { available: result.available, requested: input.questionCount });
@@ -176,11 +174,11 @@ export const practiceService = {
     // again, which is why a mock exam and a practice session asked the same
     // questions out of the same pool.
     if (input.mode === 'mock_exam') {
-      const drawn = await examDraw({ userId, input, sourceId, provider });
+      const drawn = await examDraw({ userId, input, sourceId });
       if (drawn) {
         return finishCreate(await practiceDb.create({
           userId, input, weeklyLimit, weightedOrder: drawn,
-        }), input, weeklyLimit);
+        }), input);
       }
       // No bank yet — a source ingested before exam banks existed. Queue one
       // for next time and fall through to the quiz pool rather than making the
@@ -205,7 +203,6 @@ export const practiceService = {
       await practiceDb.create({ userId, input, weeklyLimit,
         weightedOrder: weightedWithoutReplacement(candidates) }),
       input,
-      weeklyLimit,
     );
   },
 
