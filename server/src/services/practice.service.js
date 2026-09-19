@@ -4,6 +4,7 @@ import { practiceDb } from '../db/practice.db.js';
 import { ApiError } from '../middleware/errors.js';
 import { mockExamService } from './mockExam.service.js';
 import { plansService } from './plans.service.js';
+import { trackGeneration } from './aiUsage.service.js';
 
 export const topicWeight = (mastery) => 1 + 4 * ((100 - (mastery ?? 35)) / 100) ** 2;
 
@@ -33,7 +34,13 @@ const sessionApi = (row) => ({
   completedAt: row.completed_at,
 });
 const questionApi = (row) => ({ id: row.id, position: row.position, prompt: row.prompt,
-  options: row.options, response: row.response, answeredAt: row.answered_at });
+  options: row.options, response: row.response, answeredAt: row.answered_at,
+  // Only meaningful once the session is submitted — until then a written
+  // answer is deliberately unmarked. `graderNote` says WHY a written answer was
+  // marked as it was: unlike a wrong multiple-choice answer, a wrong mark on
+  // free text is not self-evident to the student who wrote it.
+  isCorrect: row.is_correct ?? null,
+  graderNote: row.grader_note ?? null });
 
 const streakFor = (values) => {
   if (!values.length) return 0;
@@ -84,6 +91,52 @@ const examDraw = async ({ userId, input, sourceId, provider }) => {
     explanation: row.explanation,
     weight: 0,
   }));
+};
+
+/**
+ * Marks every written answer in one call.
+ *
+ * Positions are carried through rather than relying on array index alignment.
+ * The provider contract says grades come back in input order, but a provider
+ * that returns the wrong number would otherwise shift every later mark onto the
+ * wrong answer — so the count is checked and the marks are keyed by position.
+ */
+const gradeWritten = async ({ userId, sessionId, session }) => {
+  const pending = await practiceDb.ungradedWritten(sessionId);
+  if (pending.length === 0) return 0;
+
+  const answers = pending.map((row) => ({
+    prompt: row.prompt,
+    expectedAnswer: row.expected_answer,
+    response: typeof row.response === 'string' ? row.response : String(row.response ?? ''),
+  }));
+
+  const grades = await trackGeneration(
+    {
+      kind: 'mock_exam',
+      userId,
+      studyKitId: session.study_kit_id,
+      sourceId: session.source_id ?? null,
+      language: null,
+      sourceText: answers.map((a) => a.response).join('\n'),
+      request: { graded: answers.length, mode: session.mode },
+      describe: (value) => ({ correct: value.filter((g) => g.isCorrect).length }),
+    },
+    ({ ai, onUsage }) => ai.gradeWrittenAnswers({ answers, onUsage }),
+  );
+
+  if (!Array.isArray(grades) || grades.length !== pending.length) {
+    throw new Error(`grading returned ${grades?.length ?? 'nothing'} marks for ${pending.length} answers`);
+  }
+
+  return practiceDb.applyGrades(
+    sessionId,
+    pending.map((row, index) => ({
+      position: row.position,
+      isCorrect: Boolean(grades[index].isCorrect),
+      note: grades[index].note,
+    })),
+  );
 };
 
 const finishCreate = (result, input, weeklyLimit) => {
@@ -162,7 +215,35 @@ export const practiceService = {
     return { answer: { position: answer.position, response: answer.response, answeredAt: answer.answered_at } };
   },
 
+  /**
+   * Marks the written answers, then closes the session.
+   *
+   * Order matters and is not incidental: practiceDb.submit derives
+   * correct_count, mastery_percent and weak_topics from `is_correct`, and an
+   * answer left unmarked is not true, so grading afterwards would score every
+   * written response wrong and then report that as the student's mastery.
+   *
+   * One batched call for the whole session rather than one per answer, which is
+   * why answers are stored unmarked as they are typed.
+   *
+   * A grading failure does NOT block submission. The exam was sat; refusing to
+   * close it because the grader was unavailable would strand the student in a
+   * session they cannot leave, and multiple-choice answers are already marked
+   * and correct. The written ones stay unmarked, which reads as not-correct,
+   * and the failure is logged rather than swallowed silently.
+   */
   async submit(userId, sessionId, input = {}) {
+    const session = await practiceDb.session({ userId, sessionId });
+    if (!session) throw ApiError.notFound('That practice session does not exist');
+
+    if (session.status === 'in_progress') {
+      try {
+        await gradeWritten({ userId, sessionId, session });
+      } catch (err) {
+        console.error(`[practice] grading session ${sessionId} failed: ${err.message}`);
+      }
+    }
+
     const row = await practiceDb.submit({ userId, sessionId, durationSeconds: input.durationSeconds });
     if (!row) throw ApiError.notFound('That practice session does not exist');
     return { result: { ...sessionApi(row), total: row.question_count,

@@ -122,7 +122,7 @@ export const practiceDb = {
   async questions(sessionId) {
     const { rows } = await query(
       `SELECT q.id, q.position, q.prompt, q.options, q.explanation, q.topic_id,
-              a.response, a.is_correct, a.answered_at
+              a.response, a.is_correct, a.grader_note, a.answered_at
          FROM practice_session_questions q
          LEFT JOIN practice_answers a ON a.session_id = q.session_id AND a.position = q.position
         WHERE q.session_id = $1 ORDER BY q.position`, [sessionId],
@@ -141,9 +141,25 @@ export const practiceDb = {
       )).rows[0];
       if (!item || item.status !== 'in_progress') return null;
       const expected = item.correct_answer;
-      const correct = typeof expected === 'string'
-        ? String(input.response).trim().toLocaleLowerCase() === expected.trim().toLocaleLowerCase()
-        : input.response === expected;
+      // A written answer that has an answer key to mark against is left
+      // UNMARKED here and graded at submit, in one batched AI call.
+      //
+      // The alternative is the comparison below, which lowercases both sides
+      // and tests them for equality — so a student who conveys the right idea
+      // in their own words is marked wrong, and Khmer, having no spaces
+      // between words, is never normalised at all.
+      //
+      // `is_correct` is nullable precisely so an answer can sit unmarked
+      // between being typed and being graded. Nothing waits on the model while
+      // the student is still writing.
+      const gradeLater = typeof item.expected_answer === 'string'
+        && item.expected_answer.trim().length > 0
+        && typeof input.response === 'string';
+      const correct = gradeLater
+        ? null
+        : (typeof expected === 'string'
+          ? String(input.response).trim().toLocaleLowerCase() === expected.trim().toLocaleLowerCase()
+          : input.response === expected);
       const saved = (await client.query(
         `INSERT INTO practice_answers
            (session_id, question_id, topic_id, position, prompt_snapshot, response, is_correct, time_spent_seconds)
@@ -161,6 +177,49 @@ export const practiceDb = {
       );
       return saved;
     });
+  },
+
+  /**
+   * Answers still waiting to be marked, with the key to mark them against.
+   *
+   * Ordered by position so the grader's reply — which is positional, per the
+   * AIProvider contract — can be zipped straight back onto them.
+   */
+  async ungradedWritten(sessionId) {
+    const { rows } = await query(
+      `SELECT a.position, q.prompt, q.expected_answer, a.response
+         FROM practice_answers a
+         JOIN practice_session_questions q
+           ON q.session_id = a.session_id AND q.position = a.position
+        WHERE a.session_id = $1 AND a.is_correct IS NULL
+          AND q.expected_answer IS NOT NULL
+          AND length(trim(q.expected_answer)) > 0
+        ORDER BY a.position`,
+      [sessionId],
+    );
+    return rows;
+  },
+
+  /**
+   * Writes the marks back.
+   *
+   * Keyed by position rather than by array index, so a grader that returned
+   * the wrong number of results cannot shift every later mark onto the wrong
+   * answer. The service checks the count too; this is the second lock.
+   */
+  async applyGrades(sessionId, grades) {
+    if (grades.length === 0) return 0;
+    let updated = 0;
+    for (const grade of grades) {
+      const { rowCount } = await query(
+        `UPDATE practice_answers
+            SET is_correct = $3, grader_note = $4
+          WHERE session_id = $1 AND position = $2`,
+        [sessionId, grade.position, grade.isCorrect, grade.note || null],
+      );
+      updated += rowCount;
+    }
+    return updated;
   },
 
   async submit({ userId, sessionId, durationSeconds }) {

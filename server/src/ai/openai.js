@@ -371,6 +371,27 @@ const MOCK_EXAM_SCHEMA = obj({
   },
 });
 
+const WRITTEN_GRADES_SCHEMA = obj({
+  grades: {
+    type: 'array',
+    description: 'One entry per submitted answer, in the SAME ORDER they were given.',
+    items: obj({
+      isCorrect: {
+        type: 'boolean',
+        description:
+          'True when the response conveys the expected answer. Judge MEANING: different ' +
+          'wording, word order, spelling and a mix of Khmer and English are all fine.',
+      },
+      note: {
+        type: 'string',
+        description:
+          'One short line addressed to the student saying what was right, or what was ' +
+          'missing. In the requested language.',
+      },
+    }),
+  },
+});
+
 const FLASHCARDS_SCHEMA = obj({
   // The interface returns a bare Flashcard[], but strict json_schema requires an
   // object at the root — so the model returns {cards} and we unwrap it here.
@@ -924,6 +945,71 @@ export const createOpenAIProvider = ({
           };
         }),
       };
+    },
+
+    /**
+     * Marks free text on meaning rather than on wording.
+     *
+     * Replaces a `toLocaleLowerCase()` equality check that marked a student
+     * wrong for saying the right thing in different words, and normalised Khmer
+     * not at all.
+     *
+     * Batched: one call for the whole exam at submit, not one per answer as the
+     * student types. The order of `grades` is load-bearing — it is how each
+     * mark finds its question — so a count mismatch throws rather than
+     * silently pairing answers with the wrong verdicts.
+     *
+     * `material` is the answers themselves rather than the source document:
+     * grading compares a response against an expected answer, and handing over
+     * the whole document would invite the model to mark against what it thinks
+     * the document says instead of against the answer key.
+     */
+    async gradeWrittenAnswers({ answers = [], language = 'km', reasoningEffort = 'low', onUsage } = {}) {
+      if (answers.length === 0) return [];
+
+      const material = answers
+        .map((a, i) => [
+          `### Answer ${i + 1}`,
+          `QUESTION: ${a.prompt}`,
+          `EXPECTED: ${a.expectedAnswer}`,
+          `STUDENT WROTE: ${a.response}`,
+        ].join('\n'))
+        .join('\n\n');
+
+      const result = await structured({
+        label: 'gradeWrittenAnswers',
+        schemaName: 'written_grades',
+        schema: WRITTEN_GRADES_SCHEMA,
+        language,
+        material,
+        reasoningEffort,
+        onUsage,
+        prompt: [
+          `Mark these ${answers.length} exam answers. Return exactly ${answers.length} grades,`,
+          'in the same order as the answers appear.',
+          'Mark on MEANING, not on wording. A student who conveys the expected answer in their',
+          'own words is correct. Different phrasing, different word order, a different example,',
+          'spelling mistakes, and mixing Khmer with English technical terms are all correct.',
+          'Khmer has no spaces between words, so do not treat spacing as a mistake.',
+          'Mark incorrect only when the response misses, contradicts or fails to reach the',
+          'substance of the expected answer. An answer that is right but incomplete on a minor',
+          'point is correct — say what was missing in the note.',
+          'An empty or irrelevant response is incorrect.',
+          'Do not reward length. A short answer that is right is right.',
+          'Every note is one short line addressed to the student, in their language.',
+        ].join(' '),
+      });
+
+      const grades = result.grades ?? [];
+      if (grades.length !== answers.length) {
+        throw new Error(
+          `gradeWrittenAnswers: expected ${answers.length} grades, got ${grades.length}`,
+        );
+      }
+      return grades.map((grade) => ({
+        isCorrect: Boolean(grade.isCorrect),
+        note: typeof grade.note === 'string' ? grade.note.trim() : '',
+      }));
     },
 
     async generateFlashcards({ text, language = 'km', count = 12, reasoningEffort = 'none', onUsage } = {}) {

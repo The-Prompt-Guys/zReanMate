@@ -172,6 +172,8 @@ const copy = {
       ['សន្ទស្សន៍', 'រចនាសម្ព័ន្ធដែលធ្វើឱ្យការស្វែងរកទិន្នន័យលឿនជាងមុន'],
       ['ការធ្វើឱ្យធម្មតា', 'ដំណើរការរៀបចំទិន្នន័យដើម្បីកាត់បន្ថយការស្ទួន'],
     ],
+    gradeCorrect: 'ចម្លើយត្រូវ — អ្នកបានពន្យល់គំនិតសំខាន់។',
+    gradeIncorrect: 'ចម្លើយនេះខ្វះចំណុចសំខាន់នៃចម្លើយដែលរំពឹងទុក។',
     questions: [
       {
         prompt: 'តើគន្លឹះចម្បងមានតួនាទីអ្វី?',
@@ -330,6 +332,8 @@ const copy = {
       ['Index', 'A structure that makes looking up rows faster'],
       ['Normalization', 'Organising data to reduce duplication'],
     ],
+    gradeCorrect: 'Correct — you covered the key idea.',
+    gradeIncorrect: 'This misses the substance of the expected answer.',
     questions: [
       {
         prompt: 'What does a primary key do?',
@@ -670,6 +674,49 @@ export const createMockProvider = () => ({
 
     reportUsage(onUsage, mockUsage({ input: text, output: JSON.stringify(questions), language }));
     return { title: ignoredNote(language, title ?? d.summaryTitle), questions };
+  },
+
+  /**
+   * Marks on keyword overlap.
+   *
+   * Crude on purpose — it is not trying to be a grader. What it has to do is
+   * let the whole written-answer path be exercised with no key configured:
+   * meaningfully different answers get different verdicts, so a test can tell a
+   * working wiring from a broken one. A grader that always returned true would
+   * pass every test while grading nothing.
+   *
+   * Khmer has no spaces between words, so a word-boundary split finds nothing
+   * to split on and every Khmer answer would score zero overlap. Characters are
+   * compared instead when there are no word breaks.
+   */
+  async gradeWrittenAnswers({ answers = [], language = 'km', onUsage } = {}) {
+    if (answers.length === 0) return [];
+    const d = dict(language);
+
+    const pieces = (value) => {
+      const text = String(value ?? '').normalize('NFKC').toLocaleLowerCase('und').trim();
+      const words = text.split(/[\s.,;:!?()"'\u200b]+/u).filter(Boolean);
+      return words.length > 1 ? words : [...text].filter((ch) => ch.trim());
+    };
+
+    const grades = answers.map((answer) => {
+      const expected = new Set(pieces(answer.expectedAnswer));
+      const got = pieces(answer.response);
+      const hits = got.filter((piece) => expected.has(piece)).length;
+      const overlap = expected.size === 0 ? 0 : hits / expected.size;
+      const isCorrect = got.length > 0 && overlap >= 0.4;
+      return {
+        isCorrect,
+        note: marked(isCorrect ? d.gradeCorrect : d.gradeIncorrect),
+      };
+    });
+
+    reportUsage(onUsage, mockUsage({
+      input: JSON.stringify(answers),
+      output: JSON.stringify(grades),
+      language,
+    }));
+    return grades;
   },
 
   async generateFlashcards({ text, language = 'km', count = 12, onUsage } = {}) {
