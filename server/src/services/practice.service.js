@@ -33,14 +33,30 @@ const sessionApi = (row) => ({
   durationSeconds: row.duration_seconds, startedAt: row.started_at,
   completedAt: row.completed_at,
 });
-const questionApi = (row) => ({ id: row.id, position: row.position, prompt: row.prompt,
+/**
+ * `revealed` is the whole answer key, and it is false until the session is
+ * over.
+ *
+ * This shape is served by GET /practice/sessions/:id, which the session screen
+ * polls WHILE THE EXAM IS BEING SAT. Sending the correct answer, the expected
+ * answer or the explanation before submission would hand the student the marks
+ * in the network tab. The quiz feature gates its explanation the same way, for
+ * the same reason.
+ */
+const questionApi = (row, revealed = false) => ({
+  id: row.id, position: row.position, prompt: row.prompt,
   options: row.options, response: row.response, answeredAt: row.answered_at,
-  // Only meaningful once the session is submitted — until then a written
-  // answer is deliberately unmarked. `graderNote` says WHY a written answer was
-  // marked as it was: unlike a wrong multiple-choice answer, a wrong mark on
-  // free text is not self-evident to the student who wrote it.
+  // `graderNote` says WHY a written answer was marked as it was: unlike a wrong
+  // multiple-choice answer, a wrong mark on free text is not self-evident to
+  // the student who wrote it.
   isCorrect: row.is_correct ?? null,
-  graderNote: row.grader_note ?? null });
+  graderNote: revealed ? row.grader_note ?? null : null,
+  explanation: revealed ? row.explanation ?? null : null,
+  // The answer written out in full when the question has one — an exam
+  // question does, a question drawn from the quiz pool does not, and then the
+  // stored correct answer is the best available.
+  correctAnswer: revealed ? row.expected_answer ?? row.correct_answer ?? null : null,
+});
 
 const streakFor = (values) => {
   if (!values.length) return 0;
@@ -211,7 +227,11 @@ export const practiceService = {
     const session = await practiceDb.session({ userId, sessionId });
     if (!session) throw ApiError.notFound('That practice session does not exist');
     const questions = await practiceDb.questions(sessionId);
-    return { session: sessionApi(session), questions: questions.map(questionApi) };
+    const revealed = session.status === 'completed';
+    return {
+      session: sessionApi(session),
+      questions: questions.map((row) => questionApi(row, revealed)),
+    };
   },
 
   async answer(userId, sessionId, input) {

@@ -122,6 +122,7 @@ export const practiceDb = {
   async questions(sessionId) {
     const { rows } = await query(
       `SELECT q.id, q.position, q.prompt, q.options, q.explanation, q.topic_id,
+              q.correct_answer, q.expected_answer,
               a.response, a.is_correct, a.grader_note, a.answered_at
          FROM practice_session_questions q
          LEFT JOIN practice_answers a ON a.session_id = q.session_id AND a.position = q.position
