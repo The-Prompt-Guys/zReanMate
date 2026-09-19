@@ -66,18 +66,34 @@ export const practiceDb = {
    * is the whole of "study this material only" on the exam side: a mock exam
    * opened from cost-analyst1.pdf must never ask about the slide deck sitting
    * next to it in the same kit.
+   *
+   * `provider` keeps the mock provider's output out of a real session. The mock
+   * writes the same three canned database questions whatever the document says
+   * — it never reads the text — and rows it wrote before a real key was
+   * configured are still sitting in `quiz_questions`, marked 'ready' and
+   * indistinguishable here without the join. Filtering them out is what stops a
+   * chemistry paper producing an exam about SQL primary keys.
+   *
+   * Mock rows ARE still drawn when the mock is the active provider: with no key
+   * configured they are the only content that exists, and a developer with an
+   * empty exam learns less than one with an obviously fake exam.
+   *
+   * Quizzes a teacher wrote have no cache row at all, so they pass on
+   * `generation_cache_id IS NULL` and are never affected by any of this.
    */
-  async candidateQuestions({ userId, kitId, topicIds, sourceId = null }) {
+  async candidateQuestions({ userId, kitId, topicIds, sourceId = null, provider }) {
     const { rows } = await query(
       `SELECT qq.id, qq.topic_id, qq.prompt, qq.options, qq.correct_answer, qq.explanation,
               COALESCE(m.mastery_percent, 35)::int AS effective_mastery
          FROM quiz_questions qq JOIN quizzes q ON q.id = qq.quiz_id
          JOIN study_kits k ON k.id = q.study_kit_id
+         LEFT JOIN ai_generation_cache c ON c.id = q.generation_cache_id
          LEFT JOIN user_topic_mastery m ON m.topic_id = qq.topic_id AND m.user_id = $1
         WHERE q.study_kit_id = $2 AND k.user_id = $1 AND q.status = 'ready'
           AND (cardinality($3::uuid[]) = 0 OR qq.topic_id = ANY($3::uuid[]))
-          AND ($4::uuid IS NULL OR q.source_id = $4::uuid)`,
-      [userId, kitId, topicIds, sourceId],
+          AND ($4::uuid IS NULL OR q.source_id = $4::uuid)
+          AND ($5::text = 'mock' OR q.generation_cache_id IS NULL OR c.provider <> 'mock')`,
+      [userId, kitId, topicIds, sourceId, provider],
     );
     return rows;
   },

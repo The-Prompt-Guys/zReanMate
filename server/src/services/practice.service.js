@@ -1,3 +1,4 @@
+import { getAI } from '../ai/index.js';
 import { practiceDb } from '../db/practice.db.js';
 import { ApiError } from '../middleware/errors.js';
 import { plansService } from './plans.service.js';
@@ -55,12 +56,16 @@ export const practiceService = {
   async create(userId, _plan, input) {
     const weeklyLimit = await plansService.getLimit(userId, 'practice_sessions_per_week');
     const sourceId = input.sourceId ?? null;
-    let candidates = await practiceDb.candidateQuestions({ userId, kitId: input.studyKitId, topicIds: input.topicIds, sourceId });
+    // Questions the mock provider wrote are excluded while a real provider is
+    // active — see practiceDb.candidateQuestions. They describe a database
+    // whatever the student uploaded.
+    const provider = getAI().name;
+    let candidates = await practiceDb.candidateQuestions({ userId, kitId: input.studyKitId, topicIds: input.topicIds, sourceId, provider });
     if (input.topicIds.length > 0 && candidates.length < input.questionCount) {
       // Topping up ignores the chosen topics but keeps the source filter — the
       // shortfall is made up from elsewhere in the same file, never from the
       // rest of the kit.
-      const all = await practiceDb.candidateQuestions({ userId, kitId: input.studyKitId, topicIds: [], sourceId });
+      const all = await practiceDb.candidateQuestions({ userId, kitId: input.studyKitId, topicIds: [], sourceId, provider });
       const seen = new Set(candidates.map((item) => item.id));
       candidates = [...candidates, ...all.filter((item) => !seen.has(item.id))];
     }
