@@ -4,7 +4,7 @@ import { practiceDb } from '../db/practice.db.js';
 import { ApiError } from '../middleware/errors.js';
 import { mockExamService } from './mockExam.service.js';
 import { plansService } from './plans.service.js';
-import { trackGeneration } from './aiUsage.service.js';
+import { detectCostLanguage, trackGeneration } from './aiUsage.service.js';
 
 export const topicWeight = (mastery) => 1 + 4 * ((100 - (mastery ?? 35)) / 100) ** 2;
 
@@ -111,18 +111,26 @@ const gradeWritten = async ({ userId, sessionId, session }) => {
     response: typeof row.response === 'string' ? row.response : String(row.response ?? ''),
   }));
 
+  // The note goes to the student, so it has to be in their language. There is
+  // no language column on practice_sessions, and the student's response is the
+  // wrong thing to read — an empty or one-word answer says nothing. The answer
+  // key is in the document's language by construction, so that is what is read.
+  // Defaulting instead would have handed a Khmer note to every English exam,
+  // because the provider's default is 'km'.
+  const language = detectCostLanguage(answers.map((a) => a.expectedAnswer).join('\n')) ?? 'km';
+
   const grades = await trackGeneration(
     {
       kind: 'mock_exam',
       userId,
       studyKitId: session.study_kit_id,
       sourceId: session.source_id ?? null,
-      language: null,
+      language,
       sourceText: answers.map((a) => a.response).join('\n'),
       request: { graded: answers.length, mode: session.mode },
       describe: (value) => ({ correct: value.filter((g) => g.isCorrect).length }),
     },
-    ({ ai, onUsage }) => ai.gradeWrittenAnswers({ answers, onUsage }),
+    ({ ai, onUsage }) => ai.gradeWrittenAnswers({ answers, language, onUsage }),
   );
 
   if (!Array.isArray(grades) || grades.length !== pending.length) {
