@@ -627,6 +627,47 @@ export const createMockProvider = () => ({
     return { title: ignoredNote(language, title ?? d.summaryTitle), questions };
   },
 
+  /**
+   * A stand-in exam bank.
+   *
+   * Cycles the same three fixtures as generateQuiz, so it is obviously fake,
+   * but it produces the full shape the real method does — `expectedAnswer` and
+   * `difficulty` on every question, a bank larger than one sitting — which is
+   * what lets the draw, the format toggle and written grading all be exercised
+   * end to end with no key configured.
+   */
+  async generateMockExam({ text, title, language = 'km', count = 30, onUsage } = {}) {
+    const d = dict(language);
+    const levels = ['easy', 'medium', 'hard'];
+
+    const questions = Array.from({ length: Math.max(1, count) }, (_, i) => {
+      const q = d.questions[i % d.questions.length];
+      const cycle = Math.floor(i / d.questions.length);
+      const isChoice = q.options.length > 1;
+      const options = isChoice
+        ? (q.options.length === 4 ? q.options : [...q.options, 'Neither', 'Both'].slice(0, 4))
+        : [];
+      return {
+        kind: q.options.length === 2 ? 'true_false' : 'multiple_choice',
+        // Numbered from 1 across the whole bank, so 30 questions are 30
+        // distinct prompts rather than the same three repeated ten times.
+        prompt: marked(cycle ? `${q.prompt} (${i + 1})` : q.prompt),
+        options,
+        correctAnswer: q.correct,
+        // Written out in full, never a letter — the same contract the real
+        // provider is held to, so written grading has something to mark
+        // against here too.
+        expectedAnswer: q.options[q.correct],
+        difficulty: levels[i % levels.length],
+        explanation: q.explanation,
+        topic: d.topics[i % d.topics.length],
+      };
+    });
+
+    reportUsage(onUsage, mockUsage({ input: text, output: JSON.stringify(questions), language }));
+    return { title: ignoredNote(language, title ?? d.summaryTitle), questions };
+  },
+
   async generateFlashcards({ text, language = 'km', count = 12, onUsage } = {}) {
     const d = dict(language);
     const cards = Array.from({ length: Math.max(1, count) }, (_, i) => {

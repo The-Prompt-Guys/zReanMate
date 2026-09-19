@@ -170,6 +170,72 @@
  */
 
 // ---------------------------------------------------------------------------
+// Mock exams
+// ---------------------------------------------------------------------------
+
+/**
+ * One exam question.
+ *
+ * A superset of QuizQuestion, and deliberately not a separate shape: the client
+ * renders exam questions through the same screen as practice questions, so
+ * anything it has to special-case is a bug waiting to happen.
+ *
+ * `expectedAnswer` is the field that earns the separate method. A quiz question
+ * stores its answer as an index into `options`, which is all a multiple-choice
+ * screen needs — but an exam offers "write your answer", and marking free text
+ * against one option's wording is how a correct answer phrased differently gets
+ * marked wrong. So the model writes the answer out in full, once, and the same
+ * question serves both formats: options shown, or options hidden and the prose
+ * graded against this. Same reasoning as RecallCheck.answer above.
+ *
+ * @typedef  {Object}        MockExamQuestion
+ * @property {QuestionKind}  kind
+ * @property {string}        prompt
+ * @property {string[]}      options        4 for multiple_choice, 2 for
+ *                                          true_false, empty otherwise.
+ * @property {number|string} correctAnswer  0-based index into `options` for
+ *                                          choice questions; the expected text
+ *                                          otherwise.
+ * @property {string}        expectedAnswer The correct answer written out in
+ *                                          full, one or two sentences. NEVER
+ *                                          just "B" — it is what a written
+ *                                          response is graded against, and a
+ *                                          letter grades nothing.
+ * @property {'easy'|'medium'|'hard'} difficulty
+ * @property {string}        explanation    Why the right answer is right and
+ *                                          the others are wrong.
+ * @property {string}        topic          Topic label; feeds `topics`.
+ */
+
+/**
+ * @typedef  {Object}             MockExam
+ * @property {string}             title
+ * @property {MockExamQuestion[]} questions
+ */
+
+/**
+ * An exam is not a longer quiz, and the difference lives in the prompt rather
+ * than the shape: coverage spread across the whole document instead of
+ * clustering wherever the model found the most quotable lines, a deliberate
+ * difficulty mix rather than one flat level, and questions that test whether
+ * the student can use the material rather than whether they can recall one
+ * sentence of it.
+ *
+ * `count` is the size of the BANK, not of one sitting. The student picks 5, 10
+ * or 20 on the setup screen and the session is drawn from the bank, so the bank
+ * has to be larger than the largest sitting or the draw runs short — which is
+ * exactly the "Not enough generated questions" error this replaces.
+ *
+ * @typedef  {Object}   MockExamInput
+ * @property {string}   text
+ * @property {string}   [title]
+ * @property {Language} [language='km']
+ * @property {number}   [count=30]       Bank size.
+ * @property {'low'|'medium'|'high'} [reasoningEffort]
+ * @property {'batch'|'default'} [serviceTier='default']
+ */
+
+// ---------------------------------------------------------------------------
 // Flashcards
 // ---------------------------------------------------------------------------
 
@@ -491,6 +557,11 @@ export const createUsageCollector = () => {
  *
  * @property {(input: QuizInput) => Promise<Quiz>} generateQuiz
  *
+ * @property {(input: MockExamInput) => Promise<MockExam>} generateMockExam
+ *   A bank of exam questions for one source. Every question carries
+ *   `expectedAnswer` written out in full, so the same bank serves both the
+ *   multiple-choice and the written answer format.
+ *
  * @property {(input: FlashcardInput) => Promise<Flashcard[]>} generateFlashcards
  *
  * @property {(input: TutorInput) => AsyncGenerator<TutorChunk>} tutorReply
@@ -526,6 +597,7 @@ export const AI_METHODS = /** @type {const} */ ([
   'summarizeChapters',
   'generateStudyGuide',
   'generateQuiz',
+  'generateMockExam',
   'generateFlashcards',
   'tutorReply',
   'summarizeAttempt',

@@ -330,6 +330,47 @@ const QUIZ_SCHEMA = obj({
   },
 });
 
+const MOCK_EXAM_SCHEMA = obj({
+  title: { type: 'string' },
+  questions: {
+    type: 'array',
+    items: obj({
+      kind: {
+        type: 'string',
+        enum: ['multiple_choice', 'true_false', 'short_answer', 'written'],
+      },
+      prompt: { type: 'string' },
+      options: stringArray('4 for multiple_choice, 2 for true_false, empty otherwise.'),
+      correctIndex: {
+        type: ['integer', 'null'],
+        description: '0-based index into options for choice questions, else null.',
+      },
+      correctText: {
+        type: ['string', 'null'],
+        description: 'Expected answer for short_answer/written, else null.',
+      },
+      // The field that lets one bank serve both answer formats. Asked for on
+      // EVERY question, including multiple choice, because the student may sit
+      // the same bank with the options hidden.
+      expectedAnswer: {
+        type: 'string',
+        description:
+          'The correct answer written out in full, one or two sentences, as a student would ' +
+          'write it from memory. NEVER a letter, an option number, or a cross-reference: this ' +
+          'is what a typed answer is marked against, and "B" marks nothing.',
+      },
+      difficulty: { type: 'string', enum: ['easy', 'medium', 'hard'] },
+      explanation: {
+        type: 'string',
+        description:
+          'Why the correct answer is right AND why each distractor is wrong, grounded in the ' +
+          'document.',
+      },
+      topic: { type: 'string' },
+    }),
+  },
+});
+
 const FLASHCARDS_SCHEMA = obj({
   // The interface returns a bare Flashcard[], but strict json_schema requires an
   // object at the root — so the model returns {cards} and we unwrap it here.
@@ -768,6 +809,118 @@ export const createOpenAIProvider = ({
             targetedWeakConcept: weakTopics.includes(q.targetedWeakConcept)
               ? q.targetedWeakConcept
               : null,
+          };
+        }),
+      };
+    },
+
+    /**
+     * A bank of exam questions for one document.
+     *
+     * Not a longer quiz. The prompt asks for coverage spread across the whole
+     * document rather than clustered wherever the most quotable lines are, a
+     * deliberate difficulty mix rather than one flat level, and questions that
+     * test whether the student can USE the material.
+     *
+     * `count` is the bank, not one sitting — the student picks 5, 10 or 20 and
+     * the session is drawn from this, so it must be bigger than the biggest
+     * sitting.
+     */
+    async generateMockExam({
+      text,
+      title,
+      language = 'km',
+      count = 30,
+      reasoningEffort = 'medium',
+      serviceTier = 'default',
+      onUsage,
+    } = {}) {
+      // Stated as counts rather than percentages: a model given "30% hard"
+      // rounds it differently every run, and a bank that is silently 40% hard
+      // makes an exam nobody can finish.
+      const hard = Math.round(count * 0.25);
+      const easy = Math.round(count * 0.25);
+      const medium = count - hard - easy;
+
+      const result = await structured({
+        label: 'generateMockExam',
+        schemaName: 'mock_exam',
+        schema: MOCK_EXAM_SCHEMA,
+        language,
+        material: text,
+        serviceTier,
+        reasoningEffort,
+        onUsage,
+        prompt: [
+          `Write exactly ${count} exam questions about this material${title ? ` from "${title}"` : ''}.`,
+          'This is a mock exam, not a revision quiz. Write questions that test whether the',
+          'student can USE the material — apply a rule, compare two ideas, work out what',
+          'happens in a case the document did not state outright — rather than whether they',
+          'can recall one sentence of it.',
+          `Difficulty must be exactly ${easy} easy, ${medium} medium and ${hard} hard, and`,
+          'each question must set difficulty to its own level.',
+          'Spread the questions across the WHOLE document. Do not cluster them on the first',
+          'few pages or on whichever section happens to be the most quotable — a section the',
+          'exam never touches is a section the student will not revise.',
+          'Use only this document — not your own knowledge of the subject, and not any other',
+          'file it may refer to.',
+          'Do not ask about the filename, the class name, source labels, or the fact that a',
+          'document was supplied. Ask about concepts, definitions, procedures and examples',
+          'stated in the document itself.',
+          'For multiple choice use kind "multiple_choice" with exactly 4 options and one',
+          'correctIndex. For true/false use kind "true_false" with exactly 2 options ("True"',
+          'and "False") and correctIndex. For a question better answered in prose use kind',
+          '"short_answer" with an empty options array and correctText.',
+          'Distractors must be plausible to someone who half-understood the material, never',
+          'filler. Vary which position holds the correct option instead of writing the true',
+          'statement first every time. (The server reshuffles as well, so the four options',
+          'must read as a set in any order — never "all of the above", "both A and B", or an',
+          'option that refers to another by letter.)',
+          'EVERY question needs expectedAnswer: the correct answer written out in full, one',
+          'or two sentences, as a student would write it from memory. This applies to',
+          'multiple-choice questions too — the same exam can be sat with the options hidden,',
+          'and a typed answer is marked against this text. A letter or an option number there',
+          'makes the question ungradeable.',
+          'Every question needs a topic and an explanation saying why the right answer is',
+          'right and why the others are wrong, pointing at what the document actually says.',
+        ].join(' '),
+      });
+
+      return {
+        title: result.title,
+        questions: result.questions.map((q) => {
+          const isChoice = q.kind === 'multiple_choice' || q.kind === 'true_false';
+          const correctAnswer = isChoice ? q.correctIndex : q.correctText;
+
+          if (correctAnswer === null || correctAnswer === undefined) {
+            throw new Error(
+              `generateMockExam: question "${q.prompt}" of kind ${q.kind} has no usable answer`,
+            );
+          }
+          if (isChoice && (correctAnswer < 0 || correctAnswer >= q.options.length)) {
+            throw new Error(
+              `generateMockExam: correctIndex ${correctAnswer} is out of range for ` +
+                `${q.options.length} options on "${q.prompt}"`,
+            );
+          }
+          // An empty expectedAnswer passes strict json_schema — it is a string
+          // — and would then silently mark every written response wrong, which
+          // is the exact failure this field exists to prevent.
+          if (typeof q.expectedAnswer !== 'string' || !q.expectedAnswer.trim()) {
+            throw new Error(
+              `generateMockExam: question "${q.prompt}" has no expectedAnswer to mark against`,
+            );
+          }
+
+          return {
+            kind: q.kind,
+            prompt: q.prompt,
+            options: q.options,
+            correctAnswer,
+            expectedAnswer: q.expectedAnswer.trim(),
+            difficulty: q.difficulty,
+            explanation: q.explanation,
+            topic: q.topic,
           };
         }),
       };
