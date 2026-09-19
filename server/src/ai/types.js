@@ -170,120 +170,6 @@
  */
 
 // ---------------------------------------------------------------------------
-// Mock exams
-// ---------------------------------------------------------------------------
-
-/**
- * One exam question.
- *
- * A superset of QuizQuestion, and deliberately not a separate shape: the client
- * renders exam questions through the same screen as practice questions, so
- * anything it has to special-case is a bug waiting to happen.
- *
- * `expectedAnswer` is the field that earns the separate method. A quiz question
- * stores its answer as an index into `options`, which is all a multiple-choice
- * screen needs — but an exam offers "write your answer", and marking free text
- * against one option's wording is how a correct answer phrased differently gets
- * marked wrong. So the model writes the answer out in full, once, and the same
- * question serves both formats: options shown, or options hidden and the prose
- * graded against this. Same reasoning as RecallCheck.answer above.
- *
- * @typedef  {Object}        MockExamQuestion
- * @property {QuestionKind}  kind
- * @property {string}        prompt
- * @property {string[]}      options        4 for multiple_choice, 2 for
- *                                          true_false, empty otherwise.
- * @property {number|string} correctAnswer  0-based index into `options` for
- *                                          choice questions; the expected text
- *                                          otherwise.
- * @property {string}        expectedAnswer The correct answer written out in
- *                                          full, one or two sentences. NEVER
- *                                          just "B" — it is what a written
- *                                          response is graded against, and a
- *                                          letter grades nothing.
- * @property {'easy'|'medium'|'hard'} difficulty
- * @property {string}        explanation    Why the right answer is right and
- *                                          the others are wrong.
- * @property {string}        topic          Topic label; feeds `topics`.
- */
-
-/**
- * @typedef  {Object}             MockExam
- * @property {string}             title
- * @property {MockExamQuestion[]} questions
- */
-
-/**
- * An exam is not a longer quiz, and the difference lives in the prompt rather
- * than the shape: coverage spread across the whole document instead of
- * clustering wherever the model found the most quotable lines, a deliberate
- * difficulty mix rather than one flat level, and questions that test whether
- * the student can use the material rather than whether they can recall one
- * sentence of it.
- *
- * `count` is the size of the BANK, not of one sitting. The student picks 5, 10
- * or 20 on the setup screen and the session is drawn from the bank, so the bank
- * has to be larger than the largest sitting or the draw runs short — which is
- * exactly the "Not enough generated questions" error this replaces.
- *
- * @typedef  {Object}   MockExamInput
- * @property {string}   text
- * @property {string}   [title]
- * @property {Language} [language='km']
- * @property {number}   [count=30]       Bank size.
- * @property {'low'|'medium'|'high'} [reasoningEffort]
- * @property {'batch'|'default'} [serviceTier='default']
- */
-
-// ---------------------------------------------------------------------------
-// Grading written answers
-// ---------------------------------------------------------------------------
-
-/**
- * One free-text answer waiting to be marked.
- *
- * `expectedAnswer` is prose, not an option letter — see MockExamQuestion. The
- * grader compares two pieces of writing, which is the whole reason this cannot
- * be done in SQL: the existing string-equality check marks a student wrong for
- * saying the right thing in different words, and does not normalise Khmer at
- * all.
- *
- * @typedef  {Object} WrittenAnswer
- * @property {string} prompt          The question, for context.
- * @property {string} expectedAnswer  What a correct answer must convey.
- * @property {string} response        What the student actually wrote.
- */
-
-/**
- * A mark and its reason.
- *
- * `note` is shown to the student. A wrong mark on free text is not
- * self-evident the way a wrong multiple-choice answer is — they can see they
- * wrote something reasonable — so without a reason the score just looks broken.
- *
- * @typedef  {Object}  WrittenGrade
- * @property {boolean} isCorrect  Whether the response conveys the expected
- *                                answer. Wording, spelling and word order do
- *                                not matter; meaning does.
- * @property {string}  note       One short line, in the student's language,
- *                                saying what was right or what was missing.
- */
-
-/**
- * Batched on purpose, exactly like `embed`.
- *
- * A whole exam is marked in ONE call at submit, not one call per answer as the
- * student types. That is a fraction of the cost, and it means nobody waits on
- * the model mid-exam. `practice_answers.is_correct` is nullable so an answer
- * can be stored unmarked until then.
- *
- * @typedef  {Object}          GradeWrittenInput
- * @property {WrittenAnswer[]} answers        Marked in order; one grade back
- *                                            per entry, same order.
- * @property {Language}        [language='km'] Language for `note`.
- */
-
-// ---------------------------------------------------------------------------
 // Flashcards
 // ---------------------------------------------------------------------------
 
@@ -605,15 +491,6 @@ export const createUsageCollector = () => {
  *
  * @property {(input: QuizInput) => Promise<Quiz>} generateQuiz
  *
- * @property {(input: MockExamInput) => Promise<MockExam>} generateMockExam
- *   A bank of exam questions for one source. Every question carries
- *   `expectedAnswer` written out in full, so the same bank serves both the
- *   multiple-choice and the written answer format.
- *
- * @property {(input: GradeWrittenInput) => Promise<WrittenGrade[]>} gradeWrittenAnswers
- *   Marks free-text answers on meaning rather than wording. Batched — one call
- *   per exam, not per answer. Must preserve input order.
- *
  * @property {(input: FlashcardInput) => Promise<Flashcard[]>} generateFlashcards
  *
  * @property {(input: TutorInput) => AsyncGenerator<TutorChunk>} tutorReply
@@ -649,8 +526,6 @@ export const AI_METHODS = /** @type {const} */ ([
   'summarizeChapters',
   'generateStudyGuide',
   'generateQuiz',
-  'generateMockExam',
-  'gradeWrittenAnswers',
   'generateFlashcards',
   'tutorReply',
   'summarizeAttempt',

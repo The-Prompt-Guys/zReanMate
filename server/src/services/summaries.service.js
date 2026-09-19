@@ -26,24 +26,11 @@ const enqueueOnce = (type, payload) => {
   jobQueue.enqueue(type, payload);
 };
 
-/**
- * `provider` is part of the identity, not decoration.
- *
- * Without it, content written by the mock provider and content written by the
- * real one compete for the same cache row, and whichever got there first wins
- * forever — which is how a live OPENAI_API_KEY kept serving the mock's canned
- * database questions to students who had uploaded something else entirely.
- *
- * It defaults to the active provider rather than being required at every call
- * site, because there is exactly one right answer and making each caller repeat
- * it is how they drift apart.
- */
-export const summaryCacheKey = ({ sourceId, method, params, provider = getAI().name }) => {
+export const summaryCacheKey = ({ sourceId, method, params }) => {
   const canonicalParams = JSON.stringify(canonicalize(params));
   return {
     sourceId,
     method,
-    provider,
     params: JSON.parse(canonicalParams),
     paramsHash: createHash('sha256').update(canonicalParams).digest('hex'),
   };

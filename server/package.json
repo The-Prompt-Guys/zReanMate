@@ -16,7 +16,6 @@
     "verify:photo-ingest": "node scripts/verify-photo-ingest.mjs",
     "verify:document-ingest": "node scripts/verify-document-ingest.mjs",
     "check:provider": "node scripts/check-provider.mjs",
-    "purge:mock-generations": "node scripts/purge-mock-generations.mjs",
     "check:youtube": "node scripts/check-youtube.mjs",
     "measure:khmer-ratio": "node scripts/measure-khmer-ratio.mjs"
   },
