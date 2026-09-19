@@ -1,6 +1,8 @@
 import { getAI } from '../ai/index.js';
+import { mockExamDb } from '../db/mockExam.db.js';
 import { practiceDb } from '../db/practice.db.js';
 import { ApiError } from '../middleware/errors.js';
+import { mockExamService } from './mockExam.service.js';
 import { plansService } from './plans.service.js';
 
 export const topicWeight = (mastery) => 1 + 4 * ((100 - (mastery ?? 35)) / 100) ** 2;
@@ -44,6 +46,54 @@ const streakFor = (values) => {
   return streak;
 };
 
+/**
+ * Picks the questions for one sitting out of the exam bank.
+ *
+ * Returns null when there is no bank, which is the signal to fall back — a
+ * source ingested before banks existed has none, and an exam that refuses to
+ * start is worse than one drawn from the quiz pool.
+ *
+ * Shuffled rather than mastery-weighted, and that difference is the point. A
+ * practice session leans on what the student is worst at; an exam samples the
+ * document evenly, because an exam that quietly avoided the parts you already
+ * know would not tell you whether you are ready.
+ *
+ * `weight` is 0 on every row: the column records the mastery weight a question
+ * was chosen for, and these were not chosen for one.
+ */
+const examDraw = async ({ userId, input, sourceId, provider }) => {
+  void provider;
+  const bank = await mockExamDb.bankQuestions({ userId, kitId: input.studyKitId, sourceId });
+  if (bank.length < input.questionCount) return null;
+
+  const shuffled = [...bank];
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.map((row) => ({
+    id: null,
+    topic_id: row.topic_id,
+    prompt: row.prompt,
+    options: row.options,
+    correct_answer: row.correct_answer,
+    // What a typed answer is marked against. A quiz question has only an index
+    // into its options, which is why written answers have been graded by
+    // string-matching one option's wording.
+    expected_answer: row.expected_answer,
+    explanation: row.explanation,
+    weight: 0,
+  }));
+};
+
+const finishCreate = (result, input, weeklyLimit) => {
+  void weeklyLimit;
+  if (result.missing) throw ApiError.notFound('That study kit does not exist');
+  if (result.quotaExceeded) throw new ApiError(429, 'quota_exceeded', 'Weekly practice limit reached', { used: result.used, limit: result.limit });
+  if (result.insufficient) throw ApiError.conflict('Not enough generated questions for those settings', { available: result.available, requested: input.questionCount });
+  return { session: sessionApi(result.session), quota: result.limit === null ? null : { used: result.used + 1, limit: result.limit, remaining: Math.max(0, result.limit - result.used - 1) } };
+};
+
 export const practiceService = {
   async topics(userId, q, sourceId = null) {
     const rows = await practiceDb.topics({ userId, q, sourceId });
@@ -60,6 +110,27 @@ export const practiceService = {
     // active — see practiceDb.candidateQuestions. They describe a database
     // whatever the student uploaded.
     const provider = getAI().name;
+
+    // `mode` is finally read. It was written to the row and never looked at
+    // again, which is why a mock exam and a practice session asked the same
+    // questions out of the same pool.
+    if (input.mode === 'mock_exam') {
+      const drawn = await examDraw({ userId, input, sourceId, provider });
+      if (drawn) {
+        return finishCreate(await practiceDb.create({
+          userId, input, weeklyLimit, weightedOrder: drawn,
+        }), input, weeklyLimit);
+      }
+      // No bank yet — a source ingested before exam banks existed. Queue one
+      // for next time and fall through to the quiz pool rather than making the
+      // student wait on a screen that has never had a loading state.
+      if (sourceId) {
+        mockExamService
+          .ensure(sourceId)
+          .catch((err) => console.error(`[practice] exam bank backfill failed: ${err.message}`));
+      }
+    }
+
     let candidates = await practiceDb.candidateQuestions({ userId, kitId: input.studyKitId, topicIds: input.topicIds, sourceId, provider });
     if (input.topicIds.length > 0 && candidates.length < input.questionCount) {
       // Topping up ignores the chosen topics but keeps the source filter — the
@@ -69,12 +140,12 @@ export const practiceService = {
       const seen = new Set(candidates.map((item) => item.id));
       candidates = [...candidates, ...all.filter((item) => !seen.has(item.id))];
     }
-    const result = await practiceDb.create({ userId, input, weeklyLimit,
-      weightedOrder: weightedWithoutReplacement(candidates) });
-    if (result.missing) throw ApiError.notFound('That study kit does not exist');
-    if (result.quotaExceeded) throw new ApiError(429, 'quota_exceeded', 'Weekly practice limit reached', { used: result.used, limit: result.limit });
-    if (result.insufficient) throw ApiError.conflict('Not enough generated questions for those settings', { available: result.available, requested: input.questionCount });
-    return { session: sessionApi(result.session), quota: result.limit === null ? null : { used: result.used + 1, limit: result.limit, remaining: Math.max(0, result.limit - result.used - 1) } };
+    return finishCreate(
+      await practiceDb.create({ userId, input, weeklyLimit,
+        weightedOrder: weightedWithoutReplacement(candidates) }),
+      input,
+      weeklyLimit,
+    );
   },
 
   async get(userId, sessionId) {

@@ -643,12 +643,16 @@ export const createMockProvider = () => ({
     const questions = Array.from({ length: Math.max(1, count) }, (_, i) => {
       const q = d.questions[i % d.questions.length];
       const cycle = Math.floor(i / d.questions.length);
-      const isChoice = q.options.length > 1;
-      const options = isChoice
-        ? (q.options.length === 4 ? q.options : [...q.options, 'Neither', 'Both'].slice(0, 4))
-        : [];
+      // A true/false fixture keeps its two options. Padding it to four — which
+      // the quiz path does, because there the kind is chosen by the caller
+      // rather than read off the fixture — produces a question labelled
+      // true_false carrying four options, which validation rejects outright.
+      const isTrueFalse = q.options.length === 2;
+      const options = isTrueFalse
+        ? q.options
+        : (q.options.length === 4 ? q.options : [...q.options, 'Neither', 'Both'].slice(0, 4));
       return {
-        kind: q.options.length === 2 ? 'true_false' : 'multiple_choice',
+        kind: isTrueFalse ? 'true_false' : 'multiple_choice',
         // Numbered from 1 across the whole bank, so 30 questions are 30
         // distinct prompts rather than the same three repeated ten times.
         prompt: marked(cycle ? `${q.prompt} (${i + 1})` : q.prompt),

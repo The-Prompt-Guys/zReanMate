@@ -48,13 +48,20 @@ export const practiceDb = {
         const options = input.answerFormat === 'written' ? [] : item.options;
         const correct = input.answerFormat === 'written' && typeof item.correct_answer === 'number'
           ? item.options[item.correct_answer] : item.correct_answer;
+        // Carried from mock_exam_questions.expected_answer — the correct answer
+        // in full prose, which is what a typed response can actually be marked
+        // against. Null for a question drawn from the quiz pool: those store
+        // only an index into their options, so `correct` above is one option's
+        // wording and grading against it is the string-match problem this
+        // column exists to replace.
         await client.query(
           `INSERT INTO practice_session_questions
              (session_id, question_id, topic_id, position, prompt, options,
-              correct_answer, explanation, weight_at_select)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+              correct_answer, expected_answer, explanation, weight_at_select)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [session.id, item.id, item.topic_id, index + 1, item.prompt,
-            JSON.stringify(options), JSON.stringify(correct), item.explanation, item.weight],
+            JSON.stringify(options), JSON.stringify(correct), item.expected_answer ?? null,
+            item.explanation, item.weight],
         );
       }
       return { session, used, limit: weeklyLimit };

@@ -19,6 +19,7 @@ import { absoluteUploadPath } from '../middleware/upload.js';
 import { detectCostLanguage, trackGeneration } from './aiUsage.service.js';
 import { flashcardsService } from './flashcards.service.js';
 import { quizService } from './quiz.service.js';
+import { mockExamService } from './mockExam.service.js';
 import { summariesService } from './summaries.service.js';
 import { studyGuideService } from './studyGuide.service.js';
 
@@ -61,6 +62,13 @@ const STUDY_MATERIALS = [
   {
     percent: 80,
     run: ({ sourceId, userId, language }) => quizService.prewarm(userId, sourceId, { language }),
+  },
+  // Generated up front for the same reason as everything else here: the exam
+  // setup screen has never had a "generating..." wait, and adding one to pay
+  // for a bank the student may not sit is a worse trade than generating it now.
+  {
+    percent: 85,
+    run: ({ sourceId, language }) => mockExamService.prewarm(sourceId, { language }),
   },
   {
     percent: 90,
