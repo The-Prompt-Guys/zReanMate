@@ -31,7 +31,15 @@ export const PracticeHomePage = () => {
   return (
     <main>
       <NavyHeader className="flex items-start justify-between">
-        <div><h1 className="text-3xl font-bold">{t('practice.title')}</h1><p className="text-white/75">{t('practice.subtitle')}</p></div>
+        <div className="flex gap-3">
+          {/* Practice is opened from other screens with no bottom tab of its
+              own (see AppLayout's immersive check), so without this arrow
+              there is no way back out of the hub. */}
+          <Link to="/" aria-label={t('common.back')} className="mt-1 shrink-0">
+            <svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </Link>
+          <div><h1 className="text-3xl font-bold">{t('practice.title')}</h1><p className="text-white/75">{t('practice.subtitle')}</p></div>
+        </div>
         <Owl variant="default" className="size-20" />
       </NavyHeader>
       <div className="space-y-6 px-5 pt-5">
